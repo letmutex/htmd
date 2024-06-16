@@ -8,7 +8,7 @@ An HTML to Markdown converter for Rust, inspired by [turndown.js](https://github
 - Passed [all test cases](https://github.com/mixmark-io/turndown/blob/master/test/index.html) of turndown.js
 - Minimum dependencies, it uses only [html5ever](https://github.com/servo/html5ever)
 
-# Get Started
+# Usages
 
 Add the dependency
 
@@ -16,7 +16,7 @@ Add the dependency
 htmd = { git = "https://github.com/letmutex/htmd" }
 ```
 
-Use the converter
+### Basic
 
 ```rust
 use htmd::HtmlToMarkdown;
@@ -25,8 +25,6 @@ fn main() {
     assert_eq!("# Heading", HtmlToMarkdown::new().convert("<h1>Heading</h1>").unwrap());
 }
 ```
-
-# Advanced Usages
 
 ### Skip tags
 
