@@ -14,7 +14,7 @@ An HTML to Markdown converter for Rust, inspired by [turndown.js](https://github
 Add the dependency
 
 ```toml
-htmd = { git = "https://github.com/letmutex/htmd" }
+htmd = "0.1"
 ```
 
 ### Basic
