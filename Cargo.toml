@@ -2,6 +2,14 @@
 name = "htmd"
 version = "0.1.0"
 edition = "2021"
+authors = ["letmutex"]
+description = "A turndown.js inspired HTML to Markdown converter."
+license = "Apache-2.0"
+repository = "https://github.com/letmutex/htmd"
+homepage = "https://github.com/letmutex/htmd"
+keywords = ["html", "markdown", "converter"]
+categories = ["text-processing", "parsing"]
+readme = "README.md"
 
 [dependencies]
 html5ever = "0.27"
