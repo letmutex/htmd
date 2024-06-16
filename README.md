@@ -5,7 +5,7 @@ An HTML to Markdown converter for Rust, inspired by [turndown.js](https://github
 ### Features
 
 - Rich options, same as turndown.js
-- Passed [all test cases](https://github.com/mixmark-io/turndown/blob/master/test/index.html) of turndown.js
+- Reliable, it passes [all test cases](https://github.com/mixmark-io/turndown/blob/master/test/index.html) of turndown.js
 - Minimum dependencies, it uses only [html5ever](https://github.com/servo/html5ever)
 - Fast, it takes less than 200ms to convert a ~1.4MB Wikipedia page on an i5 7th gen CPU
 
