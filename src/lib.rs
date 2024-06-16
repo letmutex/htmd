@@ -37,7 +37,7 @@ pub struct Element<'a> {
 /// let md = HtmlToMarkdown::new().convert("<h1>Hello</h1>").unwrap();
 /// assert_eq!("# Hello", md);
 ///
-/// // Or use a builder
+/// // Or use the builder pattern
 /// let converter = HtmlToMarkdown::builder()
 ///     .skip_tags(vec!["img"])
 ///     .build();
