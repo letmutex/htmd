@@ -1,0 +1,11 @@
+[package]
+name = "htmd"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+html5ever = "0.27"
+markup5ever_rcdom = "0.3.0"
+
+[dev-dependencies]
+scraper = "0.19.0"
