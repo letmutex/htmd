@@ -1,5 +1,7 @@
 # HTMD
 
+[![crates.io version](https://img.shields.io/crates/v/htmd)](https://crates.io/crates/htmd)
+
 An HTML to Markdown converter for Rust, inspired by [turndown.js](https://github.com/mixmark-io/turndown).
 
 ### Features
