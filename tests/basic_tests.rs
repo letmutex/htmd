@@ -174,3 +174,10 @@ fn with_custom_rules() {
         .unwrap();
     assert_eq!("", &md);
 }
+
+#[test]
+fn upper_case_tags() {
+    let html = r#"<H1>Hello</H1> <P>World</P>"#;
+    let md = HtmlToMarkdown::new().convert(html).unwrap();
+    assert_eq!("# Hello\n\nWorld", &md);
+}
