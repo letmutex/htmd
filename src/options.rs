@@ -1,4 +1,5 @@
 /// The HTML to Markdown converting options.
+#[derive(Debug)]
 pub struct Options {
     pub heading_style: HeadingStyle,
     pub hr_style: HrStyle,
@@ -28,13 +29,13 @@ impl Default for Options {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum HeadingStyle {
     Atx,
     Setex,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum HrStyle {
     /// `- - -`
     Dashes,
@@ -44,19 +45,19 @@ pub enum HrStyle {
     Underscores,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum BrStyle {
     TwoSpaces,
     Backslash,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum CodeBlockStyle {
     Indented,
     Fenced,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum CodeBlockFence {
     /// Wrap code with `~~~`
     Tildes,
@@ -64,7 +65,7 @@ pub enum CodeBlockFence {
     Backticks,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum BulletListMarker {
     /// List items will start with `*`
     Asterisk,
@@ -72,13 +73,13 @@ pub enum BulletListMarker {
     Dash,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum LinkStyle {
     Inlined,
     Referenced,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum LinkReferenceStyle {
     Full,
     Collapsed,
