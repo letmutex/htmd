@@ -1,4 +1,4 @@
-# HTMD
+# htmd
 
 [![crates.io version](https://img.shields.io/crates/v/htmd)](https://crates.io/crates/htmd)
 
