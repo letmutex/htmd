@@ -45,6 +45,10 @@ pub(crate) struct HandlerRule {
     pub(crate) handler: Box<dyn ElementHandler>,
 }
 
+unsafe impl Send for HandlerRule {}
+
+unsafe impl Sync for HandlerRule {}
+
 impl<F> ElementHandler for F
 where
     F: Fn(Element) -> Option<String>,

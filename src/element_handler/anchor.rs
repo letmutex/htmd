@@ -10,19 +10,25 @@ use crate::{
 
 use super::ElementHandler;
 
-pub(super) struct AnchorElementHandler {
-    links: RefCell<Vec<String>>,
+pub(super) struct AnchorElementHandler {}
+
+impl AnchorElementHandler {
+    thread_local! {
+        static LINKS: RefCell<Vec<String>> = RefCell::new(vec![]);
+    }
 }
 
 impl ElementHandler for AnchorElementHandler {
     fn append(&self) -> Option<String> {
-        let mut links = self.links.borrow_mut();
-        if links.is_empty() {
-            return None;
-        }
-        let result = format!("\n\n{}\n\n", links.join("\n"));
-        links.clear();
-        Some(result)
+        AnchorElementHandler::LINKS.with(|links| {
+            let mut links = links.borrow_mut();
+            if links.is_empty() {
+                return None;
+            }
+            let result = format!("\n\n{}\n\n", links.join("\n"));
+            links.clear();
+            Some(result)
+        })
     }
 
     fn on_visit(
@@ -73,9 +79,7 @@ impl ElementHandler for AnchorElementHandler {
 
 impl AnchorElementHandler {
     pub(super) fn new() -> Self {
-        Self {
-            links: RefCell::new(vec![]),
-        }
+        Self {}
     }
 
     fn build_inlined_anchor(&self, content: String, link: String, title: Option<String>) -> String {
@@ -97,23 +101,25 @@ impl AnchorElementHandler {
         link: String,
         style: &LinkReferenceStyle,
     ) -> String {
-        let (current, append) = match style {
-            LinkReferenceStyle::Full => {
-                let index = self.links.borrow().len() + 1;
-                (
-                    format!("[{}][{}]", content, index),
-                    format!("[{}]: {}", index, link),
-                )
-            }
-            LinkReferenceStyle::Collapsed => (
-                format!("[{}][]", content),
-                format!("[{}]: {}", content, link),
-            ),
-            LinkReferenceStyle::Shortcut => {
-                (format!("[{}]", content), format!("[{}]: {}", content, link))
-            }
-        };
-        self.links.borrow_mut().push(append);
-        current
+        AnchorElementHandler::LINKS.with(|links| {
+            let (current, append) = match style {
+                LinkReferenceStyle::Full => {
+                    let index = links.borrow().len() + 1;
+                    (
+                        format!("[{}][{}]", content, index),
+                        format!("[{}]: {}", index, link),
+                    )
+                }
+                LinkReferenceStyle::Collapsed => (
+                    format!("[{}][]", content),
+                    format!("[{}]: {}", content, link),
+                ),
+                LinkReferenceStyle::Shortcut => {
+                    (format!("[{}]", content), format!("[{}]: {}", content, link))
+                }
+            };
+            links.borrow_mut().push(append);
+            current
+        })
     }
 }
