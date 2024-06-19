@@ -65,6 +65,23 @@ let converter = HtmlToMarkdown::builder()
 assert_eq!("[Svg Image]", converter.convert("<svg></svg>").unwrap());
 ```
 
+### Multithreading
+
+You can safely share `HtmlToMarkdown` between multiple threads when only using built-in tag handlers.
+
+```rust
+let converter = Arc::new(HtmlToMarkdown::new());
+
+for _ in 0..10 {
+    let converter_clone = converter.clone();
+    let handle = std::thread::spawn(move || {
+        let md = converter_clone.convert("<h1>Hello</h1>").unwrap();
+    });
+}
+```
+
+If you have custom tag handlers that are not stateless, you likely need a thread-safe mechanism. See [AnchorElementHandler](./src/element_handler/anchor.rs) for example.
+
 # Credits
 
 - [turndown.js](https://github.com/mixmark-io/turndown)
