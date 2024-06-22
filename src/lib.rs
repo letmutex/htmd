@@ -13,6 +13,20 @@ use html5ever::{parse_document, Attribute};
 use markup5ever_rcdom::{Node, RcDom};
 use options::Options;
 
+/// Convert HTML to Markdown.
+///
+/// Example:
+///
+/// ```
+/// use htmd::convert;
+///
+/// let md = convert("<h1>Hello</h1>").unwrap();
+/// assert_eq!("# Hello", md);
+/// ```
+pub fn convert(html: &str) -> Result<String, std::io::Error> {
+    HtmlToMarkdown::new().convert(html)
+}
+
 /// The DOM element.
 pub struct Element<'a> {
     /// The html5ever node of the element.
