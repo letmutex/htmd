@@ -11,6 +11,8 @@ An HTML to Markdown converter for Rust, inspired by [turndown.js](https://github
 - Minimum dependencies, it uses only [html5ever](https://github.com/servo/html5ever)
 - Fast, it takes less than 200ms to convert a ~1.4MB Wikipedia page on an i5 7th gen CPU
 
+*Looking for the cli tool? Try [htmd-cli](https://github.com/letmutex/htmd) now!*
+
 # Usages
 
 Add the dependency
