@@ -24,10 +24,8 @@ htmd = "0.1"
 ### Basic
 
 ```rust
-use htmd::HtmlToMarkdown;
-
 fn main() {
-    assert_eq!("# Heading", HtmlToMarkdown::new().convert("<h1>Heading</h1>").unwrap());
+    assert_eq!("# Heading", htmd::convert("<h1>Heading</h1>").unwrap());
 }
 ```
 
