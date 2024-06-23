@@ -140,19 +140,19 @@ fn visit_element(
 fn join_contents(contents: &[String]) -> String {
     let mut result = String::new();
     for content in contents {
-        let content_len = content.chars().count();
+        let content_len = content.len();
         if content_len == 0 {
             continue;
         }
 
-        let result_len = result.chars().count();
+        let result_len = result.len();
 
         let left = result.trim_end_matches(|ch| ch == '\n');
         let right = content.trim_start_matches(|ch| ch == '\n');
 
         let max_trimmed_new_lines = std::cmp::max(
-            result_len - left.chars().count(),
-            content_len - right.chars().count(),
+            result_len - left.len(),
+            content_len - right.len(),
         );
         let separator_new_lines = std::cmp::min(max_trimmed_new_lines, 2);
         let separator = "\n".repeat(separator_new_lines);
