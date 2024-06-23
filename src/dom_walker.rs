@@ -157,7 +157,12 @@ fn join_contents(contents: &[String]) -> String {
         let separator_new_lines = std::cmp::min(max_trimmed_new_lines, 2);
         let separator = "\n".repeat(separator_new_lines);
 
-        result = format!("{}{}{}", left, separator, right);
+        let mut next_result = String::with_capacity(left.len() + separator.len() + right.len());
+        next_result.push_str(&left);
+        next_result.push_str(&separator);
+        next_result.push_str(right);
+
+        result = next_result;
     }
     result
 }
@@ -249,20 +254,21 @@ fn escape_if_needed(text: String) -> String {
         return escaped;
     };
     match first {
-        '=' | '~' | '>' => format!("\\{}", escaped),
+        '=' | '~' | '>' => {
+            escaped.insert(0, '\\');
+            escaped
+        }
         '-' | '+' => {
             if escaped.chars().nth(1).is_some_and(|ch| ch == ' ') {
-                format!("\\{}", escaped)
-            } else {
-                escaped
+                escaped.insert(0, '\\');
             }
+            escaped
         }
         '#' => {
             if is_markdown_atx_heading(&escaped) {
-                format!("\\{}", escaped)
-            } else {
-                escaped
+                escaped.insert(0, '\\');
             }
+            escaped
         }
         '0'..='9' => {
             if let Some(dot_idx) = index_of_markdown_ordered_item_dot(&escaped) {
@@ -282,7 +288,11 @@ fn escape_pre_text_if_needed(text: String) -> String {
         return text;
     };
     match first {
-        '`' | '~' => format!("\\{}", text),
+        '`' | '~' => {
+            let mut text = text;
+            text.insert(0, '\\');
+            text
+        }
         _ => text,
     }
 }
