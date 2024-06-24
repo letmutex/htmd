@@ -82,6 +82,7 @@ impl AnchorElementHandler {
     }
 
     fn build_inlined_anchor(&self, content: String, link: String, title: Option<String>) -> String {
+        let has_spaces_in_link = link.contains(' ');
         let (content, leading_whitespace) = content.strip_leading_whitespace();
         let (content, trailing_whitespace) = content.strip_trailing_whitespace();
         concat_strings!(
@@ -89,10 +90,12 @@ impl AnchorElementHandler {
             "[",
             content,
             "](",
+            if has_spaces_in_link { "<" } else { "" },
             link,
             title
                 .as_ref()
                 .map_or(String::new(), |t| concat_strings!(" \"", t, "\"")),
+            if has_spaces_in_link { ">" } else { "" },
             ")",
             trailing_whitespace.unwrap_or("")
         )

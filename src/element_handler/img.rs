@@ -39,14 +39,18 @@ pub(super) fn img_handler(element: Element) -> Option<String> {
 
     let link = link.map(|text| text.replace("(", "\\(").replace(")", "\\)"));
 
+    let has_spaces_in_link = link.as_ref().is_some_and(|link| link.contains(' '));
+
     let md = concat_strings!(
         "![",
         alt.as_ref().unwrap_or(&String::new()),
         "](",
+        if has_spaces_in_link { "<" } else { "" },
         link.as_ref().unwrap_or(&String::new()),
         title
             .as_ref()
             .map_or(String::new(), |t| concat_strings!(" \"", t, "\"")),
+        if has_spaces_in_link { ">" } else { "" },
         ")"
     );
     Some(md)

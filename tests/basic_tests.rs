@@ -19,6 +19,15 @@ fn links() {
 }
 
 #[test]
+fn links_with_spaces() {
+    let html = r#"
+        <a href="https://example.com/Some Page.html">Example</a>
+        "#;
+    let md = HtmlToMarkdown::new().convert(html).unwrap();
+    assert_eq!("[Example](<https://example.com/Some Page.html>)", &md)
+}
+
+#[test]
 fn images() {
     let html = r#"
         <img src="https://example.com" />
@@ -29,6 +38,18 @@ fn images() {
     assert_eq!(
         "![](https://example.com)![Image 1](https://example.com)\
             ![Image 2](https://example.com \"Hello\")",
+        &md
+    )
+}
+
+#[test]
+fn images_with_spaces_in_url() {
+    let html = r#"
+        <img src="https://example.com/Some Image.jpg" />
+        "#;
+    let md = HtmlToMarkdown::new().convert(html).unwrap();
+    assert_eq!(
+        "![](<https://example.com/Some Image.jpg>)",
         &md
     )
 }
