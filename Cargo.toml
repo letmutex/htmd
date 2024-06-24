@@ -17,3 +17,8 @@ markup5ever_rcdom = "0.3.0"
 
 [dev-dependencies]
 scraper = "0.19.0"
+criterion = { version = "0.4", features = ["html_reports"] }
+
+[[bench]]
+name = "convert_bench"
+harness = false
