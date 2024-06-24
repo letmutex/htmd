@@ -14,7 +14,7 @@ use super::{
 
 pub(crate) fn walk_node(
     node: &Rc<Node>,
-    parent_tag: Option<&String>,
+    parent_tag: Option<&str>,
     buffer: &mut Vec<String>,
     handler: &Box<&dyn ElementHandler>,
     options: &Options,
@@ -64,7 +64,7 @@ pub(crate) fn walk_node(
 
 fn append_text(
     buffer: &mut Vec<String>,
-    parent_tag: Option<&String>,
+    parent_tag: Option<&str>,
     text: String,
     is_pre: bool,
     trim_leading_spaces: bool,
@@ -191,7 +191,7 @@ fn walk_children(
 
         walk_node(
             child,
-            tag.as_ref(),
+            tag,
             buffer,
             handler,
             options,

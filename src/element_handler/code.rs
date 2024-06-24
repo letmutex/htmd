@@ -1,12 +1,15 @@
 use crate::{
-    node_util::get_parent_node_tag_name,
+    node_util::{get_node_tag_name, get_parent_node},
     options::{CodeBlockFence, CodeBlockStyle},
     text_util::{concat_strings, JoinOnStringIterator, TrimAsciiWhitespace},
     Element,
 };
 
 pub(super) fn code_handler(element: Element) -> Option<String> {
-    let is_code_block = get_parent_node_tag_name(&element.node).is_some_and(|t| &t == "pre");
+    let parent_node = get_parent_node(&element.node);
+    let is_code_block = parent_node
+        .map(|parent| get_node_tag_name(&parent).is_some_and(|t| t == "pre"))
+        .unwrap_or(false);
     if is_code_block {
         handle_code_block(element)
     } else {
