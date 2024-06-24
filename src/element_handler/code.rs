@@ -1,7 +1,7 @@
 use crate::{
     node_util::get_parent_node_tag_name,
     options::{CodeBlockFence, CodeBlockStyle},
-    text_util::TrimAsciiWhitespace,
+    text_util::{concat_strings, JoinOnStringIterator, TrimAsciiWhitespace},
     Element,
 };
 
@@ -32,7 +32,7 @@ fn handle_code_block(element: Element) -> Option<String> {
                     .to_string()
                     .split(" ")
                     .find(|cls| cls.starts_with("language-"))
-                    .map(|lang| lang.split("-").skip(1).collect::<Vec<&str>>().join("-"))
+                    .map(|lang| lang.split("-").skip(1).join("-"))
             })
             .unwrap_or(None);
         let mut result = String::from(&fence);
@@ -47,8 +47,7 @@ fn handle_code_block(element: Element) -> Option<String> {
     } else {
         let code = content
             .lines()
-            .map(|line| format!("    {}", line))
-            .collect::<Vec<String>>()
+            .map(|line| concat_strings!("    ", line))
             .join("\n");
         Some(code)
     }
@@ -96,12 +95,12 @@ fn handle_inline_code(element: Element) -> Option<String> {
     };
     if use_double_backticks {
         if surround_with_spaces {
-            Some(format!("`` {} ``", content))
+            Some(concat_strings!("`` ", content, " ``"))
         } else {
-            Some(format!("``{}``", content))
+            Some(concat_strings!("``", content, "``"))
         }
     } else {
-        Some(format!("`{}`", content))
+        Some(concat_strings!("`", content, "`"))
     }
 }
 

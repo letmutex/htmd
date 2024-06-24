@@ -1,7 +1,7 @@
 use crate::{
     node_util::get_node_tag_name,
     options::BulletListMarker,
-    text_util::{indent_text_except_first_line, TrimAsciiWhitespace},
+    text_util::{concat_strings, indent_text_except_first_line, TrimAsciiWhitespace},
     Element,
 };
 use markup5ever_rcdom::NodeData;
@@ -17,10 +17,18 @@ pub(super) fn list_item_handler(element: Element) -> Option<String> {
         } else {
             "-"
         };
-        Some(format!("\n{}   {}\n", marker, content))
+        Some(concat_strings!("\n", marker, "   ", content, "\n"))
     };
 
-    let ol_li = |index: usize| Some(format!("\n{}.  {}\n", index, content));
+    let ol_li = |index: usize| {
+        Some(concat_strings!(
+            "\n",
+            index.to_string(),
+            ".  ",
+            content,
+            "\n"
+        ))
+    };
 
     let parent_value = element.node.parent.take();
 

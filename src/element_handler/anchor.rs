@@ -5,7 +5,7 @@ use markup5ever_rcdom::Node;
 
 use crate::{
     options::{LinkReferenceStyle, LinkStyle, Options},
-    text_util::{StripWhitespace, TrimAsciiWhitespace},
+    text_util::{concat_strings, JoinOnStringIterator, StripWhitespace, TrimAsciiWhitespace},
 };
 
 use super::ElementHandler;
@@ -25,7 +25,7 @@ impl ElementHandler for AnchorElementHandler {
             if links.is_empty() {
                 return None;
             }
-            let result = format!("\n\n{}\n\n", links.join("\n"));
+            let result = concat_strings!("\n\n", links.join("\n"), "\n\n");
             links.clear();
             Some(result)
         })
@@ -58,7 +58,6 @@ impl ElementHandler for AnchorElementHandler {
             text.lines()
                 .map(|line| line.trim_ascii_whitespace().replace("\"", "\\\""))
                 .filter(|line| !line.is_empty())
-                .collect::<Vec<String>>()
                 .join("\n")
         };
 
@@ -85,13 +84,17 @@ impl AnchorElementHandler {
     fn build_inlined_anchor(&self, content: String, link: String, title: Option<String>) -> String {
         let (content, leading_whitespace) = content.strip_leading_whitespace();
         let (content, trailing_whitespace) = content.strip_trailing_whitespace();
-        format!(
-            "{}[{}]({}{}){}",
+        concat_strings!(
             leading_whitespace.unwrap_or(""),
+            "[",
             content,
+            "](",
             link,
-            title.map_or(String::new(), |t| format!(" \"{}\"", t)),
-            trailing_whitespace.unwrap_or(""),
+            title
+                .as_ref()
+                .map_or(String::new(), |t| concat_strings!(" \"", t, "\"")),
+            ")",
+            trailing_whitespace.unwrap_or("")
         )
     }
 
@@ -106,17 +109,18 @@ impl AnchorElementHandler {
                 LinkReferenceStyle::Full => {
                     let index = links.borrow().len() + 1;
                     (
-                        format!("[{}][{}]", content, index),
-                        format!("[{}]: {}", index, link),
+                        concat_strings!("[", content, "][", index.to_string(), "]"),
+                        concat_strings!("[", index.to_string(), "]: ", link),
                     )
                 }
                 LinkReferenceStyle::Collapsed => (
-                    format!("[{}][]", content),
-                    format!("[{}]: {}", content, link),
+                    concat_strings!("[", content, "][]"),
+                    concat_strings!("[", content, "]: ", link),
                 ),
-                LinkReferenceStyle::Shortcut => {
-                    (format!("[{}]", content), format!("[{}]: {}", content, link))
-                }
+                LinkReferenceStyle::Shortcut => (
+                    concat_strings!("[", content, "]"),
+                    concat_strings!("[", content, "]: ", link),
+                ),
             };
             links.borrow_mut().push(append);
             current

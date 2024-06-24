@@ -1,4 +1,7 @@
-use crate::{text_util::StripWhitespace, Element};
+use crate::{
+    text_util::{concat_strings, StripWhitespace},
+    Element,
+};
 
 pub(super) fn emphasis_handler(element: Element, marker: &str) -> Option<String> {
     let content = element.content;
@@ -10,8 +13,7 @@ pub(super) fn emphasis_handler(element: Element, marker: &str) -> Option<String>
     if content.is_empty() {
         return None;
     }
-    Some(format!(
-        "{}{}{}{}{}",
+    Some(concat_strings!(
         leading_whitespace.unwrap_or(""),
         marker,
         content,

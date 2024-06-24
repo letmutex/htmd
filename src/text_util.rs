@@ -80,6 +80,29 @@ where
     }
 }
 
+pub(crate) trait JoinOnStringIterator {
+    fn join<S: AsRef<str>>(&mut self, separator: S) -> String;
+}
+
+impl<T, S> JoinOnStringIterator for T
+where
+    S: AsRef<str>,
+    T: Iterator<Item = S>,
+{
+    fn join<SE: AsRef<str>>(&mut self, separator: SE) -> String {
+        let Some(first) = self.next() else {
+            return String::new();
+        };
+        let separator = separator.as_ref();
+        let mut result = String::from(first.as_ref());
+        for next in self {
+            result.push_str(separator);
+            result.push_str(next.as_ref());
+        }
+        result
+    }
+}
+
 pub(crate) fn compress_whitespace(input: &str) -> String {
     let mut result = String::new();
     if input.len() == 0 {
@@ -117,7 +140,7 @@ pub(crate) fn indent_text_except_first_line(
         if idx == 0 {
             result_lines.push(line.to_string());
         } else {
-            result_lines.push(format!("{}{}", indent_text, line));
+            result_lines.push(concat_strings!(indent_text, line));
         }
     }
     result_lines.join("\n")
@@ -160,3 +183,18 @@ pub(crate) fn index_of_markdown_ordered_item_dot(text: &str) -> Option<usize> {
     }
     None
 }
+
+macro_rules! concat_strings {
+    ($($x:expr),*) => {{
+        let mut len = 0;
+        $(
+            len += &$x.len();
+        )*
+        let mut result = String::with_capacity(len);
+        $(
+            result.push_str(&$x);
+        )*
+        result
+    }};
+}
+pub(crate) use concat_strings;
