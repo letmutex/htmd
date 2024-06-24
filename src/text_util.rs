@@ -80,6 +80,29 @@ where
     }
 }
 
+pub(crate) trait JoinOnStringIterator {
+    fn join<S: AsRef<str>>(&mut self, separator: S) -> String;
+}
+
+impl<T, S> JoinOnStringIterator for T
+where
+    S: AsRef<str>,
+    T: Iterator<Item = S>,
+{
+    fn join<SE: AsRef<str>>(&mut self, separator: SE) -> String {
+        let Some(first) = self.next() else {
+            return String::new();
+        };
+        let separator = separator.as_ref();
+        let mut result = String::from(first.as_ref());
+        for next in self {
+            result.push_str(separator);
+            result.push_str(next.as_ref());
+        }
+        result
+    }
+}
+
 pub(crate) fn compress_whitespace(input: &str) -> String {
     let mut result = String::new();
     if input.len() == 0 {

@@ -1,5 +1,5 @@
 use crate::{
-    text_util::{concat_strings, TrimAsciiWhitespace},
+    text_util::{concat_strings, JoinOnStringIterator, TrimAsciiWhitespace},
     Element,
 };
 
@@ -28,7 +28,6 @@ pub(super) fn img_handler(element: Element) -> Option<String> {
         text.lines()
             .map(|line| line.trim_ascii_whitespace().replace("\"", "\\\""))
             .filter(|line| !line.is_empty())
-            .collect::<Vec<String>>()
             .join("\n")
     };
 

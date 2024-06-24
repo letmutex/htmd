@@ -1,7 +1,7 @@
 use crate::{
     node_util::get_parent_node_tag_name,
     options::{CodeBlockFence, CodeBlockStyle},
-    text_util::{concat_strings, TrimAsciiWhitespace},
+    text_util::{concat_strings, JoinOnStringIterator, TrimAsciiWhitespace},
     Element,
 };
 
@@ -32,7 +32,7 @@ fn handle_code_block(element: Element) -> Option<String> {
                     .to_string()
                     .split(" ")
                     .find(|cls| cls.starts_with("language-"))
-                    .map(|lang| lang.split("-").skip(1).collect::<Vec<&str>>().join("-"))
+                    .map(|lang| lang.split("-").skip(1).join("-"))
             })
             .unwrap_or(None);
         let mut result = String::from(&fence);
@@ -48,7 +48,6 @@ fn handle_code_block(element: Element) -> Option<String> {
         let code = content
             .lines()
             .map(|line| concat_strings!("    ", line))
-            .collect::<Vec<String>>()
             .join("\n");
         Some(code)
     }

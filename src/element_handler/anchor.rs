@@ -5,7 +5,7 @@ use markup5ever_rcdom::Node;
 
 use crate::{
     options::{LinkReferenceStyle, LinkStyle, Options},
-    text_util::{concat_strings, StripWhitespace, TrimAsciiWhitespace},
+    text_util::{concat_strings, JoinOnStringIterator, StripWhitespace, TrimAsciiWhitespace},
 };
 
 use super::ElementHandler;
@@ -58,7 +58,6 @@ impl ElementHandler for AnchorElementHandler {
             text.lines()
                 .map(|line| line.trim_ascii_whitespace().replace("\"", "\\\""))
                 .filter(|line| !line.is_empty())
-                .collect::<Vec<String>>()
                 .join("\n")
         };
 
