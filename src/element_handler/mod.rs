@@ -9,6 +9,8 @@ mod img;
 mod li;
 mod list;
 
+use crate::text_util::concat_strings;
+
 use super::{options::Options, Element};
 use anchor::AnchorElementHandler;
 use blockquote::blockquote_handler;
@@ -160,7 +162,7 @@ impl ElementHandler for ElementHandlers {
 }
 
 fn block_handler(element: Element) -> Option<String> {
-    Some(format!("\n\n{}\n\n", element.content))
+    Some(concat_strings!("\n\n", element.content, "\n\n"))
 }
 
 fn bold_handler(element: Element) -> Option<String> {

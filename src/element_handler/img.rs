@@ -1,4 +1,7 @@
-use crate::{text_util::TrimAsciiWhitespace, Element};
+use crate::{
+    text_util::{concat_strings, TrimAsciiWhitespace},
+    Element,
+};
 
 pub(super) fn img_handler(element: Element) -> Option<String> {
     let mut link: Option<String> = None;
@@ -37,11 +40,15 @@ pub(super) fn img_handler(element: Element) -> Option<String> {
 
     let link = link.map(|text| text.replace("(", "\\(").replace(")", "\\)"));
 
-    let md = format!(
-        "![{}]({}{})",
-        alt.unwrap_or(String::new()),
-        link.unwrap_or(String::new()),
-        title.map_or(String::new(), |t| format!(" \"{}\"", t))
+    let md = concat_strings!(
+        "![",
+        alt.as_ref().unwrap_or(&String::new()),
+        "](",
+        link.as_ref().unwrap_or(&String::new()),
+        title
+            .as_ref()
+            .map_or(String::new(), |t| concat_strings!(" \"", t, "\"")),
+        ")"
     );
     Some(md)
 }

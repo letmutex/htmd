@@ -117,7 +117,7 @@ pub(crate) fn indent_text_except_first_line(
         if idx == 0 {
             result_lines.push(line.to_string());
         } else {
-            result_lines.push(format!("{}{}", indent_text, line));
+            result_lines.push(concat_strings!(indent_text, line));
         }
     }
     result_lines.join("\n")
@@ -160,3 +160,18 @@ pub(crate) fn index_of_markdown_ordered_item_dot(text: &str) -> Option<usize> {
     }
     None
 }
+
+macro_rules! concat_strings {
+    ($($x:expr),*) => {{
+        let mut len = 0;
+        $(
+            len += &$x.len();
+        )*
+        let mut result = String::with_capacity(len);
+        $(
+            result.push_str(&$x);
+        )*
+        result
+    }};
+}
+pub(crate) use concat_strings;

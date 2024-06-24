@@ -1,7 +1,7 @@
 use crate::{
     node_util::get_parent_node_tag_name,
     options::{CodeBlockFence, CodeBlockStyle},
-    text_util::TrimAsciiWhitespace,
+    text_util::{concat_strings, TrimAsciiWhitespace},
     Element,
 };
 
@@ -47,7 +47,7 @@ fn handle_code_block(element: Element) -> Option<String> {
     } else {
         let code = content
             .lines()
-            .map(|line| format!("    {}", line))
+            .map(|line| concat_strings!("    ", line))
             .collect::<Vec<String>>()
             .join("\n");
         Some(code)
@@ -96,12 +96,12 @@ fn handle_inline_code(element: Element) -> Option<String> {
     };
     if use_double_backticks {
         if surround_with_spaces {
-            Some(format!("`` {} ``", content))
+            Some(concat_strings!("`` ", content, " ``"))
         } else {
-            Some(format!("``{}``", content))
+            Some(concat_strings!("``", content, "``"))
         }
     } else {
-        Some(format!("`{}`", content))
+        Some(concat_strings!("`", content, "`"))
     }
 }
 
