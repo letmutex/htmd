@@ -42,7 +42,7 @@ async function libVersion(): Promise<string> {
 }
 
 async function writeResultReadme(result: string) {
-  const md = `Benchmark
+  const md = `# Benchmark
 
 A benchmark converts [Elon Musk - Wikipedia.html](<../examples/page-to-markdown/html/Elon Musk - Wikipedia.html>) to Markdown, IO time is not included. 
 
