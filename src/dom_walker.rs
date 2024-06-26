@@ -42,16 +42,13 @@ pub(crate) fn walk_node(
             ref attrs,
             ..
         } => {
-            let attrs_value = attrs.take();
-            // Put it back
-            attrs.replace(attrs_value.clone());
             visit_element(
                 buffer,
                 node,
                 handler,
                 options,
-                name.local.to_string(),
-                attrs_value,
+                &name.local,
+                &attrs.borrow(),
                 is_pre,
             );
         }
@@ -110,8 +107,8 @@ fn visit_element(
     node: &Rc<Node>,
     handler: &Box<&dyn ElementHandler>,
     options: &Options,
-    tag: String,
-    attrs: Vec<Attribute>,
+    tag: &str,
+    attrs: &Vec<Attribute>,
     is_pre: bool,
 ) {
     let is_head = tag == "head";
@@ -120,10 +117,10 @@ fn visit_element(
     let is_block = is_block_element(&tag);
     walk_children(buffer, node, is_block, handler, options, is_pre);
     let md = handler.on_visit(
-        node.clone(),
+        node,
         tag,
         attrs,
-        join_contents(&buffer[prev_buffer_len..]),
+        &join_contents(&buffer[prev_buffer_len..]),
         options,
     );
     // Remove the temporary text clips of children
@@ -150,10 +147,8 @@ fn join_contents(contents: &[String]) -> String {
         let left = result.trim_end_matches(|ch| ch == '\n');
         let right = content.trim_start_matches(|ch| ch == '\n');
 
-        let max_trimmed_new_lines = std::cmp::max(
-            result_len - left.len(),
-            content_len - right.len(),
-        );
+        let max_trimmed_new_lines =
+            std::cmp::max(result_len - left.len(), content_len - right.len());
         let separator_new_lines = std::cmp::min(max_trimmed_new_lines, 2);
         let separator = "\n".repeat(separator_new_lines);
 

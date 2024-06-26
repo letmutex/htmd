@@ -30,13 +30,13 @@ pub fn convert(html: &str) -> Result<String, std::io::Error> {
 /// The DOM element.
 pub struct Element<'a> {
     /// The html5ever node of the element.
-    pub node: Rc<Node>,
+    pub node: &'a Rc<Node>,
     /// The tag name.
-    pub tag: String,
+    pub tag: &'a str,
     /// The attribute list.
-    pub attrs: Vec<Attribute>,
+    pub attrs: &'a Vec<Attribute>,
     /// The content text, can be raw text or converted Markdown text.
-    pub content: String,
+    pub content: &'a str,
     /// Converter options.
     pub options: &'a Options,
 }
