@@ -34,10 +34,10 @@ pub trait ElementHandler {
 
     fn on_visit(
         &self,
-        node: Rc<Node>,
-        tag: String,
-        attrs: Vec<Attribute>,
-        content: String,
+        node: &Rc<Node>,
+        tag: &str,
+        attrs: &Vec<Attribute>,
+        content: &str,
         options: &Options,
     ) -> Option<String>;
 }
@@ -57,10 +57,10 @@ where
 {
     fn on_visit(
         &self,
-        node: Rc<Node>,
-        tag: String,
-        attrs: Vec<Attribute>,
-        content: String,
+        node: &Rc<Node>,
+        tag: &str,
+        attrs: &Vec<Attribute>,
+        content: &str,
         options: &Options,
     ) -> Option<String> {
         self(Element {
@@ -143,20 +143,15 @@ impl ElementHandlers {
 impl ElementHandler for ElementHandlers {
     fn on_visit(
         &self,
-        node: Rc<Node>,
-        tag: String,
-        attrs: Vec<Attribute>,
-        content: String,
+        node: &Rc<Node>,
+        tag: &str,
+        attrs: &Vec<Attribute>,
+        content: &str,
         options: &Options,
     ) -> Option<String> {
-        match self
-            .rules
-            .iter()
-            .rev()
-            .find(|rule| rule.tags.contains(&tag))
-        {
+        match self.rules.iter().rev().find(|rule| rule.tags.contains(tag)) {
             Some(rule) => rule.handler.on_visit(node, tag, attrs, content, options),
-            None => Some(content),
+            None => Some(content.to_string()),
         }
     }
 }

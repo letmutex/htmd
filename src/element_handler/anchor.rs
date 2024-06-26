@@ -33,10 +33,10 @@ impl ElementHandler for AnchorElementHandler {
 
     fn on_visit(
         &self,
-        _node: Rc<Node>,
-        _tag: String,
-        attrs: Vec<Attribute>,
-        content: String,
+        _node: &Rc<Node>,
+        _tag: &str,
+        attrs: &Vec<Attribute>,
+        content: &str,
         options: &Options,
     ) -> Option<String> {
         let mut link: Option<String> = None;
@@ -51,7 +51,7 @@ impl ElementHandler for AnchorElementHandler {
         }
 
         let Some(link) = link else {
-            return Some(content);
+            return Some(content.to_string());
         };
 
         let process_title = |text: String| {
@@ -81,7 +81,7 @@ impl AnchorElementHandler {
         Self {}
     }
 
-    fn build_inlined_anchor(&self, content: String, link: String, title: Option<String>) -> String {
+    fn build_inlined_anchor(&self, content: &str, link: String, title: Option<String>) -> String {
         let has_spaces_in_link = link.contains(' ');
         let (content, leading_whitespace) = content.strip_leading_whitespace();
         let (content, trailing_whitespace) = content.strip_trailing_whitespace();
@@ -103,7 +103,7 @@ impl AnchorElementHandler {
 
     fn build_referenced_anchor(
         &self,
-        content: String,
+        content: &str,
         link: String,
         style: &LinkReferenceStyle,
     ) -> String {
