@@ -325,7 +325,7 @@ dependencies = [
 
 [[package]]
 name = "htmd"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "criterion",
  "html5ever 0.27.0",
