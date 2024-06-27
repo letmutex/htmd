@@ -48,10 +48,7 @@ fn images_with_spaces_in_url() {
         <img src="https://example.com/Some Image.jpg" />
         "#;
     let md = HtmlToMarkdown::new().convert(html).unwrap();
-    assert_eq!(
-        "![](<https://example.com/Some Image.jpg>)",
-        &md
-    )
+    assert_eq!("![](<https://example.com/Some Image.jpg>)", &md)
 }
 
 #[test]
@@ -92,6 +89,24 @@ fn code_blocks() {
         "#;
     let md = HtmlToMarkdown::new().convert(html).unwrap();
     assert_eq!("```\nprintln!(\"Hello\");\n```", &md);
+}
+
+#[test]
+fn code_blocks_with_lang_class() {
+    let html = r#"
+        <pre><code class="language-rust">println!("Hello");</code></pre>
+        "#;
+    let md = HtmlToMarkdown::new().convert(html).unwrap();
+    assert_eq!("```rust\nprintln!(\"Hello\");\n```", &md);
+}
+
+#[test]
+fn code_blocks_with_lang_class_on_pre_tag() {
+    let html = r#"
+        <pre class="language-rust"><code>println!("Hello");</code></pre>
+        "#;
+    let md = HtmlToMarkdown::new().convert(html).unwrap();
+    assert_eq!("```rust\nprintln!(\"Hello\");\n```", &md);
 }
 
 #[test]

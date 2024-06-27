@@ -1,3 +1,8 @@
+use std::rc::Rc;
+
+use html5ever::Attribute;
+use markup5ever_rcdom::{Node, NodeData};
+
 use crate::{
     node_util::{get_node_tag_name, get_parent_node},
     options::{CodeBlockFence, CodeBlockStyle},
@@ -8,16 +13,17 @@ use crate::{
 pub(super) fn code_handler(element: Element) -> Option<String> {
     let parent_node = get_parent_node(&element.node);
     let is_code_block = parent_node
+        .as_ref()
         .map(|parent| get_node_tag_name(&parent).is_some_and(|t| t == "pre"))
         .unwrap_or(false);
     if is_code_block {
-        handle_code_block(element)
+        handle_code_block(element, &parent_node.unwrap())
     } else {
         handle_inline_code(element)
     }
 }
 
-fn handle_code_block(element: Element) -> Option<String> {
+fn handle_code_block(element: Element, parent: &Rc<Node>) -> Option<String> {
     let content = element.content;
     let content = content.strip_suffix("\n").unwrap_or(&content);
     if element.options.code_block_style == CodeBlockStyle::Fenced {
@@ -26,18 +32,13 @@ fn handle_code_block(element: Element) -> Option<String> {
         } else {
             get_code_fence_marker("`", content)
         };
-        let language = element
-            .attrs
-            .iter()
-            .find(|attr| &attr.name.local == "class")
-            .map(|attr| {
-                attr.value
-                    .to_string()
-                    .split(" ")
-                    .find(|cls| cls.starts_with("language-"))
-                    .map(|lang| lang.split("-").skip(1).join("-"))
-            })
-            .unwrap_or(None);
+        let language = find_language_from_attrs(element.attrs).or_else(|| {
+            if let NodeData::Element { ref attrs, .. } = parent.data {
+                find_language_from_attrs(&attrs.borrow())
+            } else {
+                None
+            }
+        });
         let mut result = String::from(&fence);
         if language.is_some() {
             result.push_str(&language.unwrap());
@@ -68,6 +69,20 @@ fn get_code_fence_marker(symbol: &str, content: &str) -> String {
     } else {
         three_chars
     }
+}
+
+fn find_language_from_attrs(attrs: &Vec<Attribute>) -> Option<String> {
+    attrs
+        .iter()
+        .find(|attr| &attr.name.local == "class")
+        .map(|attr| {
+            attr.value
+                .to_string()
+                .split(" ")
+                .find(|cls| cls.starts_with("language-"))
+                .map(|lang| lang.split("-").skip(1).join("-"))
+        })
+        .unwrap_or(None)
 }
 
 fn handle_inline_code(element: Element) -> Option<String> {
