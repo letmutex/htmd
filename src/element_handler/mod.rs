@@ -27,7 +27,7 @@ use markup5ever_rcdom::Node;
 use std::{collections::HashSet, rc::Rc};
 
 /// The DOM element handler.
-pub trait ElementHandler {
+pub trait ElementHandler : Send + Sync {
     fn append(&self) -> Option<String> {
         None
     }
@@ -47,13 +47,9 @@ pub(crate) struct HandlerRule {
     pub(crate) handler: Box<dyn ElementHandler>,
 }
 
-unsafe impl Send for HandlerRule {}
-
-unsafe impl Sync for HandlerRule {}
-
 impl<F> ElementHandler for F
 where
-    F: Fn(Element) -> Option<String>,
+    F: (Fn(Element) -> Option<String>) + Send + Sync,
 {
     fn on_visit(
         &self,
