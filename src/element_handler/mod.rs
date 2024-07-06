@@ -27,7 +27,7 @@ use markup5ever_rcdom::Node;
 use std::{collections::HashSet, rc::Rc};
 
 /// The DOM element handler.
-pub trait ElementHandler : Send + Sync {
+pub trait ElementHandler: Send + Sync {
     fn append(&self) -> Option<String> {
         None
     }
@@ -36,7 +36,7 @@ pub trait ElementHandler : Send + Sync {
         &self,
         node: &Rc<Node>,
         tag: &str,
-        attrs: &Vec<Attribute>,
+        attrs: &[Attribute],
         content: &str,
         options: &Options,
     ) -> Option<String>;
@@ -55,7 +55,7 @@ where
         &self,
         node: &Rc<Node>,
         tag: &str,
-        attrs: &Vec<Attribute>,
+        attrs: &[Attribute],
         content: &str,
         options: &Options,
     ) -> Option<String> {
@@ -141,7 +141,7 @@ impl ElementHandler for ElementHandlers {
         &self,
         node: &Rc<Node>,
         tag: &str,
-        attrs: &Vec<Attribute>,
+        attrs: &[Attribute],
         content: &str,
         options: &Options,
     ) -> Option<String> {

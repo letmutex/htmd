@@ -11,10 +11,10 @@ use crate::{
 };
 
 pub(super) fn code_handler(element: Element) -> Option<String> {
-    let parent_node = get_parent_node(&element.node);
+    let parent_node = get_parent_node(element.node);
     let is_code_block = parent_node
         .as_ref()
-        .map(|parent| get_node_tag_name(&parent).is_some_and(|t| t == "pre"))
+        .map(|parent| get_node_tag_name(parent).is_some_and(|t| t == "pre"))
         .unwrap_or(false);
     if is_code_block {
         handle_code_block(element, &parent_node.unwrap())
@@ -25,7 +25,7 @@ pub(super) fn code_handler(element: Element) -> Option<String> {
 
 fn handle_code_block(element: Element, parent: &Rc<Node>) -> Option<String> {
     let content = element.content;
-    let content = content.strip_suffix("\n").unwrap_or(&content);
+    let content = content.strip_suffix('\n').unwrap_or(content);
     if element.options.code_block_style == CodeBlockStyle::Fenced {
         let fence = if element.options.code_block_fence == CodeBlockFence::Tildes {
             get_code_fence_marker("~", content)
@@ -40,8 +40,8 @@ fn handle_code_block(element: Element, parent: &Rc<Node>) -> Option<String> {
             }
         });
         let mut result = String::from(&fence);
-        if language.is_some() {
-            result.push_str(&language.unwrap());
+        if let Some(ref lang) = language {
+            result.push_str(lang);
         }
         result.push('\n');
         result.push_str(content);
@@ -59,9 +59,9 @@ fn handle_code_block(element: Element, parent: &Rc<Node>) -> Option<String> {
 
 fn get_code_fence_marker(symbol: &str, content: &str) -> String {
     let three_chars = symbol.repeat(3);
-    if content.find(&three_chars).is_some() {
+    if content.contains(&three_chars) {
         let four_chars = symbol.repeat(4);
-        if content.find(&four_chars).is_some() {
+        if content.contains(&four_chars) {
             symbol.repeat(5)
         } else {
             four_chars
@@ -71,16 +71,15 @@ fn get_code_fence_marker(symbol: &str, content: &str) -> String {
     }
 }
 
-fn find_language_from_attrs(attrs: &Vec<Attribute>) -> Option<String> {
+fn find_language_from_attrs(attrs: &[Attribute]) -> Option<String> {
     attrs
         .iter()
         .find(|attr| &attr.name.local == "class")
         .map(|attr| {
             attr.value
-                .to_string()
-                .split(" ")
+                .split(' ')
                 .find(|cls| cls.starts_with("language-"))
-                .map(|lang| lang.split("-").skip(1).join("-"))
+                .map(|lang| lang.split('-').skip(1).join("-"))
         })
         .unwrap_or(None)
 }
@@ -107,7 +106,7 @@ fn handle_inline_code(element: Element) -> Option<String> {
         }
     }
     let content = if element.options.preformatted_code {
-        handle_preformatted_code(&content)
+        handle_preformatted_code(content)
     } else {
         content.trim_ascii_whitespace().to_string()
     };

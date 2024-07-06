@@ -20,13 +20,11 @@ pub(super) fn img_handler(element: Element) -> Option<String> {
         }
     }
 
-    if link.is_none() {
-        return None;
-    }
+    link.as_ref()?;
 
     let process_alt_title = |text: String| {
         text.lines()
-            .map(|line| line.trim_ascii_whitespace().replace("\"", "\\\""))
+            .map(|line| line.trim_ascii_whitespace().replace('"', "\\\""))
             .filter(|line| !line.is_empty())
             .join("\n")
     };
@@ -37,7 +35,7 @@ pub(super) fn img_handler(element: Element) -> Option<String> {
     // Handle new lines in title
     let title = title.map(process_alt_title);
 
-    let link = link.map(|text| text.replace("(", "\\(").replace(")", "\\)"));
+    let link = link.map(|text| text.replace('(', "\\(").replace(')', "\\)"));
 
     let has_spaces_in_link = link.as_ref().is_some_and(|link| link.contains(' '));
 

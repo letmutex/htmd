@@ -34,7 +34,7 @@ pub struct Element<'a> {
     /// The tag name.
     pub tag: &'a str,
     /// The attribute list.
-    pub attrs: &'a Vec<Attribute>,
+    pub attrs: &'a [Attribute],
     /// The content text, can be raw text or converted Markdown text.
     pub content: &'a str,
     /// Converter options.
@@ -64,6 +64,12 @@ pub struct HtmlToMarkdown {
     handlers: ElementHandlers,
 }
 
+impl Default for HtmlToMarkdown {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HtmlToMarkdown {
     /// Create a new converter.
     pub fn new() -> Self {
@@ -83,20 +89,18 @@ impl HtmlToMarkdown {
     }
 
     /// Convert HTML to Markdown.
-    pub fn convert(&self, html: &str) -> Result<String, std::io::Error> {
+    pub fn convert(&self, html: &str) -> std::io::Result<String> {
         let dom = parse_document(RcDom::default(), Default::default())
             .from_utf8()
             .read_from(&mut html.as_bytes())?;
 
         let mut buffer: Vec<String> = Vec::new();
 
-        let handlers: Box<&dyn ElementHandler> = Box::new(&self.handlers);
-
         walk_node(
             &dom.document,
             None,
             &mut buffer,
-            &handlers,
+            &self.handlers,
             &self.options,
             false,
             true,
@@ -122,6 +126,12 @@ impl HtmlToMarkdown {
 pub struct HtmlToMarkdownBuilder {
     options: Options,
     handlers: ElementHandlers,
+}
+
+impl Default for HtmlToMarkdownBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl HtmlToMarkdownBuilder {
