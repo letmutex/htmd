@@ -105,7 +105,7 @@ where
 
 pub(crate) fn compress_whitespace(input: &str) -> String {
     let mut result = String::new();
-    if input.len() == 0 {
+    if input.is_empty() {
         return result;
     }
     let mut in_whitespace = false;

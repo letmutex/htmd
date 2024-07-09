@@ -12,9 +12,7 @@ pub(crate) fn get_node_tag_name(node: &Rc<Node>) -> Option<&str> {
 
 pub(crate) fn get_parent_node(node: &Rc<Node>) -> Option<Rc<Node>> {
     let value = node.parent.take();
-    let Some(parent) = value.as_ref() else {
-        return None;
-    };
+    let parent = value.as_ref()?;
     let Some(parent) = parent.upgrade() else {
         // Put the parent back
         node.parent.set(value);

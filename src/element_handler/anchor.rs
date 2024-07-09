@@ -14,7 +14,7 @@ pub(super) struct AnchorElementHandler {}
 
 impl AnchorElementHandler {
     thread_local! {
-        static LINKS: RefCell<Vec<String>> = RefCell::new(vec![]);
+        static LINKS: RefCell<Vec<String>> = const { RefCell::new(vec![]) };
     }
 }
 
@@ -35,7 +35,7 @@ impl ElementHandler for AnchorElementHandler {
         &self,
         _node: &Rc<Node>,
         _tag: &str,
-        attrs: &Vec<Attribute>,
+        attrs: &[Attribute],
         content: &str,
         options: &Options,
     ) -> Option<String> {
@@ -56,7 +56,7 @@ impl ElementHandler for AnchorElementHandler {
 
         let process_title = |text: String| {
             text.lines()
-                .map(|line| line.trim_ascii_whitespace().replace("\"", "\\\""))
+                .map(|line| line.trim_ascii_whitespace().replace('"', "\\\""))
                 .filter(|line| !line.is_empty())
                 .join("\n")
         };
@@ -64,7 +64,7 @@ impl ElementHandler for AnchorElementHandler {
         // Handle new lines in title
         let title = title.map(process_title);
 
-        let link = link.replace("(", "\\(").replace(")", "\\)");
+        let link = link.replace('(', "\\(").replace(')', "\\)");
 
         let md = if options.link_style == LinkStyle::Inlined {
             self.build_inlined_anchor(content, link, title)

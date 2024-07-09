@@ -57,7 +57,7 @@ pub(super) fn list_item_handler(element: Element) -> Option<String> {
 
         let mut index = 0;
         for child in parent_node.children.borrow().iter() {
-            if Rc::ptr_eq(child, &element.node) {
+            if Rc::ptr_eq(child, element.node) {
                 break;
             }
             if get_node_tag_name(child).is_some_and(|tag| tag == "li") {
@@ -72,8 +72,8 @@ pub(super) fn list_item_handler(element: Element) -> Option<String> {
             .map(|attr| attr.value.to_string().parse::<usize>().unwrap_or(1))
             .unwrap_or(1);
 
-        return ol_li(start + index);
+        ol_li(start + index)
     } else {
-        return ul_li();
+        ul_li()
     }
 }

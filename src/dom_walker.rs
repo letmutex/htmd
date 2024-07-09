@@ -16,7 +16,7 @@ pub(crate) fn walk_node(
     node: &Rc<Node>,
     parent_tag: Option<&str>,
     buffer: &mut Vec<String>,
-    handler: &Box<&dyn ElementHandler>,
+    handler: &dyn ElementHandler,
     options: &Options,
     is_pre: bool,
     trim_leading_spaces: bool,
@@ -82,15 +82,15 @@ fn append_text(
         let mut chars = text.chars();
         if chars.next().is_some_and(|ch| ch == ' ')
             && chars.next().is_none()
-            && parent_tag.is_some_and(|tag| is_block_container(tag))
+            && parent_tag.is_some_and(is_block_container)
         {
             // Ignore whitespace in block containers.
             return;
         }
 
         let to_add = if trim_leading_spaces
-            || (text.chars().nth(0).is_some_and(|ch| ch == ' ')
-                && buffer.last().is_some_and(|text| text.ends_with(" ")))
+            || (text.chars().next().is_some_and(|ch| ch == ' ')
+                && buffer.last().is_some_and(|text| text.ends_with(' ')))
         {
             // We can't compress spaces between two text blocks/elements, so we compress
             // them here by trimming the leading space of current text content.
@@ -105,16 +105,16 @@ fn append_text(
 fn visit_element(
     buffer: &mut Vec<String>,
     node: &Rc<Node>,
-    handler: &Box<&dyn ElementHandler>,
+    handler: &dyn ElementHandler,
     options: &Options,
     tag: &str,
-    attrs: &Vec<Attribute>,
+    attrs: &[Attribute],
     is_pre: bool,
 ) {
     let is_head = tag == "head";
     let is_pre = is_pre || tag == "pre" || tag == "code";
     let prev_buffer_len = buffer.len();
-    let is_block = is_block_element(&tag);
+    let is_block = is_block_element(tag);
     walk_children(buffer, node, is_block, handler, options, is_pre);
     let md = handler.on_visit(
         node,
@@ -153,7 +153,7 @@ fn join_contents(contents: &[String]) -> String {
         let separator = "\n".repeat(separator_new_lines);
 
         let mut next_result = String::with_capacity(left.len() + separator.len() + right.len());
-        next_result.push_str(&left);
+        next_result.push_str(left);
         next_result.push_str(&separator);
         next_result.push_str(right);
 
@@ -166,7 +166,7 @@ fn walk_children(
     buffer: &mut Vec<String>,
     node: &Rc<Node>,
     is_parent_blok_element: bool,
-    handler: &Box<&dyn ElementHandler>,
+    handler: &dyn ElementHandler,
     options: &Options,
     is_pre: bool,
 ) {
@@ -175,7 +175,7 @@ fn walk_children(
     // elements (except pre and code elements)
     let mut trim_leading_spaces = !is_pre && is_parent_blok_element;
     for child in node.children.borrow().iter() {
-        let is_block = get_node_tag_name(child).is_some_and(|tag| is_block_element(&tag));
+        let is_block = get_node_tag_name(child).is_some_and(is_block_element);
 
         if is_block {
             // Trim trailing spaces for the previous element
@@ -201,7 +201,7 @@ fn walk_children(
     }
 }
 
-fn trim_buffer_end(buffer: &mut Vec<String>) {
+fn trim_buffer_end(buffer: &mut [String]) {
     for content in buffer.iter_mut().rev() {
         let trimmed = content.trim_end_ascii_whitespace();
         if trimmed.len() == content.len() {
@@ -211,7 +211,7 @@ fn trim_buffer_end(buffer: &mut Vec<String>) {
     }
 }
 
-fn trim_buffer_end_spaces(buffer: &mut Vec<String>) {
+fn trim_buffer_end_spaces(buffer: &mut [String]) {
     for content in buffer.iter_mut().rev() {
         let trimmed = content.trim_end_matches(|ch| ch == ' ');
         if trimmed.len() == content.len() {
@@ -245,7 +245,7 @@ fn escape_if_needed(text: String) -> String {
             _ => escaped.push(ch),
         }
     }
-    let Some(first) = escaped.chars().nth(0) else {
+    let Some(first) = escaped.chars().next() else {
         return escaped;
     };
     match first {
@@ -279,7 +279,7 @@ fn escape_if_needed(text: String) -> String {
 /// '```' -> '\```' // code fence
 /// '~~~' -> '\~~~' // code fence
 fn escape_pre_text_if_needed(text: String) -> String {
-    let Some(first) = text.chars().nth(0) else {
+    let Some(first) = text.chars().next() else {
         return text;
     };
     match first {
@@ -293,20 +293,36 @@ fn escape_pre_text_if_needed(text: String) -> String {
 }
 
 fn is_block_container(tag: &str) -> bool {
-    match tag {
-        "html" | "body" | "div" | "ul" | "ol" | "li" | "table" | "tr" | "header" | "head"
-        | "footer" | "nav" | "section" | "article" | "aside" | "main" | "blockquote" | "script"
-        | "style" => true,
-        _ => false,
-    }
+    matches!(
+        tag,
+        "html"
+            | "body"
+            | "div"
+            | "ul"
+            | "ol"
+            | "li"
+            | "table"
+            | "tr"
+            | "header"
+            | "head"
+            | "footer"
+            | "nav"
+            | "section"
+            | "article"
+            | "aside"
+            | "main"
+            | "blockquote"
+            | "script"
+            | "style"
+    )
 }
 
 fn is_block_element(tag: &str) -> bool {
     if is_block_container(tag) {
         return true;
     }
-    match tag {
-        "p" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "pre" | "hr" | "br" => true,
-        _ => false,
-    }
+    matches!(
+        tag,
+        "p" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "pre" | "hr" | "br"
+    )
 }

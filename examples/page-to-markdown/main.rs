@@ -30,6 +30,6 @@ fn convert(html_path: &str, output_filename: &str) {
         now.elapsed().as_millis()
     );
 
-    std::fs::write(output_filename, &md).unwrap();
+    std::fs::write(output_filename, md).unwrap();
     println!("Saved as '{}'", output_filename);
 }

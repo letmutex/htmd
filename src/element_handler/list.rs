@@ -5,7 +5,7 @@ use crate::{
 };
 
 pub(super) fn list_handler(element: Element) -> Option<String> {
-    let parent = get_parent_node(&element.node);
+    let parent = get_parent_node(element.node);
     let is_parent_li = parent
         .map(|p| get_node_tag_name(&p).is_some_and(|tag| tag == "li"))
         .unwrap_or(false);
