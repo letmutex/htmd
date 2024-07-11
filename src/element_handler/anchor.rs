@@ -69,7 +69,7 @@ impl ElementHandler for AnchorElementHandler {
         let md = if options.link_style == LinkStyle::Inlined {
             self.build_inlined_anchor(content, link, title)
         } else {
-            self.build_referenced_anchor(content, link, &options.link_reference_style)
+            self.build_referenced_anchor(content, link, title, &options.link_reference_style)
         };
 
         Some(md)
@@ -105,24 +105,26 @@ impl AnchorElementHandler {
         &self,
         content: &str,
         link: String,
+        title: Option<String>,
         style: &LinkReferenceStyle,
     ) -> String {
         AnchorElementHandler::LINKS.with(|links| {
+            let title = title.map_or(String::new(), |t| concat_strings!(" \"", t, "\""));
             let (current, append) = match style {
                 LinkReferenceStyle::Full => {
                     let index = links.borrow().len() + 1;
                     (
                         concat_strings!("[", content, "][", index.to_string(), "]"),
-                        concat_strings!("[", index.to_string(), "]: ", link),
+                        concat_strings!("[", index.to_string(), "]: ", link, title),
                     )
                 }
                 LinkReferenceStyle::Collapsed => (
                     concat_strings!("[", content, "][]"),
-                    concat_strings!("[", content, "]: ", link),
+                    concat_strings!("[", content, "]: ", link, title),
                 ),
                 LinkReferenceStyle::Shortcut => (
                     concat_strings!("[", content, "]"),
-                    concat_strings!("[", content, "]: ", link),
+                    concat_strings!("[", content, "]: ", link, title),
                 ),
             };
             links.borrow_mut().push(append);
