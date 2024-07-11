@@ -28,6 +28,25 @@ fn links_with_spaces() {
 }
 
 #[test]
+fn referenced_links_with_title() {
+    let html = r#"
+        <a href="https://example.com" title="Some title">Example</a>
+        "#;
+    let md = HtmlToMarkdown::builder()
+        .options(Options {
+            link_style: LinkStyle::Referenced,
+            ..Default::default()
+        })
+        .build()
+        .convert(html)
+        .unwrap();
+    assert_eq!(
+        "[Example][1]\n\n[1]: https://example.com \"Some title\"",
+        &md
+    )
+}
+
+#[test]
 fn images() {
     let html = r#"
         <img src="https://example.com" />
