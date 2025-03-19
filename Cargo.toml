@@ -12,12 +12,12 @@ categories = ["text-processing", "parsing"]
 readme = "README.md"
 
 [dependencies]
-html5ever = "0.27"
-markup5ever_rcdom = "0.3.0"
+html5ever = "0.29.1"
+markup5ever_rcdom = "0.5.0-unofficial"
 
 [dev-dependencies]
-scraper = "0.19.0"
-criterion = { version = "0.4", features = ["html_reports"] }
+scraper = "0.23.1"
+criterion = { version = "0.5", features = ["html_reports"] }
 
 [[bench]]
 name = "convert_bench"
