@@ -116,7 +116,7 @@ impl HtmlToMarkdown {
             append.push_str(&append_content);
         }
 
-        content.push_str(append.trim_end_matches(|ch| ch == '\n'));
+        content.push_str(append.trim_end_matches('\n'));
 
         Ok(content)
     }

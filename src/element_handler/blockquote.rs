@@ -4,7 +4,7 @@ use crate::{
 };
 
 pub(super) fn blockquote_handler(element: Element) -> Option<String> {
-    let content = element.content.trim_start_matches(|ch| ch == '\n');
+    let content = element.content.trim_start_matches('\n');
     let content = content
         .trim_end_ascii_whitespace()
         .lines()
