@@ -8,6 +8,7 @@ mod hr;
 mod img;
 mod li;
 mod list;
+mod table;
 
 use crate::text_util::concat_strings;
 
@@ -23,6 +24,7 @@ use html5ever::Attribute;
 use img::img_handler;
 use li::list_item_handler;
 use list::list_handler;
+use table::table_handler;
 use markup5ever_rcdom::Node;
 use std::{collections::HashSet, rc::Rc};
 
@@ -111,10 +113,13 @@ impl ElementHandlers {
         // hr
         handlers.add_handler(vec!["hr"], hr_handler);
 
+        // table
+        handlers.add_handler(vec!["table"], table_handler);
+
         // other block elements
         handlers.add_handler(
             vec![
-                "p", "pre", "body", "div", "table", "tr", "td", "header", "footer", "nav",
+                "p", "pre", "body", "div", "tr", "td", "th", "thead", "tbody", "tfoot", "header", "footer", "nav",
                 "section", "article", "aside", "main", "head", "script", "style",
             ],
             block_handler,
