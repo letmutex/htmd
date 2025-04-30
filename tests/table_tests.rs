@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod table_tests {
+mod table_tests_1 {
     use htmd::convert;
 
     #[test]
@@ -24,7 +24,8 @@ mod table_tests {
         let expected = r#"
 | Cell 1 |Cell 2 |
 | Cell 3 |Cell 4 |
-"#.trim();
+"#
+        .trim();
 
         let markdown = convert(html).unwrap();
         let result = markdown.trim();
@@ -60,7 +61,40 @@ mod table_tests {
         let expected = r#"
 | John |35 |New York |
 | Jane |28 |San Francisco |
-"#.trim();
+"#
+        .trim();
+
+        let markdown = convert(html).unwrap();
+        let result = markdown.trim();
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn test_table_with_caption() {
+        let html = r#"
+        <table>
+            <caption>Sample Table</caption>
+            <tbody>
+                <tr>
+                    <td>John</td>
+                    <td>35</td>
+                    <td>New York</td>
+                </tr>
+                <tr>
+                    <td>Jane</td>
+                    <td>28</td>
+                    <td>San Francisco</td>
+                </tr>
+            </tbody>
+        </table>
+        "#;
+
+        let expected = r#"
+Sample Table
+| John |35 |New York |
+| Jane |28 |San Francisco |
+"#
+        .trim();
 
         let markdown = convert(html).unwrap();
         let result = markdown.trim();

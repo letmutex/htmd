@@ -19,6 +19,7 @@ pub(crate) fn table_handler(element: Element) -> Option<String> {
     }
 
     // Extract table rows
+    let mut captions: Vec<String> = Vec::new();
     let mut headers: Vec<String> = Vec::new();
     let mut rows: Vec<Vec<String>> = Vec::new();
     let mut has_thead = false;
@@ -30,6 +31,9 @@ pub(crate) fn table_handler(element: Element) -> Option<String> {
                 let tag_name = name.local.as_ref();
 
                 match tag_name {
+                    "caption" => {
+                        captions.push(get_node_content(&child).trim().to_string());
+                    }
                     "thead" => {
                         has_thead = true;
                         headers = extract_row_cells(&child, "th");
@@ -92,6 +96,10 @@ pub(crate) fn table_handler(element: Element) -> Option<String> {
     // Build the Markdown table
     let mut table_md = String::from("\n\n");
 
+    for caption in captions {
+        table_md.push_str(&format!("{}\n", caption));
+    }
+
     // Add header row if available
     if !headers.is_empty() {
         table_md.push_str("| ");
@@ -150,4 +158,3 @@ fn normalize_cell_content(content: &str) -> String {
 
     content.to_string()
 }
-

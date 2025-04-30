@@ -24,9 +24,9 @@ use html5ever::Attribute;
 use img::img_handler;
 use li::list_item_handler;
 use list::list_handler;
-use table::table_handler;
 use markup5ever_rcdom::Node;
 use std::{collections::HashSet, rc::Rc};
+use table::table_handler;
 
 /// The DOM element handler.
 pub trait ElementHandler: Send + Sync {
@@ -119,8 +119,9 @@ impl ElementHandlers {
         // other block elements
         handlers.add_handler(
             vec![
-                "p", "pre", "body", "div", "tr", "td", "th", "thead", "tbody", "tfoot", "header", "footer", "nav",
-                "section", "article", "aside", "main", "head", "script", "style",
+                "p", "pre", "body", "div", "tr", "td", "th", "thead", "tbody", "tfoot", "header",
+                "footer", "nav", "section", "article", "aside", "main", "head", "script", "style",
+                "caption",
             ],
             block_handler,
         );
