@@ -25,7 +25,7 @@ pub(crate) fn get_parent_node(node: &Rc<Node>) -> Option<Rc<Node>> {
 
 pub(crate) fn get_node_children(node: &Rc<Node>) -> Vec<Rc<Node>> {
     let children = node.children.borrow();
-    children.iter().map(|node| node.clone()).collect()
+    children.iter().cloned().collect()
 }
 
 pub(crate) fn get_node_content(node: &Rc<Node>) -> String {
