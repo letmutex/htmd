@@ -22,3 +22,26 @@ pub(crate) fn get_parent_node(node: &Rc<Node>) -> Option<Rc<Node>> {
     node.parent.set(value);
     Some(parent)
 }
+
+pub(crate) fn get_node_children(node: &Rc<Node>) -> Vec<Rc<Node>> {
+    let children = node.children.borrow();
+    children.iter().map(|node| node.clone()).collect()
+}
+
+pub(crate) fn get_node_content(node: &Rc<Node>) -> String {
+    let mut content = String::new();
+    
+    for child in get_node_children(node) {
+        match &child.data {
+            NodeData::Text { contents } => {
+                content.push_str(&contents.borrow());
+            }
+            NodeData::Element { .. } => {
+                content.push_str(&get_node_content(&child));
+            }
+            _ => {}
+        }
+    }
+    
+    content
+}

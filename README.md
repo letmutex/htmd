@@ -8,6 +8,7 @@ An HTML to Markdown converter for Rust, inspired by [turndown.js](https://github
 
 - Rich options, same as turndown.js
 - Reliable, it passes [all test cases](https://github.com/mixmark-io/turndown/blob/master/test/index.html) of turndown.js
+- HTML table to Markdown table conversion
 - Minimum dependencies, it uses only [html5ever](https://github.com/servo/html5ever)
 - Fast, it takes ~70ms to convert a 1.37MB Wikipedia page on an i5 7th gen CPU (See [Bench README](benches/README.md))
 
@@ -63,6 +64,44 @@ let converter = HtmlToMarkdown::builder()
     .add_handler(vec!["svg"], |_: Element| Some("[Svg Image]".to_string()))
     .build();
 assert_eq!("[Svg Image]", converter.convert("<svg></svg>").unwrap());
+```
+
+### Tables
+
+```rust
+use htmd::convert;
+
+fn main() {
+    let html = r#"
+    <table>
+        <thead>
+            <tr>
+                <th>Language</th>
+                <th>Type</th>
+                <th>Year</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Rust</td>
+                <td>Systems</td>
+                <td>2010</td>
+            </tr>
+            <tr>
+                <td>Python</td>
+                <td>Interpreted</td>
+                <td>1991</td>
+            </tr>
+        </tbody>
+    </table>
+    "#;
+
+    let markdown = convert(html).unwrap();
+    println!("{}", markdown);
+    // Output:
+    // | Rust |Systems |2010 |
+    // | Python |Interpreted |1991 |
+}
 ```
 
 ### Multithreading
