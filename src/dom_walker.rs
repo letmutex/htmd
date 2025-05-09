@@ -94,7 +94,7 @@ fn append_text(
         {
             // We can't compress spaces between two text blocks/elements, so we compress
             // them here by trimming the leading space of current text content.
-            text.trim_start_matches(|ch| ch == ' ').to_string()
+            text.trim_start_matches(' ').to_string()
         } else {
             text
         };
@@ -144,8 +144,8 @@ fn join_contents(contents: &[String]) -> String {
 
         let result_len = result.len();
 
-        let left = result.trim_end_matches(|ch| ch == '\n');
-        let right = content.trim_start_matches(|ch| ch == '\n');
+        let left = result.trim_end_matches('\n');
+        let right = content.trim_start_matches('\n');
 
         let max_trimmed_new_lines =
             std::cmp::max(result_len - left.len(), content_len - right.len());
@@ -213,7 +213,7 @@ fn trim_buffer_end(buffer: &mut [String]) {
 
 fn trim_buffer_end_spaces(buffer: &mut [String]) {
     for content in buffer.iter_mut().rev() {
-        let trimmed = content.trim_end_matches(|ch| ch == ' ');
+        let trimmed = content.trim_end_matches(' ');
         if trimmed.len() == content.len() {
             break;
         }
