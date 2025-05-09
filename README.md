@@ -121,6 +121,10 @@ for _ in 0..10 {
 
 If you have custom tag handlers that are not stateless, you likely need a thread-safe mechanism. See [AnchorElementHandler](./src/element_handler/anchor.rs) for example.
 
+# Bindings
+
+- Python: [htmd](https://github.com/lmmx/htmd) by [@lmmx](https://github.com/lmmx)
+
 # Credits
 
 - [turndown.js](https://github.com/mixmark-io/turndown)
