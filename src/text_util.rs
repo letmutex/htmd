@@ -103,11 +103,31 @@ where
     }
 }
 
-pub(crate) fn compress_whitespace(input: &str) -> String {
-    let mut result = String::new();
+pub(crate) fn compress_whitespace(input: & str) -> Cow<'_, str> {
     if input.is_empty() {
-        return result;
+        return Cow::Borrowed(input);
     }
+
+    // Check if compression is actually needed
+    let needs_compression = input.chars().enumerate().any(|(i, c)| {
+        if c.is_ascii_whitespace() {
+            // If we have consecutive whitespace or non-space whitespace
+            return (i > 0
+                && input
+                    .chars()
+                    .nth(i - 1)
+                    .is_some_and(|prev| prev.is_ascii_whitespace()))
+                || c != ' ';
+        }
+        false
+    });
+
+    if !needs_compression {
+        return Cow::Borrowed(input);
+    }
+
+    // Perform the compression
+    let mut result = String::with_capacity(input.len());
     let mut in_whitespace = false;
 
     for c in input.chars() {
@@ -122,7 +142,7 @@ pub(crate) fn compress_whitespace(input: &str) -> String {
         }
     }
 
-    result
+    Cow::Owned(result)
 }
 
 pub(crate) fn indent_text_except_first_line(
@@ -197,4 +217,6 @@ macro_rules! concat_strings {
         result
     }};
 }
+use std::borrow::Cow;
+
 pub(crate) use concat_strings;

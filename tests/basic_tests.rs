@@ -6,7 +6,6 @@ use htmd::{
     Element, HtmlToMarkdown,
 };
 
-
 #[test]
 fn links_with_spaces() {
     let html = r#"
@@ -206,6 +205,24 @@ fn with_custom_rules() {
 fn upper_case_tags() {
     let html = r#"<H1>Hello</H1> <P>World</P>"#;
     assert_eq!("# Hello\n\nWorld", convert(html).unwrap());
+}
+
+#[test]
+fn html_entities() {
+    let html = r#"<p><a href="/my%20&amp;uri" title="my%20&amp;title">my%20&amp;link</a></p>"#;
+    assert_eq!(
+        r#"[my%20&link](/my%20&uri "my%20&title")"#,
+        convert(html).unwrap()
+    );
+
+    let html_plain = r#"<p>This &amp; that, then &lt; &gt; now.</p>"#;
+    assert_eq!(
+        r#"This & that, then < > now."#,
+        convert(html_plain).unwrap()
+    );
+
+    let html_pre = r#"<pre><code>let x = 5 &amp;&amp; y &lt; 10;</code></pre>"#;
+    assert_eq!("```\nlet x = 5 && y < 10;\n```", convert(html_pre).unwrap());
 }
 
 #[test]

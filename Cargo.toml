@@ -14,6 +14,7 @@ readme = "README.md"
 [dependencies]
 html5ever = "0.29.1"
 markup5ever_rcdom = "0.5.0-unofficial"
+html-escape = "0.2.13"
 
 [dev-dependencies]
 scraper = "0.23.1"
