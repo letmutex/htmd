@@ -285,7 +285,7 @@ checksum = "fbd780fe5cc30f81464441920d82ac8740e2e46b29a6fad543ddd075229ce37e"
 
 [[package]]
 name = "htmd"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "criterion",
  "html-escape",
