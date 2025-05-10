@@ -17,14 +17,17 @@ pub(super) fn list_item_handler(element: Element) -> Option<String> {
         } else {
             "-"
         };
-        Some(concat_strings!("\n", marker, "   ", content, "\n"))
+        let spacing = " ".repeat(element.options.ul_bullet_spacing.into());
+        Some(concat_strings!("\n", marker, spacing, content, "\n"))
     };
 
     let ol_li = |index: usize| {
+        let spacing = " ".repeat(element.options.ol_number_spacing.into());
         Some(concat_strings!(
             "\n",
             index.to_string(),
-            ".  ",
+            ".",
+            spacing,
             content,
             "\n"
         ))

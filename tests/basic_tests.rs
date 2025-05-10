@@ -74,18 +74,6 @@ fn images_with_spaces_in_url() {
 }
 
 #[test]
-fn unordered_lists() {
-    let html = r#"
-        <ul>
-            <li>Item 1</li>
-            <li>Item 2</li>
-            <li>Item 3</li>
-        </ul>
-        "#;
-    assert_eq!("*   Item 1\n*   Item 2\n*   Item 3", convert(html).unwrap())
-}
-
-#[test]
 fn headings() {
     let html = r#"
         <h1>Heading 1</h1>

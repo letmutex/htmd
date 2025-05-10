@@ -5,6 +5,9 @@ mod basic_tests;
 mod table_tests;
 
 #[cfg(test)]
+mod list_tests;
+
+#[cfg(test)]
 mod turndown_cases_tests;
 
 #[cfg(test)]

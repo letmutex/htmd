@@ -82,6 +82,9 @@ fn run_cases() {
             BulletListMarker::Asterisk
         };
 
+        let ul_bullet_spacing = 3;
+        let ol_number_spacing = 2;
+
         let preformatted_code = opt.is_some_and(|opt| opt == r#"{"preformattedCode": true}"#);
 
         let converter = HtmlToMarkdown::builder()
@@ -94,6 +97,8 @@ fn run_cases() {
                 code_block_style,
                 code_block_fence,
                 bullet_list_marker,
+                ul_bullet_spacing,
+                ol_number_spacing,
                 preformatted_code,
             })
             .build();
