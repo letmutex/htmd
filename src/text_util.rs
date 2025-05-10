@@ -103,7 +103,7 @@ where
     }
 }
 
-pub(crate) fn compress_whitespace<'a>(input: &'a str) -> Cow<'a, str> {
+pub(crate) fn compress_whitespace(input: & str) -> Cow<'_, str> {
     if input.is_empty() {
         return Cow::Borrowed(input);
     }
@@ -116,7 +116,7 @@ pub(crate) fn compress_whitespace<'a>(input: &'a str) -> Cow<'a, str> {
                 && input
                     .chars()
                     .nth(i - 1)
-                    .map_or(false, |prev| prev.is_ascii_whitespace()))
+                    .is_some_and(|prev| prev.is_ascii_whitespace()))
                 || c != ' ';
         }
         false
