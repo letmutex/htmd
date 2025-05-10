@@ -82,6 +82,8 @@ pub enum BulletListMarker {
 #[derive(PartialEq, Debug)]
 pub enum LinkStyle {
     Inlined,
+    /// Will convert links with the same URL and link text to [Autolinks](https://spec.commonmark.org/0.31.2/#autolink).
+    InlinedPreferAutolinks,
     Referenced,
 }
 

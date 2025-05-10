@@ -66,10 +66,14 @@ impl ElementHandler for AnchorElementHandler {
 
         let link = link.replace('(', "\\(").replace(')', "\\)");
 
-        let md = if options.link_style == LinkStyle::Inlined {
-            self.build_inlined_anchor(content, link, title)
-        } else {
-            self.build_referenced_anchor(content, link, title, &options.link_reference_style)
+        let md = match options.link_style {
+            LinkStyle::Inlined => self.build_inlined_anchor(content, link, title, false),
+            LinkStyle::InlinedPreferAutolinks => {
+                self.build_inlined_anchor(content, link, title, true)
+            }
+            LinkStyle::Referenced => {
+                self.build_referenced_anchor(content, link, title, &options.link_reference_style)
+            }
         };
 
         Some(md)
@@ -81,7 +85,17 @@ impl AnchorElementHandler {
         Self {}
     }
 
-    fn build_inlined_anchor(&self, content: &str, link: String, title: Option<String>) -> String {
+    fn build_inlined_anchor(
+        &self,
+        content: &str,
+        link: String,
+        title: Option<String>,
+        prefer_autolinks: bool,
+    ) -> String {
+        if prefer_autolinks && content == link {
+            return concat_strings!("<", link, ">");
+        }
+
         let has_spaces_in_link = link.contains(' ');
         let (content, _) = content.strip_leading_whitespace();
         let (content, trailing_whitespace) = content.strip_trailing_whitespace();
