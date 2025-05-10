@@ -1,6 +1,6 @@
 use html5ever::Attribute;
 use markup5ever_rcdom::{Node, NodeData};
-use std::rc::Rc;
+use std::{borrow::Cow, rc::Rc};
 
 use super::{
     element_handler::ElementHandler,
@@ -76,6 +76,7 @@ fn append_text(
         buffer.push(text);
     } else {
         // Handle other elements or texts
+        let text = html_escape::decode_html_entities(&text);
         let text = escape_if_needed(text);
         let text = compress_whitespace(&text);
 
@@ -96,7 +97,7 @@ fn append_text(
             // them here by trimming the leading space of current text content.
             text.trim_start_matches(' ').to_string()
         } else {
-            text
+            text.into_owned()
         };
         buffer.push(to_add);
     }
@@ -232,7 +233,26 @@ fn trim_buffer_end_spaces(buffer: &mut [String]) {
 /// '- Item'   -> '\\- Item'   // unordered list item
 /// '+ Item'   -> '\\+ Item'   // unordered list item
 /// '> Quote'  -> '\\> Quote'  // quote
-fn escape_if_needed(text: String) -> String {
+fn escape_if_needed<'a>(text: Cow<'a, str>) -> Cow<'a, str> {
+    let Some(first) = text.chars().next() else {
+        return text;
+    };
+
+    let mut need_escape = match first {
+        '=' | '~' | '>' | '-' | '+' | '#' | '0'..='9' => true,
+        _ => false,
+    };
+
+    if !need_escape {
+        need_escape = text
+            .chars()
+            .any(|c| c == '\\' || c == '*' || c == '_' || c == '`' || c == '[' || c == ']');
+    }
+
+    if !need_escape {
+        return text;
+    }
+
     let mut escaped = String::new();
     for ch in text.chars() {
         match ch {
@@ -245,34 +265,30 @@ fn escape_if_needed(text: String) -> String {
             _ => escaped.push(ch),
         }
     }
-    let Some(first) = escaped.chars().next() else {
-        return escaped;
-    };
+
     match first {
         '=' | '~' | '>' => {
             escaped.insert(0, '\\');
-            escaped
         }
         '-' | '+' => {
             if escaped.chars().nth(1).is_some_and(|ch| ch == ' ') {
                 escaped.insert(0, '\\');
             }
-            escaped
         }
         '#' => {
             if is_markdown_atx_heading(&escaped) {
                 escaped.insert(0, '\\');
             }
-            escaped
         }
         '0'..='9' => {
             if let Some(dot_idx) = index_of_markdown_ordered_item_dot(&escaped) {
                 escaped.replace_range(dot_idx..(dot_idx + 1), "\\.");
             }
-            escaped
         }
-        _ => escaped,
+        _ => {}
     }
+
+    Cow::Owned(escaped)
 }
 
 /// Cases:

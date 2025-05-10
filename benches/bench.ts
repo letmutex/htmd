@@ -19,7 +19,7 @@ if (start === -1) {
 
 await writeResultReadme(output.substring(start).trim());
 
-console.log("Saved result as benches/README.md");
+console.log("Saved result to benches/README.md");
 
 function osCpus(): string {
   const cpus = new Map<string, number>();
