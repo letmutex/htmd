@@ -8,6 +8,9 @@ mod table_tests;
 mod list_tests;
 
 #[cfg(test)]
+mod link_tests;
+
+#[cfg(test)]
 mod turndown_cases_tests;
 
 #[cfg(test)]
