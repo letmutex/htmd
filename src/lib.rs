@@ -9,7 +9,8 @@ use std::rc::Rc;
 use dom_walker::walk_node;
 use element_handler::{ElementHandler, ElementHandlers};
 use html5ever::tendril::TendrilSink;
-use html5ever::{parse_document, Attribute};
+use html5ever::tree_builder::TreeBuilderOpts;
+use html5ever::{parse_document, Attribute, ParseOpts};
 use markup5ever_rcdom::{Node, RcDom};
 use options::Options;
 
@@ -62,6 +63,7 @@ pub struct Element<'a> {
 pub struct HtmlToMarkdown {
     options: Options,
     handlers: ElementHandlers,
+    scripting_enabled: bool,
 }
 
 impl Default for HtmlToMarkdown {
@@ -76,11 +78,20 @@ impl HtmlToMarkdown {
         Self {
             options: Options::default(),
             handlers: ElementHandlers::new(),
+            scripting_enabled: true,
         }
     }
 
-    pub(crate) fn from_params(options: Options, handlers: ElementHandlers) -> Self {
-        Self { options, handlers }
+    pub(crate) fn from_params(
+        options: Options,
+        handlers: ElementHandlers,
+        scripting_enabled: bool,
+    ) -> Self {
+        Self {
+            options,
+            handlers,
+            scripting_enabled,
+        }
     }
 
     /// Create a new [HtmlToMarkdownBuilder].
@@ -90,9 +101,18 @@ impl HtmlToMarkdown {
 
     /// Convert HTML to Markdown.
     pub fn convert(&self, html: &str) -> std::io::Result<String> {
-        let dom = parse_document(RcDom::default(), Default::default())
-            .from_utf8()
-            .read_from(&mut html.as_bytes())?;
+        let dom = parse_document(
+            RcDom::default(),
+            ParseOpts {
+                tree_builder: TreeBuilderOpts {
+                    scripting_enabled: self.scripting_enabled,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        )
+        .from_utf8()
+        .read_from(&mut html.as_bytes())?;
 
         let mut buffer: Vec<String> = Vec::new();
 
@@ -126,6 +146,7 @@ impl HtmlToMarkdown {
 pub struct HtmlToMarkdownBuilder {
     options: Options,
     handlers: ElementHandlers,
+    scripting_enabled: bool,
 }
 
 impl Default for HtmlToMarkdownBuilder {
@@ -140,6 +161,7 @@ impl HtmlToMarkdownBuilder {
         Self {
             options: Options::default(),
             handlers: ElementHandlers::new(),
+            scripting_enabled: true,
         }
     }
 
@@ -179,8 +201,15 @@ impl HtmlToMarkdownBuilder {
         self
     }
 
+    /// Option for html5ever parsing. If true, the content of <noscript> tags will be converted to raw text.
+    /// If false, the content of <noscript> tags will be parsed as normal DOM.
+    pub fn scripting_enabled(mut self, enabled: bool) -> Self {
+        self.scripting_enabled = enabled;
+        self
+    }
+
     /// Create a new [HtmlToMarkdown].
     pub fn build(self) -> HtmlToMarkdown {
-        HtmlToMarkdown::from_params(self.options, self.handlers)
+        HtmlToMarkdown::from_params(self.options, self.handlers, self.scripting_enabled)
     }
 }
