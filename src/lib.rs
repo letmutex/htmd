@@ -9,7 +9,6 @@ use std::rc::Rc;
 use dom_walker::walk_node;
 use element_handler::{ElementHandler, ElementHandlers};
 use html5ever::tendril::TendrilSink;
-use html5ever::tokenizer::TokenizerOpts;
 use html5ever::tree_builder::TreeBuilderOpts;
 use html5ever::{parse_document, Attribute, ParseOpts};
 use markup5ever_rcdom::{Node, RcDom};
@@ -105,11 +104,11 @@ impl HtmlToMarkdown {
         let dom = parse_document(
             RcDom::default(),
             ParseOpts {
-                tokenizer: TokenizerOpts::default(),
                 tree_builder: TreeBuilderOpts {
                     scripting_enabled: self.scripting_enabled,
                     ..Default::default()
                 },
+                ..Default::default()
             },
         )
         .from_utf8()
