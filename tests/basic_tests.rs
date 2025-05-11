@@ -226,6 +226,24 @@ fn html_entities() {
 }
 
 #[test]
+fn scripting_option() {
+    let html = r#"<noscript><p>Hello</p></noscript>"#;
+    let md = HtmlToMarkdown::builder()
+        .scripting_enabled(true)
+        .build()
+        .convert(html)
+        .unwrap();
+    assert_eq!("<p>Hello</p>", md);
+
+    let md = HtmlToMarkdown::builder()
+        .scripting_enabled(false)
+        .build()
+        .convert(html)
+        .unwrap();
+    assert_eq!("Hello", md);
+}
+
+#[test]
 fn multithreading() {
     let html = r#"<a href="https://example.com">Example</a>
     <a href="https://example.com">Example</a>
