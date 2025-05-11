@@ -35,13 +35,13 @@ impl Default for Options {
     }
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub enum HeadingStyle {
     Atx,
     Setex,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub enum HrStyle {
     /// `- - -`
     Dashes,
@@ -51,19 +51,19 @@ pub enum HrStyle {
     Underscores,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub enum BrStyle {
     TwoSpaces,
     Backslash,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub enum CodeBlockStyle {
     Indented,
     Fenced,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub enum CodeBlockFence {
     /// Wrap code with `~~~`
     Tildes,
@@ -71,7 +71,7 @@ pub enum CodeBlockFence {
     Backticks,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub enum BulletListMarker {
     /// List items will start with `*`
     Asterisk,
@@ -79,7 +79,7 @@ pub enum BulletListMarker {
     Dash,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub enum LinkStyle {
     Inlined,
     /// Will convert links with the same URL and link text to [Autolinks](https://spec.commonmark.org/0.31.2/#autolink).
@@ -87,7 +87,7 @@ pub enum LinkStyle {
     Referenced,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub enum LinkReferenceStyle {
     Full,
     Collapsed,
