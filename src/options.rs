@@ -11,7 +11,7 @@ pub struct Options {
     pub bullet_list_marker: BulletListMarker,
     /// The number of spaces between the bullet character and the content.
     pub ul_bullet_spacing: u8,
-    /// The number of spaces between the  and the content.
+    /// The number of spaces between the period character and the content.
     pub ol_number_spacing: u8,
     /// If true, the whitespace in inline <code> tags will be preserved.
     pub preformatted_code: bool,
