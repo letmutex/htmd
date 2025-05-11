@@ -103,7 +103,7 @@ where
     }
 }
 
-pub(crate) fn compress_whitespace(input: & str) -> Cow<'_, str> {
+pub(crate) fn compress_whitespace(input: &str) -> Cow<'_, str> {
     if input.is_empty() {
         return Cow::Borrowed(input);
     }
@@ -185,6 +185,9 @@ pub(crate) fn index_of_markdown_ordered_item_dot(text: &str) -> Option<usize> {
     let mut is_prev_ch_dot = false;
     for (index, ch) in text.chars().enumerate() {
         if ch.is_numeric() {
+            if is_prev_ch_dot {
+                return None;
+            }
             is_prev_ch_numeric = true;
         } else if ch == '.' {
             if !is_prev_ch_numeric {
@@ -220,3 +223,23 @@ macro_rules! concat_strings {
 use std::borrow::Cow;
 
 pub(crate) use concat_strings;
+
+#[cfg(test)]
+mod tests {
+    use super::index_of_markdown_ordered_item_dot;
+
+    #[test]
+    fn test_index_of_markdown_ordered_item_dot() {
+        assert_eq!(None, index_of_markdown_ordered_item_dot("16.1¾ "));
+        assert_eq!(Some(1), index_of_markdown_ordered_item_dot("1. "));
+        assert_eq!(Some(2), index_of_markdown_ordered_item_dot("12. "));
+        assert_eq!(Some(5), index_of_markdown_ordered_item_dot("12345. "));
+        assert_eq!(Some(1), index_of_markdown_ordered_item_dot("1. \n"));
+        assert_eq!(None, index_of_markdown_ordered_item_dot(". "));
+        assert_eq!(None, index_of_markdown_ordered_item_dot("abc. "));
+        assert_eq!(None, index_of_markdown_ordered_item_dot("1 . "));
+        assert_eq!(None, index_of_markdown_ordered_item_dot(" 1. "));
+        assert_eq!(None, index_of_markdown_ordered_item_dot("1.a "));
+        assert_eq!(None, index_of_markdown_ordered_item_dot("1."));
+    }
+}
