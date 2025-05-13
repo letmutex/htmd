@@ -289,7 +289,7 @@ version = "0.2.1"
 dependencies = [
  "criterion",
  "html-escape",
- "html5ever",
+ "html5ever 0.31.0",
  "markup5ever_rcdom",
  "scraper",
 ]
@@ -311,7 +311,19 @@ checksum = "3b7410cae13cbc75623c98ac4cbfd1f0bedddf3227afc24f370cf0f50a44a11c"
 dependencies = [
  "log",
  "mac",
- "markup5ever",
+ "markup5ever 0.14.1",
+ "match_token",
+]
+
+[[package]]
+name = "html5ever"
+version = "0.31.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "953cbbe631aae7fc0a112702ad5d3aaf09da38beaf45ea84610d6e1c358f569c"
+dependencies = [
+ "log",
+ "mac",
+ "markup5ever 0.16.1",
  "match_token",
 ]
 
@@ -394,13 +406,24 @@ dependencies = [
 ]
 
 [[package]]
-name = "markup5ever_rcdom"
-version = "0.5.0-unofficial"
+name = "markup5ever"
+version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9cb12459c4cab18dcc580159590f404ad78c0a9c5435ace80288ed43abdce31"
+checksum = "d0a8096766c229e8c88a3900c9b44b7e06aa7f7343cc229158c3e58ef8f9973a"
 dependencies = [
- "html5ever",
- "markup5ever",
+ "log",
+ "tendril",
+ "web_atoms",
+]
+
+[[package]]
+name = "markup5ever_rcdom"
+version = "0.5.3-unofficial"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "853740b93240b82f68a23d8b296b2d19fc81521c298fcae44bf34bed6e445f00"
+dependencies = [
+ "html5ever 0.31.0",
+ "markup5ever 0.16.1",
  "tendril",
  "xml5ever",
 ]
@@ -685,7 +708,7 @@ dependencies = [
  "cssparser",
  "ego-tree",
  "getopts",
- "html5ever",
+ "html5ever 0.29.1",
  "precomputed-hash",
  "selectors",
  "tendril",
@@ -929,6 +952,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "web_atoms"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b9c5f0bc545ea3b20b423e33b9b457764de0b3730cd957f6c6aa6c301785f6e"
+dependencies = [
+ "phf",
+ "phf_codegen",
+ "string_cache",
+ "string_cache_codegen",
+]
+
+[[package]]
 name = "winapi-util"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1012,11 +1047,11 @@ checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
 
 [[package]]
 name = "xml5ever"
-version = "0.20.0"
+version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2278b4bf33071ba8e30368a59436c65eec8e01c49d5c29b3dfeb0cdc45331383"
+checksum = "0a91563ba5a5ab749488164063f1317e327ca1daa80f00e5bd1e670ad0d78154"
 dependencies = [
  "log",
  "mac",
- "markup5ever",
+ "markup5ever 0.16.1",
 ]
