@@ -71,37 +71,36 @@ assert_eq!("[Svg Image]", converter.convert("<svg></svg>").unwrap());
 ```rust
 use htmd::convert;
 
-fn main() {
-    let html = r#"
-    <table>
-        <thead>
-            <tr>
-                <th>Language</th>
-                <th>Type</th>
-                <th>Year</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td>Rust</td>
-                <td>Systems</td>
-                <td>2010</td>
-            </tr>
-            <tr>
-                <td>Python</td>
-                <td>Interpreted</td>
-                <td>1991</td>
-            </tr>
-        </tbody>
-    </table>
-    "#;
+let html = r#"
+<table>
+    <thead>
+        <tr>
+            <th>Language</th>
+            <th>Type</th>
+            <th>Year</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Rust</td>
+            <td>Systems</td>
+            <td>2010</td>
+        </tr>
+        <tr>
+            <td>Python</td>
+            <td>Interpreted</td>
+            <td>1991</td>
+        </tr>
+    </tbody>
+</table>
+"#;
 
-    let markdown = convert(html).unwrap();
-    println!("{}", markdown);
-    // Output:
-    // | Rust |Systems |2010 |
-    // | Python |Interpreted |1991 |
-}
+println!("{}", convert(html).unwrap());
+// Output:
+// | Language | Type        | Year |
+// | -------- | ----------- | ---- |
+// | Rust     | Systems     | 2010 |
+// | Python   | Interpreted | 1991 |
 ```
 
 ### Multithreading

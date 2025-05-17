@@ -1,5 +1,5 @@
 use crate::element_handler::Element;
-use crate::node_util::{get_node_children, get_node_content};
+use crate::node_util::{get_node_children, get_node_content, get_node_tag_name};
 use crate::text_util::concat_strings;
 use markup5ever_rcdom::NodeData;
 use std::rc::Rc;
@@ -35,10 +35,22 @@ pub(crate) fn table_handler(element: Element) -> Option<String> {
                         captions.push(get_node_content(&child).trim().to_string());
                     }
                     "thead" => {
+                        let tr = child
+                            .children
+                            .borrow()
+                            .iter()
+                            .find(|it| get_node_tag_name(it).is_some_and(|tag| tag == "tr"))
+                            .cloned();
+
+                        let row_node = match tr {
+                            Some(tr) => tr,
+                            None => child,
+                        };
+
                         has_thead = true;
-                        headers = extract_row_cells(&child, "th");
+                        headers = extract_row_cells(&row_node, "th");
                         if headers.is_empty() {
-                            headers = extract_row_cells(&child, "td");
+                            headers = extract_row_cells(&row_node, "td");
                         }
                     }
                     "tbody" | "tfoot" => {
@@ -100,35 +112,14 @@ pub(crate) fn table_handler(element: Element) -> Option<String> {
         table_md.push_str(&format!("{}\n", caption));
     }
 
-    // Add header row if available
+    let col_widths = compute_column_widths(&headers, &rows, num_columns);
+
     if !headers.is_empty() {
-        table_md.push_str("| ");
-        for (i, header) in headers.iter().enumerate() {
-            if i < num_columns {
-                table_md.push_str(&normalize_cell_content(header));
-                table_md.push_str(" |");
-            }
-        }
-        table_md.push('\n');
-
-        // Add separator row
-        table_md.push_str("| ");
-        for _ in 0..num_columns {
-            table_md.push_str("--- |");
-        }
-        table_md.push('\n');
+        table_md.push_str(&format_row_padded(&headers, num_columns, &col_widths));
+        table_md.push_str(&format_separator_padded(num_columns, &col_widths));
     }
-
-    // Add data rows
     for row in rows {
-        table_md.push_str("| ");
-        for i in 0..num_columns {
-            if i < row.len() {
-                table_md.push_str(&normalize_cell_content(&row[i]));
-            }
-            table_md.push_str(" |");
-        }
-        table_md.push('\n');
+        table_md.push_str(&format_row_padded(&row, num_columns, &col_widths));
     }
 
     table_md.push('\n');
@@ -153,8 +144,52 @@ fn extract_row_cells(row_node: &Rc<markup5ever_rcdom::Node>, cell_tag: &str) -> 
 
 /// Normalize cell content for Markdown table representation
 fn normalize_cell_content(content: &str) -> String {
-    let content = content.replace('\n', " ").replace('\r', "");
-    let content = content.trim();
+    let content = content
+        .replace('\n', " ")
+        .replace('\r', "")
+        .replace('|', "&#124;");
+    content.trim().to_string()
+}
 
-    content.to_string()
+fn format_row_padded(row: &[String], num_columns: usize, col_widths: &[usize]) -> String {
+    let mut line = String::from("|");
+    for i in 0..num_columns {
+        let cell = row
+            .get(i)
+            .map(|s| normalize_cell_content(s))
+            .unwrap_or_default();
+        let pad = col_widths[i].saturating_sub(cell.chars().count());
+        line.push_str(&concat_strings!(" ", cell, " ".repeat(pad), " |"));
+    }
+    line.push('\n');
+    line
+}
+
+fn format_separator_padded(num_columns: usize, col_widths: &[usize]) -> String {
+    let mut line = String::from("|");
+    for i in 0..num_columns {
+        line.push_str(&concat_strings!(" ", "-".repeat(col_widths[i]), " |"));
+    }
+    line.push('\n');
+    line
+}
+
+fn compute_column_widths(
+    headers: &[String],
+    rows: &[Vec<String>],
+    num_columns: usize,
+) -> Vec<usize> {
+    let mut widths = vec![0; num_columns];
+    for (i, header) in headers.iter().enumerate() {
+        widths[i] = header.chars().count();
+    }
+    for row in rows {
+        for (i, cell) in row.iter().enumerate().take(num_columns) {
+            let len = cell.chars().count();
+            if len > widths[i] {
+                widths[i] = len;
+            }
+        }
+    }
+    widths
 }

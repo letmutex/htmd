@@ -22,8 +22,8 @@ mod table_tests_1 {
         "#;
 
         let expected = r#"
-| Cell 1 |Cell 2 |
-| Cell 3 |Cell 4 |
+| Cell 1 | Cell 2 |
+| Cell 3 | Cell 4 |
 "#
         .trim();
 
@@ -59,8 +59,10 @@ mod table_tests_1 {
         "#;
 
         let expected = r#"
-| John |35 |New York |
-| Jane |28 |San Francisco |
+| Name | Age | Location      |
+| ---- | --- | ------------- |
+| John | 35  | New York      |
+| Jane | 28  | San Francisco |
 "#
         .trim();
 
@@ -91,8 +93,8 @@ mod table_tests_1 {
 
         let expected = r#"
 Sample Table
-| John |35 |New York |
-| Jane |28 |San Francisco |
+| John | 35 | New York      |
+| Jane | 28 | San Francisco |
 "#
         .trim();
 
