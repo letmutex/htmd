@@ -153,12 +153,12 @@ fn normalize_cell_content(content: &str) -> String {
 
 fn format_row_padded(row: &[String], num_columns: usize, col_widths: &[usize]) -> String {
     let mut line = String::from("|");
-    for i in 0..num_columns {
+    for (i, col_width) in col_widths.iter().enumerate().take(num_columns) {
         let cell = row
             .get(i)
             .map(|s| normalize_cell_content(s))
             .unwrap_or_default();
-        let pad = col_widths[i].saturating_sub(cell.chars().count());
+        let pad = col_width.saturating_sub(cell.chars().count());
         line.push_str(&concat_strings!(" ", cell, " ".repeat(pad), " |"));
     }
     line.push('\n');
@@ -167,8 +167,8 @@ fn format_row_padded(row: &[String], num_columns: usize, col_widths: &[usize]) -
 
 fn format_separator_padded(num_columns: usize, col_widths: &[usize]) -> String {
     let mut line = String::from("|");
-    for i in 0..num_columns {
-        line.push_str(&concat_strings!(" ", "-".repeat(col_widths[i]), " |"));
+    for (_, col_width) in col_widths.iter().enumerate().take(num_columns) {
+        line.push_str(&concat_strings!(" ", "-".repeat(*col_width), " |"));
     }
     line.push('\n');
     line
