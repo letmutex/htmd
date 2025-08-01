@@ -1,9 +1,9 @@
 use htmd::{
+    HtmlToMarkdown,
     options::{
         BrStyle, BulletListMarker, CodeBlockFence, CodeBlockStyle, HeadingStyle, HrStyle,
         LinkReferenceStyle, LinkStyle, Options,
     },
-    HtmlToMarkdown,
 };
 use pretty_assertions::assert_eq;
 use scraper::{Html, Selector};

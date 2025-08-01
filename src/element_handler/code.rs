@@ -4,10 +4,10 @@ use html5ever::Attribute;
 use markup5ever_rcdom::{Node, NodeData};
 
 use crate::{
+    Element,
     node_util::{get_node_tag_name, get_parent_node},
     options::{CodeBlockFence, CodeBlockStyle},
-    text_util::{concat_strings, JoinOnStringIterator, TrimAsciiWhitespace},
-    Element,
+    text_util::{JoinOnStringIterator, TrimAsciiWhitespace, concat_strings},
 };
 
 pub(super) fn code_handler(element: Element) -> Option<String> {

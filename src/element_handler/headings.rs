@@ -1,4 +1,4 @@
-use crate::{options::HeadingStyle, text_util::TrimAsciiWhitespace, Element};
+use crate::{Element, options::HeadingStyle, text_util::TrimAsciiWhitespace};
 
 pub(super) fn headings_handler(element: Element) -> Option<String> {
     let level = element.tag.chars().nth(1).unwrap() as u32 - '0' as u32;

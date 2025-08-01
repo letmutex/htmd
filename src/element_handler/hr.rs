@@ -1,4 +1,4 @@
-use crate::{options::HrStyle, Element};
+use crate::{Element, options::HrStyle};
 
 pub(super) fn hr_handler(element: Element) -> Option<String> {
     match element.options.hr_style {

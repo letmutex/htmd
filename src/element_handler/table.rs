@@ -55,12 +55,12 @@ pub(crate) fn table_handler(element: Element) -> Option<String> {
                     }
                     "tbody" | "tfoot" => {
                         for row_node in get_node_children(&child) {
-                            if let NodeData::Element { name, .. } = &row_node.data {
-                                if name.local.as_ref() == "tr" {
-                                    let row_cells = extract_row_cells(&row_node, "td");
-                                    if !row_cells.is_empty() {
-                                        rows.push(row_cells);
-                                    }
+                            if let NodeData::Element { name, .. } = &row_node.data
+                                && name.local.as_ref() == "tr"
+                            {
+                                let row_cells = extract_row_cells(&row_node, "td");
+                                if !row_cells.is_empty() {
+                                    rows.push(row_cells);
                                 }
                             }
                         }
@@ -131,11 +131,11 @@ fn extract_row_cells(row_node: &Rc<markup5ever_rcdom::Node>, cell_tag: &str) -> 
     let mut cells = Vec::new();
 
     for cell_node in get_node_children(row_node) {
-        if let NodeData::Element { name, .. } = &cell_node.data {
-            if name.local.as_ref() == cell_tag {
-                let cell_content = get_node_content(&cell_node).trim().to_string();
-                cells.push(cell_content);
-            }
+        if let NodeData::Element { name, .. } = &cell_node.data
+            && name.local.as_ref() == cell_tag
+        {
+            let cell_content = get_node_content(&cell_node).trim().to_string();
+            cells.push(cell_content);
         }
     }
 

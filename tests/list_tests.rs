@@ -1,4 +1,4 @@
-use htmd::{convert, options::Options, HtmlToMarkdown};
+use htmd::{HtmlToMarkdown, convert, options::Options};
 
 #[test]
 fn unordered_lists() {
