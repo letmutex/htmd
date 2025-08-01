@@ -10,7 +10,7 @@ fn links() {
         <a href="https://example.com" title="Hello">Link 2</a>
         "#;
     assert_eq!(
-        "[Link 1](https://example.com)[Link 2](https://example.com \"Hello\")",
+        "[Link 1](https://example.com) [Link 2](https://example.com \"Hello\")",
         convert(html).unwrap(),
     );
 }

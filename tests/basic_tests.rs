@@ -43,7 +43,7 @@ fn images() {
         <img src="https://example.com" alt="Image 2" title="Hello" />
         "#;
     assert_eq!(
-        "![](https://example.com)![Image 1](https://example.com)\
+        "![](https://example.com) ![Image 1](https://example.com) \
             ![Image 2](https://example.com \"Hello\")",
         convert(html).unwrap(),
     )
@@ -144,7 +144,7 @@ fn hr() {
 
 #[test]
 fn strong_italic() {
-    let html = r#"<i>Italic</i> <em>Also italic</em> <strong>Strong</strong>"#;
+    let html = r#"<i>Italic</i><em>Also italic</em><strong>Strong</strong>"#;
     assert_eq!("_Italic__Also italic_**Strong**", convert(html).unwrap());
 }
 
@@ -180,7 +180,7 @@ fn with_head() {
         <body>
             Content
         </body>
-    </html> 
+    </html>
     "#;
     assert_eq!(
         "Demo\n\nconsole.log('Hello');\n\nbody {}\n\nContent",
@@ -250,7 +250,7 @@ fn multithreading() {
     <a href="https://example.com">Example</a>
     <a href="https://example.com">Example</a>
     "#;
-    let expected = "[Example][1][Example][2][Example][3][Example][4][Example][5]\n\n\
+    let expected = "[Example][1] [Example][2] [Example][3] [Example][4] [Example][5]\n\n\
     [1]: https://example.com\n[2]: https://example.com\n[3]: https://example.com\n\
     [4]: https://example.com\n[5]: https://example.com";
     let converter = HtmlToMarkdown::builder()
