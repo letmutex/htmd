@@ -30,7 +30,7 @@ pub(crate) fn get_node_children(node: &Rc<Node>) -> Vec<Rc<Node>> {
 
 pub(crate) fn get_node_content(node: &Rc<Node>) -> String {
     let mut content = String::new();
-    
+
     for child in get_node_children(node) {
         match &child.data {
             NodeData::Text { contents } => {
@@ -42,6 +42,6 @@ pub(crate) fn get_node_content(node: &Rc<Node>) -> String {
             _ => {}
         }
     }
-    
+
     content
 }
