@@ -31,12 +31,12 @@ sit</pre>
 
 <div class="case" data-name="em">
   <div class="input"><em>em element</em></div>
-  <pre class="expected">_em element_</pre>
+  <pre class="expected">*em element*</pre>
 </div>
 
 <div class="case" data-name="i">
   <div class="input"><i>i element</i></div>
-  <pre class="expected">_i element_</pre>
+  <pre class="expected">*i element*</pre>
 </div>
 
 <div class="case" data-name="strong">
@@ -747,7 +747,7 @@ Another div</pre>
 
 <div class="case" data-name="whitespace in inline elements">
   <div class="input">Text with no space after the period.<em> Text in em with leading/trailing spaces </em><strong>text in strong with trailing space </strong></div>
-  <pre class="expected">Text with no space after the period. _Text in em with leading/trailing spaces_ **text in strong with trailing space**</pre>
+  <pre class="expected">Text with no space after the period. *Text in em with leading/trailing spaces* **text in strong with trailing space**</pre>
 </div>
 
 <!-- Two trailing newlines are for the line break -->
@@ -903,7 +903,7 @@ Content in another div</pre>
 
 <div class="case" data-name="escaping _ inside em tags">
   <div class="input"><em>test_italics</em></div>
-  <pre class="expected">_test\_italics_</pre>
+  <pre class="expected">*test\_italics*</pre>
 </div>
 
 <div class="case" data-name="escaping > as blockquote">
@@ -1078,42 +1078,42 @@ Code
 
 <div class="case" data-name="element with trailing nonASCII WS followed by nonWS">
   <div class="input"><i>foo&nbsp;</i>bar</div>
-  <pre class="expected">_foo_&nbsp;bar</pre>
+  <pre class="expected">*foo*&nbsp;bar</pre>
 </div>
 
 <div class="case" data-name="element with trailing nonASCII WS followed by nonASCII WS">
   <div class="input"><i>foo&nbsp;</i>&nbsp;bar</div>
-  <pre class="expected">_foo_&nbsp;&nbsp;bar</pre>
+  <pre class="expected">*foo*&nbsp;&nbsp;bar</pre>
 </div>
 
 <div class="case" data-name="element with trailing ASCII WS followed by nonASCII WS">
   <div class="input"><i>foo </i>&nbsp;bar</div>
-  <pre class="expected">_foo_ &nbsp;bar</pre>
+  <pre class="expected">*foo* &nbsp;bar</pre>
 </div>
 
 <div class="case" data-name="element with trailing nonASCII WS followed by ASCII WS">
   <div class="input"><i>foo&nbsp;</i> bar</div>
-  <pre class="expected">_foo_&nbsp; bar</pre>
+  <pre class="expected">*foo*&nbsp; bar</pre>
 </div>
 
 <div class="case" data-name="nonWS followed by element with leading nonASCII WS">
   <div class="input">foo<i>&nbsp;bar</i></div>
-  <pre class="expected">foo&nbsp;_bar_</pre>
+  <pre class="expected">foo&nbsp;*bar*</pre>
 </div>
 
 <div class="case" data-name="nonASCII WS followed by element with leading nonASCII WS">
   <div class="input">foo&nbsp;<i>&nbsp;bar</i></div>
-  <pre class="expected">foo&nbsp;&nbsp;_bar_</pre>
+  <pre class="expected">foo&nbsp;&nbsp;*bar*</pre>
 </div>
 
 <div class="case" data-name="nonASCII WS followed by element with leading ASCII WS">
   <div class="input">foo&nbsp;<i> bar</i></div>
-  <pre class="expected">foo&nbsp; _bar_</pre>
+  <pre class="expected">foo&nbsp; *bar*</pre>
 </div>
 
 <div class="case" data-name="ASCII WS followed by element with leading nonASCII WS">
   <div class="input">foo <i>&nbsp;bar</i></div>
-  <pre class="expected">foo &nbsp;_bar_</pre>
+  <pre class="expected">foo &nbsp;*bar*</pre>
 </div>
 
 <!-- Behavior of `<code>` with CSS set as `white-space: pre-wrap;`, e.g. in GitLab -->
