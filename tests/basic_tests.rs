@@ -1,5 +1,7 @@
 use std::{sync::Arc, thread::JoinHandle};
 
+use pretty_assertions::assert_eq;
+
 use htmd::{
     Element, HtmlToMarkdown, convert,
     options::{BrStyle, LinkStyle, Options},
@@ -145,7 +147,13 @@ fn hr() {
 #[test]
 fn strong_italic() {
     let html = r#"<i>Italic</i><em>Also italic</em><strong>Strong</strong>"#;
-    assert_eq!("_Italic__Also italic_**Strong**", convert(html).unwrap());
+    assert_eq!("_ItalicAlso italic_**Strong**", convert(html).unwrap());
+}
+
+#[test]
+fn spaces_check() {
+    let html = r#"<i>Italic</i><em> Also italic</em>  <strong>Strong</strong>"#;
+    assert_eq!("_Italic Also italic_ **Strong**", convert(html).unwrap());
 }
 
 #[test]
