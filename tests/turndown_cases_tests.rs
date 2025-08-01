@@ -5,6 +5,7 @@ use htmd::{
     },
     HtmlToMarkdown,
 };
+use pretty_assertions::assert_eq;
 use scraper::{Html, Selector};
 
 struct TestCase {

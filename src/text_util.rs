@@ -157,7 +157,7 @@ pub(crate) fn indent_text_except_first_line(
     let indent_text = " ".repeat(indent);
     for (idx, line) in text.lines().enumerate() {
         let line = if trim_line_end { line.trim_end() } else { line };
-        if idx == 0 {
+        if idx == 0 || line.is_empty() {
             result_lines.push(line.to_string());
         } else {
             result_lines.push(concat_strings!(indent_text, line));
