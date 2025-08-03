@@ -12,13 +12,13 @@ categories = ["text-processing", "parsing"]
 readme = "README.md"
 
 [dependencies]
-html5ever = "0.31.0"
-markup5ever_rcdom = "=0.5.3-unofficial"
+html5ever = "0.35.0"
+markup5ever_rcdom = "0.35.0"
 html-escape = "0.2.13"
 
 [dev-dependencies]
 scraper = "0.23.1"
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = { version = "0.7", features = ["html_reports"] }
 pretty_assertions = "1.4.1"
 
 [[bench]]
