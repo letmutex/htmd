@@ -80,15 +80,6 @@ fn append_text(
         let text = escape_if_needed(text);
         let text = compress_whitespace(&text);
 
-        let mut chars = text.chars();
-        if chars.next().is_some_and(|ch| ch == ' ')
-            && chars.next().is_none()
-            && parent_tag.is_some_and(is_block_container)
-        {
-            // Ignore whitespace in block containers.
-            return;
-        }
-
         let to_add = if trim_leading_spaces
             || (text.chars().next().is_some_and(|ch| ch == ' ')
                 && buffer.last().is_some_and(|text| text.ends_with(' ')))
