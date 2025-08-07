@@ -7,8 +7,8 @@ use super::{
     node_util::get_node_tag_name,
     options::Options,
     text_util::{
-        compress_whitespace, index_of_markdown_ordered_item_dot, is_markdown_atx_heading,
-        TrimAsciiWhitespace,
+        TrimAsciiWhitespace, compress_whitespace, index_of_markdown_ordered_item_dot,
+        is_markdown_atx_heading,
     },
 };
 
@@ -126,10 +126,10 @@ fn visit_element(
     );
     // Remove the temporary text clips of children
     buffer.truncate(prev_buffer_len);
-    if let Some(text) = md {
-        if !text.is_empty() || !is_head {
-            buffer.push(text);
-        }
+    if let Some(text) = md
+        && (!text.is_empty() || !is_head)
+    {
+        buffer.push(text);
     }
 }
 

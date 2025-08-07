@@ -1,6 +1,6 @@
 use crate::{
-    text_util::{concat_strings, StripWhitespace},
     Element,
+    text_util::{StripWhitespace, concat_strings},
 };
 
 pub(super) fn emphasis_handler(element: Element, marker: &str) -> Option<String> {

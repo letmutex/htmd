@@ -1,7 +1,6 @@
 use htmd::{
-    convert,
+    HtmlToMarkdown, convert,
     options::{LinkStyle, Options},
-    HtmlToMarkdown,
 };
 
 #[test]

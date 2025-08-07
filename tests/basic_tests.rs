@@ -1,9 +1,8 @@
 use std::{sync::Arc, thread::JoinHandle};
 
 use htmd::{
-    convert,
+    Element, HtmlToMarkdown, convert,
     options::{BrStyle, LinkStyle, Options},
-    Element, HtmlToMarkdown,
 };
 
 #[test]

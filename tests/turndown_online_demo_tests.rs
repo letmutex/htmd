@@ -1,6 +1,6 @@
 use htmd::{
-    options::{CodeBlockStyle, HeadingStyle, HrStyle, Options},
     HtmlToMarkdownBuilder,
+    options::{CodeBlockStyle, HeadingStyle, HrStyle, Options},
 };
 
 /// Contents are copied from https://mixmark-io.github.io/turndown/

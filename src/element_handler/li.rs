@@ -1,8 +1,8 @@
 use crate::{
+    Element,
     node_util::get_node_tag_name,
     options::BulletListMarker,
-    text_util::{concat_strings, indent_text_except_first_line, TrimAsciiWhitespace},
-    Element,
+    text_util::{TrimAsciiWhitespace, concat_strings, indent_text_except_first_line},
 };
 use markup5ever_rcdom::NodeData;
 use std::rc::Rc;

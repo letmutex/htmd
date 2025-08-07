@@ -5,7 +5,7 @@ use markup5ever_rcdom::Node;
 
 use crate::{
     options::{LinkReferenceStyle, LinkStyle, Options},
-    text_util::{concat_strings, JoinOnStringIterator, StripWhitespace, TrimAsciiWhitespace},
+    text_util::{JoinOnStringIterator, StripWhitespace, TrimAsciiWhitespace, concat_strings},
 };
 
 use super::ElementHandler;

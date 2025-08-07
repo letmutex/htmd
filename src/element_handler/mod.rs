@@ -12,7 +12,7 @@ mod table;
 
 use crate::text_util::concat_strings;
 
-use super::{options::Options, Element};
+use super::{Element, options::Options};
 use anchor::AnchorElementHandler;
 use blockquote::blockquote_handler;
 use br::br_handler;

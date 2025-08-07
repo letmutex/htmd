@@ -1,6 +1,6 @@
 use crate::{
-    text_util::{concat_strings, JoinOnStringIterator, TrimAsciiWhitespace},
     Element,
+    text_util::{JoinOnStringIterator, TrimAsciiWhitespace, concat_strings},
 };
 
 pub(super) fn img_handler(element: Element) -> Option<String> {

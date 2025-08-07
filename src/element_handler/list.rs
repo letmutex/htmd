@@ -1,7 +1,7 @@
 use crate::{
+    Element,
     node_util::{get_node_tag_name, get_parent_node},
     text_util::concat_strings,
-    Element,
 };
 
 pub(super) fn list_handler(element: Element) -> Option<String> {
