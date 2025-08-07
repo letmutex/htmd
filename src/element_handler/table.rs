@@ -109,7 +109,7 @@ pub(crate) fn table_handler(element: Element) -> Option<String> {
     let mut table_md = String::from("\n\n");
 
     for caption in captions {
-        table_md.push_str(&format!("{}\n", caption));
+        table_md.push_str(&format!("{caption}\n"));
     }
 
     let col_widths = compute_column_widths(&headers, &rows, num_columns);
