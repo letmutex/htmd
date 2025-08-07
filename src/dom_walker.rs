@@ -233,7 +233,7 @@ fn trim_buffer_end_spaces(buffer: &mut [String]) {
 /// '- Item'   -> '\\- Item'   // unordered list item
 /// '+ Item'   -> '\\+ Item'   // unordered list item
 /// '> Quote'  -> '\\> Quote'  // quote
-fn escape_if_needed(text: Cow<str>) -> Cow<'_, str> {
+fn escape_if_needed(text: Cow<'_, str>) -> Cow<'_, str> {
     let Some(first) = text.chars().next() else {
         return text;
     };
