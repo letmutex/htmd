@@ -146,14 +146,26 @@ fn hr() {
 
 #[test]
 fn strong_italic() {
-    let html = r#"<i>Italic</i><em>Also italic</em><strong>Strong</strong>"#;
-    assert_eq!("_ItalicAlso italic_**Strong**", convert(html).unwrap());
+    let html = r#"<i>Italic</i><em>Also italic</em><strong>Strong</strong><b>Stronger</b>"#;
+    assert_eq!(
+        "*ItalicAlso italic***StrongStronger**",
+        convert(html).unwrap()
+    );
+}
+
+#[test]
+fn italic_inside_word() {
+    let html = r#"It<i>al</i>ic St<b>ro</b>ng"#;
+    assert_eq!("It*al*ic St**ro**ng", convert(html).unwrap());
 }
 
 #[test]
 fn spaces_check() {
-    let html = r#"<i>Italic</i><em> Also italic</em>  <strong>Strong</strong>"#;
-    assert_eq!("_Italic Also italic_ **Strong**", convert(html).unwrap());
+    let html = r#"<i>Italic</i> <em>Also italic</em>  <strong>Strong</strong> <b>Stronger </b>"#;
+    assert_eq!(
+        "*Italic* *Also italic* **Strong** **Stronger**",
+        convert(html).unwrap()
+    );
 }
 
 #[test]

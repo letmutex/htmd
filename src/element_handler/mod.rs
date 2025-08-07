@@ -167,5 +167,5 @@ fn bold_handler(element: Element) -> Option<String> {
 }
 
 fn italic_handler(element: Element) -> Option<String> {
-    emphasis_handler(element, "_")
+    emphasis_handler(element, "*")
 }
