@@ -1,6 +1,9 @@
-use html5ever::Attribute;
+use html5ever::{
+    Attribute,
+    tendril::{Tendril, fmt::UTF8},
+};
 use markup5ever_rcdom::{Node, NodeData};
-use std::{borrow::Cow, rc::Rc};
+use std::{borrow::Cow, cell::RefCell, rc::Rc};
 
 use super::{
     element_handler::ElementHandler,
@@ -154,18 +157,90 @@ fn join_contents(contents: &[String]) -> String {
     result
 }
 
+// Determine if the two nodes are similar, and should therefore be combined. If so, return the text of the second node to simplify the combining process.
+fn can_combine(n1: &Node, n2: &Node) -> Option<RefCell<Tendril<UTF8>>> {
+    // To be combined, both nodes must be elements.
+    let NodeData::Element {
+        name: name1,
+        attrs: attrs1,
+        template_contents: template_contents1,
+        mathml_annotation_xml_integration_point: mathml_annotation_xml_integration_point1,
+    } = &n1.data
+    else {
+        return None;
+    };
+    let NodeData::Element {
+        name: name2,
+        attrs: attrs2,
+        template_contents: template_contents2,
+        mathml_annotation_xml_integration_point: mathml_annotation_xml_integration_point2,
+    } = &n2.data
+    else {
+        return None;
+    };
+
+    // Their children must be a single text element.
+    let c1 = n1.children.borrow();
+    let c2 = n2.children.borrow();
+    if c1.len() == 1
+        && c2.len() == 1
+        && let Some(d1) = c1.first()
+        && let Some(d2) = c2.first()
+        && let NodeData::Text {
+            contents: _contents1,
+        } = &d1.data
+        && let NodeData::Text {
+            contents: contents2,
+        } = &d2.data
+        && (name1 == name2
+            || *name1.local == *"i" && *name2.local == *"em"
+            || *name1.local == *"em" && *name2.local == *"i"
+            || *name1.local == *"b" && *name2.local == *"strong"
+            || *name1.local == *"strong" && name2.local == *"b")
+        && template_contents1.borrow().is_none()
+        && template_contents2.borrow().is_none()
+        && attrs1 == attrs2
+        && mathml_annotation_xml_integration_point1 == mathml_annotation_xml_integration_point2
+    {
+        Some(contents2.clone())
+    } else {
+        None
+    }
+}
+
 fn walk_children(
     buffer: &mut Vec<String>,
     node: &Rc<Node>,
-    is_parent_blok_element: bool,
+    is_parent_block_element: bool,
     handler: &dyn ElementHandler,
     options: &Options,
     is_pre: bool,
 ) {
-    let tag = get_node_tag_name(node);
+    // Combine similar adjacent blocks.
+    let mut children = node.children.borrow_mut();
+    let mut index = 1;
+    while index < children.len() {
+        if let Some(text) = can_combine(&children[index - 1], &children[index]) {
+            // Combine the text from `chidren[index]` with `children[index - 1]`, then remove `children[index]`.
+            children.remove(index);
+            index -= 1;
+            let children_of_index = children.get(index).unwrap().children.borrow();
+            let text_data = &children_of_index.first().unwrap().data;
+            let NodeData::Text { contents } = text_data else {
+                panic!("")
+            };
+            let mut inner_contents = contents.clone().into_inner();
+            inner_contents.push_tendril(&text.take());
+            contents.replace(inner_contents);
+        }
+        index += 1;
+    }
+    drop(children);
+
     // This will trim leading spaces of the first element/text in block
     // elements (except pre and code elements)
-    let mut trim_leading_spaces = !is_pre && is_parent_blok_element;
+    let mut trim_leading_spaces = !is_pre && is_parent_block_element;
+    let tag = get_node_tag_name(node);
     for child in node.children.borrow().iter() {
         let is_block = get_node_tag_name(child).is_some_and(is_block_element);
 
