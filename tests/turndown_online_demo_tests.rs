@@ -2,6 +2,7 @@ use htmd::{
     HtmlToMarkdownBuilder,
     options::{CodeBlockStyle, HeadingStyle, HrStyle, Options},
 };
+use pretty_assertions::assert_eq;
 
 /// Contents are copied from https://mixmark-io.github.io/turndown/
 #[test]

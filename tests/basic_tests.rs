@@ -1,5 +1,6 @@
 use std::{sync::Arc, thread::JoinHandle};
 
+use indoc::indoc;
 use pretty_assertions::assert_eq;
 
 use htmd::{
@@ -160,10 +161,83 @@ fn italic_inside_word() {
 }
 
 #[test]
+fn inline_raw_html_escaping() {
+    let html = r#"Test &lt;code&gt;tags&lt;/code&gt;, &lt;!-- comments --&gt;, &lt;?processing instructions?&gt;, &lt;!A declaration&gt;, and &lt;![CDATA[character data]]&gt;."#;
+    assert_eq!(
+        r#"Test \<code>tags\</code>, \<!-- comments -->, \<?processing instructions?>, \<!A declaration>, and <!\[CDATA\[character data\]\]>."#,
+        convert(html).unwrap()
+    );
+}
+
+#[test]
+fn multiline_raw_html_escaping() {
+    let html = indoc!(
+        r#"
+    Test &lt;code&gt;multi-line
+    tags&lt;/code&gt;, &lt;!-- multi-line
+    comments --&gt;, &lt;?multi-line
+    processing instructions?&gt;, &lt;!A multi-line
+    declaration&gt;, and &lt;![CDATA[multi-line
+    character data]]&gt;.
+    "#
+    );
+    assert_eq!(
+        indoc!(
+            r#"Test \<code>multi-line tags\</code>, \<!-- multi-line comments -->, \<?multi-line processing instructions?>, \<!A multi-line declaration>, and <!\[CDATA\[multi-line character data\]\]>."#
+        ),
+        convert(html).unwrap()
+    );
+}
+
+#[test]
+fn html_escaping() {
+    let html = indoc!(
+        r#"
+        <p>&lt;pre</p>
+        <p>&lt;script</p>
+        <p>&lt;style</p>
+        <p>&lt;textarea</p>
+        <p>&lt;address</p>
+        <p>&lt;ul</p>
+        "#
+    );
+    assert_eq!(
+        indoc!(
+            r#"\<pre
+
+            \<script
+
+            \<style
+
+            \<textarea
+
+            \<address
+
+            \<ul"#
+        ),
+        convert(html).unwrap()
+    );
+}
+
+#[test]
 fn spaces_check() {
     let html = r#"<i>Italic</i> <em>Also italic</em>  <strong>Strong</strong> <b>Stronger </b>"#;
     assert_eq!(
         "*Italic* *Also italic* **Strong** **Stronger**",
+        convert(html).unwrap()
+    );
+}
+
+#[test]
+fn consecutive_blocks() {
+    let html = r#"<p>One</p><p>Two</p>"#;
+    assert_eq!(
+        indoc!(
+            "
+        One
+
+        Two"
+        ),
         convert(html).unwrap()
     );
 }
@@ -252,7 +326,7 @@ fn scripting_option() {
         .build()
         .convert(html)
         .unwrap();
-    assert_eq!("<p>Hello</p>", md);
+    assert_eq!(r#"\<p>Hello\</p>"#, md);
 
     let md = HtmlToMarkdown::builder()
         .scripting_enabled(false)
