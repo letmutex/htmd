@@ -17,13 +17,12 @@ markup5ever_rcdom = "0.35.0"
 html-escape = "0.2.13"
 const_format = "0.2.34"
 regex = "1.11.1"
-lazy_static = "1.5.0"
-indoc = "2.0.6"
 
 [dev-dependencies]
 scraper = "0.23.1"
 criterion = { version = "0.7", features = ["html_reports"] }
 pretty_assertions = "1.4.1"
+indoc = "2.0.6"
 
 [[bench]]
 name = "convert_bench"
