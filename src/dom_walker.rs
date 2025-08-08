@@ -3,10 +3,9 @@ use html5ever::{
     Attribute,
     tendril::{Tendril, fmt::UTF8},
 };
-use lazy_static::lazy_static;
 use markup5ever_rcdom::{Node, NodeData};
 use regex::Regex;
-use std::{borrow::Cow, cell::RefCell, rc::Rc};
+use std::{borrow::Cow, cell::RefCell, rc::Rc, sync::OnceLock};
 
 use super::{
     element_handler::ElementHandler,
@@ -365,13 +364,12 @@ const HTML_BLOCK_6: &str = r#"(?i:^<[/]?(?:address|article|aside|base|basefont|b
 // Combine all these regexes into a single pattern.
 const COMBINED_HTML: &str = concatcp!(HTMLTAG, "|", HTML_BLOCK_1, "|", HTML_BLOCK_6);
 
-lazy_static! {
-    static ref COMBINED_HTML_REGEX: Regex = Regex::new(COMBINED_HTML).unwrap();
-}
+static COMBINED_HTML_REGEX: OnceLock<Regex> = OnceLock::new();
 
 // Perform the replacement.
 fn escape_html(text: Cow<'_, str>) -> Cow<'_, str> {
-    let replaced_text = COMBINED_HTML_REGEX.replace_all(&text, "\\$0");
+    let regex = COMBINED_HTML_REGEX.get_or_init(|| Regex::new(COMBINED_HTML).unwrap());
+    let replaced_text = regex.replace_all(&text, "\\$0");
     // Per the [regex docs](https://docs.rs/regex/latest/regex/struct.Regex.html#method.replace_all), if no replacements are performed, a `Cow::Borrowed` return value means the original was unchanged. Return that if possible for efficiency.
     if let Cow::Owned(o) = replaced_text {
         // It's owned, so return the owned value.

@@ -309,7 +309,6 @@ dependencies = [
  "html-escape",
  "html5ever 0.35.0",
  "indoc",
- "lazy_static",
  "markup5ever_rcdom",
  "pretty_assertions",
  "regex",
@@ -378,12 +377,6 @@ dependencies = [
  "once_cell",
  "wasm-bindgen",
 ]
-
-[[package]]
-name = "lazy_static"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "libc"
