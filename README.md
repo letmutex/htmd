@@ -123,6 +123,7 @@ If you have custom tag handlers that are not stateless, you likely need a thread
 # Bindings
 
 - Python: [htmd](https://github.com/lmmx/htmd) by [@lmmx](https://github.com/lmmx)
+- Elixir: [htmd](https://github.com/kasvith/htmd) by [@kasvith](https://github.com/kasvith)
 
 # Credits
 
