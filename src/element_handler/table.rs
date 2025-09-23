@@ -58,9 +58,21 @@ pub(crate) fn table_handler(element: Element) -> Option<String> {
                             if let NodeData::Element { name, .. } = &row_node.data
                                 && name.local.as_ref() == "tr"
                             {
-                                let row_cells = extract_row_cells(&row_node, "td");
-                                if !row_cells.is_empty() {
-                                    rows.push(row_cells);
+                                // If no thead is found, use the first row as headers
+                                if !has_thead && headers.is_empty() {
+                                    headers = extract_row_cells(&row_node, "th");
+                                    if headers.is_empty() {
+                                        let cells = extract_row_cells(&row_node, "td");
+                                        if !cells.is_empty() {
+                                            headers = cells;
+                                        }
+                                    }
+                                    has_thead = !headers.is_empty();
+                                } else {
+                                    let row_cells = extract_row_cells(&row_node, "td");
+                                    if !row_cells.is_empty() {
+                                        rows.push(row_cells);
+                                    }
                                 }
                             }
                         }
