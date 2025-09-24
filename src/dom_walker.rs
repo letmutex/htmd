@@ -1,11 +1,9 @@
-use const_format::concatcp;
 use html5ever::{
     Attribute,
     tendril::{Tendril, fmt::UTF8},
 };
 use markup5ever_rcdom::{Node, NodeData};
-use regex::Regex;
-use std::{borrow::Cow, cell::RefCell, rc::Rc, sync::OnceLock};
+use std::{borrow::Cow, cell::RefCell, rc::Rc};
 
 use super::{
     element_handler::ElementHandler,
@@ -81,7 +79,7 @@ fn append_text(
         buffer.push(text);
     } else {
         // Handle other elements or texts
-        let text = html_escape::decode_html_entities(&text);
+        let text = ::html_escape::decode_html_entities(&text);
         let text = escape_if_needed(text);
         let text = compress_whitespace(&text);
 
@@ -295,91 +293,6 @@ fn trim_buffer_end_spaces(buffer: &mut [String]) {
     }
 }
 
-// Per
-// [section 6.6 of the CommonMark spec](https://spec.commonmark.org/0.30/#raw-html),
-// Raw HTML, CommonMark recognizes and passes through HTML-like tags and their
-// contents. Therefore, Turndown needs to escape text that would parse as an
-// HTML-like tag. This regex recognizes these tags and escapes them by
-// inserting a leading backslash.
-//
-// Taken from `commonmark.js/lib/common.js`.
-const TAGNAME: &str = "[A-Za-z][A-Za-z0-9-]*";
-const ATTRIBUTENAME: &str = "[a-zA-Z_:][a-zA-Z0-9:._-]*";
-const UNQUOTEDVALUE: &str = r#"[^\"'=<>`\\x00-\\x20]+"#;
-const SINGLEQUOTEDVALUE: &str = "'[^']*'";
-const DOUBLEQUOTEDVALUE: &str = r#""[^"]*""#;
-const ATTRIBUTEVALUE: &str = concatcp!(
-    "(?:",
-    UNQUOTEDVALUE,
-    "|",
-    SINGLEQUOTEDVALUE,
-    "|",
-    DOUBLEQUOTEDVALUE,
-    ")"
-);
-const ATTRIBUTEVALUESPEC: &str = concatcp!("(?:", "\\s*=", "\\s*", ATTRIBUTEVALUE, ")");
-const ATTRIBUTE: &str = concatcp!("(?:", "\\s+", ATTRIBUTENAME, ATTRIBUTEVALUESPEC, "?)");
-const OPENTAG: &str = concatcp!("<", TAGNAME, ATTRIBUTE, "*", "\\s*/?>");
-const CLOSETAG: &str = concatcp!("</", TAGNAME, "\\s*[>]");
-const HTMLCOMMENT: &str = "<!-->|<!--->|<!--(?:[^-]+|-[^-]|--[^>])*-->";
-const PROCESSINGINSTRUCTION: &str = "[<][?][\\s\\S]*?[?][>]";
-const DECLARATION: &str = "<![A-Z]+[^>]*>";
-const CDATA: &str = "<!\\[CDATA\\[[\\s\\S]*?\\]\\]>";
-const HTMLTAG: &str = concatcp!(
-    "(?:",
-    OPENTAG,
-    "|",
-    CLOSETAG,
-    "|",
-    // Note: Turndown removes comments, so this portion of the regex isn't
-    // necessary, but doesn't cause problems.
-    HTMLCOMMENT,
-    "|",
-    PROCESSINGINSTRUCTION,
-    "|",
-    DECLARATION,
-    "|",
-    CDATA,
-    ")"
-);
-// End of copied commonmark code.
-//
-// Likewise,
-// [section 4.6 of the CommonMark spec](https://spec.commonmark.org/0.30/#html-blocks),
-// HTML blocks, requires the same treatment.
-//
-// This regex was copied from `commonmark.js/lib/blocks.js`, the
-// `reHtmlBlockOpen` variable. We only need regexps for patterns not matched
-// by the previous pattern, so this doesn't need all expressions there.
-//
-// TODO: this is too aggressive; it should only recognize this pattern at the
-// beginning of a line of CommonnMark source; these will recognize the pattern
-// at the beginning of any inline or block markup. The approach I tried was to
-// put this in `commonmark-rules.js` for the `paragraph` and `heading` rules
-// (the only block beginning-of-line rules). However, text outside a
-// paragraph/heading doesn't get escaped in this case.
-const HTML_BLOCK_1: &str = r#"(?i:^<(?:script|pre|textarea|style)(?:\s|>|$))"#;
-const HTML_BLOCK_6: &str = r#"(?i:^<[/]?(?:address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[123456]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|section|source|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(?:\s|[/]?[>]|$))"#;
-
-// Combine all these regexes into a single pattern.
-const COMBINED_HTML: &str = concatcp!(HTMLTAG, "|", HTML_BLOCK_1, "|", HTML_BLOCK_6);
-
-static COMBINED_HTML_REGEX: OnceLock<Regex> = OnceLock::new();
-
-// Perform the replacement.
-fn escape_html(text: Cow<'_, str>) -> Cow<'_, str> {
-    let regex = COMBINED_HTML_REGEX.get_or_init(|| Regex::new(COMBINED_HTML).unwrap());
-    let replaced_text = regex.replace_all(&text, "\\$0");
-    // Per the [regex docs](https://docs.rs/regex/latest/regex/struct.Regex.html#method.replace_all), if no replacements are performed, a `Cow::Borrowed` return value means the original was unchanged. Return that if possible for efficiency.
-    if let Cow::Owned(o) = replaced_text {
-        // It's owned, so return the owned value.
-        Cow::Owned(o)
-    } else {
-        // It's borrowed, so simply return the original `text`.
-        text
-    }
-}
-
 /// Cases:
 /// '\'        -> '\\'
 /// '==='      -> '\==='      // h1
@@ -405,7 +318,7 @@ fn escape_if_needed(text: Cow<'_, str>) -> Cow<'_, str> {
     }
 
     if !need_escape {
-        return escape_html(text);
+        return crate::html_escape::escape_html(text);
     }
 
     let mut escaped = String::new();
@@ -444,7 +357,7 @@ fn escape_if_needed(text: Cow<'_, str>) -> Cow<'_, str> {
     }
 
     // Perform the HTML escape after the other escapes, so that the \ characters inserted here don't get escaped again.
-    escape_html(escaped.into())
+    crate::html_escape::escape_html(escaped.into())
 }
 
 /// Cases:
