@@ -22,8 +22,10 @@ mod table_tests_1 {
         "#;
 
         let expected = r#"
-| Cell 1 | Cell 2 |
-| Cell 3 | Cell 4 |
+| Header 1 | Header 2 |
+| -------- | -------- |
+| Cell 1   | Cell 2   |
+| Cell 3   | Cell 4   |
 "#
         .trim();
 
