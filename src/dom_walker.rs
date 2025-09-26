@@ -79,9 +79,8 @@ fn append_text(
         buffer.push(text);
     } else {
         // Handle other elements or texts
-        let text = ::html_escape::decode_html_entities(&text);
-        let text = escape_if_needed(text);
-        let text = compress_whitespace(&text);
+        let text = escape_if_needed(Cow::Owned(text));
+        let text = compress_whitespace(text.as_ref());
 
         let to_add = if trim_leading_spaces
             || (text.chars().next().is_some_and(|ch| ch == ' ')
