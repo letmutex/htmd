@@ -1,9 +1,9 @@
 use crate::{
-    Element,
+    Element, serialize_if_faithful,
     text_util::{JoinOnStringIterator, TrimAsciiWhitespace, concat_strings},
 };
 
-pub(super) fn img_handler(element: Element) -> Option<String> {
+pub(super) fn img_handler(element: Element) -> (Option<String>, bool) {
     let mut link: Option<String> = None;
     let mut alt: Option<String> = None;
     let mut title: Option<String> = None;
@@ -17,10 +17,14 @@ pub(super) fn img_handler(element: Element) -> Option<String> {
             alt = Some(attr.value.to_string());
         } else if name == "title" {
             title = Some(attr.value.to_string());
+        } else {
+            serialize_if_faithful!(element, 0);
         }
     }
 
-    link.as_ref()?;
+    if link.as_ref().is_none() {
+        return (None, true);
+    }
 
     let process_alt_title = |text: String| {
         text.lines()
@@ -51,5 +55,5 @@ pub(super) fn img_handler(element: Element) -> Option<String> {
         if has_spaces_in_link { ">" } else { "" },
         ")"
     );
-    Some(md)
+    (Some(md), true)
 }

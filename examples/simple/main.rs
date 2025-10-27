@@ -27,7 +27,9 @@ fn main() {
 
     // Custom tag handlers
     let converter = HtmlToMarkdown::builder()
-        .add_handler(vec!["svg"], |_: Element| Some("[Svg Image]".to_string()))
+        .add_handler(vec!["svg"], |_: Element| {
+            (Some("[Svg Image]".to_string()), true)
+        })
         .build();
     assert_eq!("[Svg Image]", converter.convert("<svg></svg>").unwrap());
 }

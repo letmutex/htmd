@@ -4,9 +4,11 @@ use indoc::indoc;
 use pretty_assertions::assert_eq;
 
 use htmd::{
-    Element, HtmlToMarkdown, convert,
-    options::{BrStyle, LinkStyle, Options},
+    Element, HtmlToMarkdown,
+    options::{BrStyle, LinkStyle, Options, TranslationMode},
 };
+mod common;
+use common::convert;
 
 #[test]
 fn links_with_spaces() {
@@ -27,6 +29,7 @@ fn referenced_links_with_title() {
     let md = HtmlToMarkdown::builder()
         .options(Options {
             link_style: LinkStyle::Referenced,
+            translation_mode: TranslationMode::Faithful,
             ..Default::default()
         })
         .build()
@@ -34,6 +37,32 @@ fn referenced_links_with_title() {
         .unwrap();
     assert_eq!(
         "[Example][1]\n\n[1]: https://example.com \"Some title\"",
+        &md
+    )
+}
+
+#[test]
+fn consecutive_referenced_links_with_title() {
+    let html = r#"
+        <a href="https://example.com" title="Some title">Example</a><a href="https://example.com" title="Some title">Another example</a>
+        "#;
+    let md = HtmlToMarkdown::builder()
+        .options(Options {
+            link_style: LinkStyle::Referenced,
+            translation_mode: TranslationMode::Faithful,
+            ..Default::default()
+        })
+        .build()
+        .convert(html)
+        .unwrap();
+    assert_eq!(
+        indoc!(
+            r#"
+        [Example][1][Another example][2]
+
+        [1]: https://example.com "Some title"
+        [2]: https://example.com "Some title""#
+        ),
         &md
     )
 }
@@ -99,7 +128,7 @@ fn code_blocks_with_lang_class() {
 #[test]
 fn code_blocks_with_lang_class_on_pre_tag() {
     let html = r#"
-        <pre class="language-rust"><code>println!("Hello");</code></pre>
+        <pre><code class="language-rust">println!("Hello");</code></pre>
         "#;
     assert_eq!("```rust\nprintln!(\"Hello\");\n```", convert(html).unwrap());
 }
@@ -110,7 +139,10 @@ fn paragraphs() {
         <p>The first.</p>
         <p>The <span>second.</span></p>
         "#;
-    assert_eq!("The first.\n\nThe second.", convert(html).unwrap());
+    assert_eq!(
+        "The first.\n\nThe <span>second.</span>",
+        convert(html).unwrap()
+    );
 }
 
 #[test]
@@ -124,13 +156,13 @@ fn quotes() {
 #[test]
 fn br() {
     let html = r#"
-        Hi<br>there<br><br>!
-        "#;
+        Hi<br>there<br><br>!"#;
     assert_eq!("Hi  \nthere  \n  \n!", convert(html).unwrap());
 
     let md = HtmlToMarkdown::builder()
         .options(Options {
             br_style: BrStyle::Backslash,
+            translation_mode: TranslationMode::Faithful,
             ..Default::default()
         })
         .build()
@@ -220,6 +252,206 @@ fn html_escaping() {
 }
 
 #[test]
+fn faithful_mode_inline() {
+    assert_eq!(
+        convert(indoc!(
+            r#"<p>
+                <img src="one.png" alt="yyy" title="zzz" scale="50%">
+                <em bar>Testing</em>
+                <strong foo>Testing</strong>
+                <a href="http://foo.com" bar>link</a>
+                <code class="not-a-language">code</code>
+                <br foo>
+            </p>"#
+        ))
+        .unwrap(),
+        indoc!(
+            r#"<img src="one.png" alt="yyy" title="zzz" scale="50%"> <em bar="">Testing</em> <strong foo="">Testing</strong> <a href="http://foo.com" bar="">link</a> <code class="not-a-language">code</code> <br foo="">"#
+        )
+    );
+}
+
+#[test]
+fn faithful_mode_hr() {
+    assert_eq!(
+        convert(indoc!(r#"<hr bar>"#)).unwrap(),
+        indoc!(r#"<hr bar="">"#)
+    );
+}
+
+#[test]
+fn faithful_mode_blockquote() {
+    assert_eq!(
+        convert(indoc!(
+            r#"<blockquote style="foo">
+            <em>Testing</em>
+
+            <blockquote>Nested</blockquote>
+        </blockquote>"#
+        ))
+        .unwrap(),
+        indoc!(
+            r#"<blockquote style="foo">
+                <em>Testing</em>
+            &#13;    <blockquote>Nested</blockquote>
+            </blockquote>"#
+        )
+    );
+}
+
+#[test]
+fn faithful_mode_h1() {
+    assert_eq!(
+        convert(indoc!(r#"<h1 class="foo">Heading</h1>"#)).unwrap(),
+        indoc!(r#"<h1 class="foo">Heading</h1>"#)
+    );
+}
+
+#[test]
+fn faithful_mode_p() {
+    assert_eq!(
+        convert(indoc!(r#"<p dir="ltr">Test 1</p>"#)).unwrap(),
+        indoc!(r#"<p dir="ltr">Test 1</p>"#)
+    );
+}
+
+#[test]
+fn faithful_mode_pre() {
+    assert_eq!(
+        convert(indoc!(r#"<pre>Test</pre>"#)).unwrap(),
+        indoc!(r#"<pre>Test</pre>"#)
+    );
+}
+
+#[test]
+fn faithful_mode_code_block1() {
+    assert_eq!(
+        convert(indoc!(r#"<pre><code accesskey="f">Test</code></pre>"#)).unwrap(),
+        indoc!(r#"<pre><code accesskey="f">Test</code></pre>"#)
+    );
+}
+
+#[test]
+fn faithful_mode_code_block2() {
+    assert_eq!(
+        convert(indoc!(
+            r#"<pre><code class="language-ruby"><i>Test</i></code></pre>"#
+        ))
+        .unwrap(),
+        indoc!(r#"<pre><code class="language-ruby"><i>Test</i></code></pre>"#)
+    );
+}
+
+#[test]
+fn faithful_mode_ol1() {
+    assert_eq!(
+        convert(indoc!(
+            r#"<ol>
+            <li>Test 1</li>
+            <li foo>Test 2</li>
+            <li>Test 3</li>
+        </ol>"#
+        ))
+        .unwrap(),
+        indoc!(
+            r#"<ol>
+                <li>Test 1</li>
+                <li foo="">Test 2</li>
+                <li>Test 3</li>
+            </ol>"#
+        )
+    );
+}
+
+#[test]
+fn faithful_mode_ol2() {
+    assert_eq!(
+        convert(indoc!(
+            r#"<ol foo>
+            <li>Test</li>
+        </ol>"#
+        ))
+        .unwrap(),
+        indoc!(
+            r#"<ol foo="">
+                <li>Test</li>
+            </ol>"#
+        )
+    );
+}
+
+#[test]
+fn faithful_mode_comment() {
+    assert_eq!(
+        convert(indoc!(r#"<!-- Test -->"#)).unwrap(),
+        indoc!(r#"<!-- Test -->"#)
+    );
+}
+
+#[test]
+fn faithful_mode_html() {
+    let html = indoc!(
+        r#"<details>
+            <summary>Test
+
+                1</summary>
+            Test 2
+        </details>"#
+    );
+    let md = convert(html).unwrap();
+    assert_eq!(
+        indoc!(
+            r#"<details>
+                <summary>Test
+            &#13;        1</summary>
+                Test 2
+            </details>"#
+        ),
+        md
+    );
+}
+
+#[test]
+fn faithful_mode_table() {
+    assert_eq!(
+        convert(indoc!(
+            r#"<table>
+            <tr>
+                <th>Header 1</th>
+                <th>Header 2</th>
+            </tr>
+            <tr>
+                <td foo>Cell 1</td>
+                <td>Cell 2</td>
+            </tr>
+            <tr>
+                <td>Cell 3</td>
+                <td>Cell 4</td>
+            </tr>
+        </table>
+"#
+        ))
+        .unwrap(),
+        indoc!(
+            r#"<table>
+            <tbody><tr>
+                <th>Header 1</th>
+                <th>Header 2</th>
+            </tr>
+            <tr>
+                <td foo="">Cell 1</td>
+                <td>Cell 2</td>
+            </tr>
+            <tr>
+                <td>Cell 3</td>
+                <td>Cell 4</td>
+            </tr>
+        </tbody></table>"#
+        )
+    );
+}
+
+#[test]
 fn spaces_check() {
     let html = r#"<i>Italic</i> <em>Also italic</em>  <strong>Strong</strong> <b>Stronger </b>"#;
     assert_eq!(
@@ -259,7 +491,7 @@ fn nested_divs() {
         <div>there</div>
     </div>
     "#;
-    assert_eq!("Hi\n\nthere", convert(html).unwrap());
+    assert_eq!("Hi\n\nthere", htmd::convert(html).unwrap());
 }
 
 #[test]
@@ -278,7 +510,7 @@ fn with_head() {
     "#;
     assert_eq!(
         "Demo\n\nconsole.log('Hello');\n\nbody {}\n\nContent",
-        convert(html).unwrap()
+        htmd::convert(html).unwrap()
     );
 }
 
@@ -287,7 +519,11 @@ fn with_custom_rules() {
     // Remove element
     let html = r#"<img src="https://example.com"/>"#;
     let md = HtmlToMarkdown::builder()
-        .add_handler(vec!["img"], |_: Element| None)
+        .add_handler(vec!["img"], |_element: Element| (None, true))
+        .options(Options {
+            translation_mode: TranslationMode::Faithful,
+            ..Default::default()
+        })
         .build()
         .convert(html)
         .unwrap();
@@ -349,9 +585,11 @@ fn multithreading() {
     [4]: https://example.com\n[5]: https://example.com";
     let converter = HtmlToMarkdown::builder()
         .options(Options {
-            // We use a global vec to store all referenced links of the doc in the anchor
-            // element handler, this is unsafe for multithreading usage if we do nothing
+            // We use a global vec to store all referenced links of the doc in
+            // the anchor element handler, this is unsafe for multithreading
+            // usage if we do nothing
             link_style: LinkStyle::Referenced,
+            translation_mode: TranslationMode::Faithful,
             ..Default::default()
         })
         .build();

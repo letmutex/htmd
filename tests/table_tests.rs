@@ -1,6 +1,10 @@
+mod common;
+use common::convert;
+
 #[cfg(test)]
 mod table_tests_1 {
-    use htmd::convert;
+    use super::convert;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_simple_table() {

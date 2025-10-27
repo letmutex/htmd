@@ -13,8 +13,9 @@ pub struct Options {
     pub ul_bullet_spacing: u8,
     /// The number of spaces between the period character and the content.
     pub ol_number_spacing: u8,
-    /// If true, the whitespace in inline <code> tags will be preserved.
+    /// If true, the whitespace in inline \<code> tags will be preserved.
     pub preformatted_code: bool,
+    pub translation_mode: TranslationMode,
 }
 
 impl Default for Options {
@@ -31,6 +32,7 @@ impl Default for Options {
             ul_bullet_spacing: 3,
             ol_number_spacing: 2,
             preformatted_code: false,
+            translation_mode: TranslationMode::Pure,
         }
     }
 }
@@ -67,7 +69,7 @@ pub enum CodeBlockStyle {
 pub enum CodeBlockFence {
     /// Wrap code with `~~~`
     Tildes,
-    /// Wrap code with ```` ``` ````
+    /// Wrap code with ` ``` `
     Backticks,
 }
 
@@ -82,7 +84,8 @@ pub enum BulletListMarker {
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum LinkStyle {
     Inlined,
-    /// Will convert links with the same URL and link text to [Autolinks](https://spec.commonmark.org/0.31.2/#autolink).
+    /// Will convert links with the same URL and link text to
+    /// [Autolinks](https://spec.commonmark.org/0.31.2/#autolink).
     InlinedPreferAutolinks,
     Referenced,
 }
@@ -92,4 +95,15 @@ pub enum LinkReferenceStyle {
     Full,
     Collapsed,
     Shortcut,
+}
+
+#[derive(PartialEq, Debug, Clone, Copy)]
+pub enum TranslationMode {
+    /// In pure translation mode, always translate HTML to Markdown, even when
+    /// that translation drops attributes in the HTML.
+    Pure,
+    /// In faithful translation mode, preserve the original HTML by embedding
+    /// HTML tags as necessary to ensure that translation back to HTML produces
+    /// an (almost) identical result.
+    Faithful,
 }
