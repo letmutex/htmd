@@ -1,5 +1,6 @@
 use html5ever::tendril::{Tendril, fmt::UTF8};
 use markup5ever_rcdom::{Node, NodeData};
+use phf::phf_set;
 use std::{borrow::Cow, cell::RefCell, rc::Rc};
 
 use super::{
@@ -364,76 +365,77 @@ fn escape_pre_text_if_needed(text: String) -> String {
     }
 }
 
+// This is taken from the
+// [CommonMark spec](https://spec.commonmark.org/0.31.2/#html-blocks).
+static BLOCK_ELEMENTS: phf::Set<&'static str> = phf_set! {
+    "address",
+    "article",
+    "aside",
+    "base",
+    "basefont",
+    "blockquote",
+    "body",
+    "caption",
+    "center",
+    "col",
+    "colgroup",
+    "dd",
+    "details",
+    "dialog",
+    "dir",
+    "div",
+    "dl",
+    "dt",
+    "fieldset",
+    "figcaption",
+    "figure",
+    "footer",
+    "form",
+    "frame",
+    "frameset",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "head",
+    "header",
+    "hr",
+    "html",
+    "iframe",
+    "legend",
+    "li",
+    "link",
+    "main",
+    "menu",
+    "menuitem",
+    "nav",
+    "noframes",
+    "ol",
+    "optgroup",
+    "option",
+    "p",
+    "param",
+    "pre",
+    "script",
+    "search",
+    "section",
+    "style",
+    "summary",
+    "table",
+    "tbody",
+    "td",
+    "textarea",
+    "tfoot",
+    "th",
+    "thead",
+    "title",
+    "tr",
+    "track",
+    "ul",
+};
+
 pub(crate) fn is_block_element(tag: &str) -> bool {
-    matches!(
-        tag,
-        // This is taken from the
-        // [CommonMark spec](https://spec.commonmark.org/0.31.2/#html-blocks).
-        "address"
-            | "article"
-            | "aside"
-            | "base"
-            | "basefont"
-            | "blockquote"
-            | "body"
-            | "caption"
-            | "center"
-            | "col"
-            | "colgroup"
-            | "dd"
-            | "details"
-            | "dialog"
-            | "dir"
-            | "div"
-            | "dl"
-            | "dt"
-            | "fieldset"
-            | "figcaption"
-            | "figure"
-            | "footer"
-            | "form"
-            | "frame"
-            | "frameset"
-            | "h1"
-            | "h2"
-            | "h3"
-            | "h4"
-            | "h5"
-            | "h6"
-            | "head"
-            | "header"
-            | "hr"
-            | "html"
-            | "iframe"
-            | "legend"
-            | "li"
-            | "link"
-            | "main"
-            | "menu"
-            | "menuitem"
-            | "nav"
-            | "noframes"
-            | "ol"
-            | "optgroup"
-            | "option"
-            | "p"
-            | "param"
-            | "pre"
-            | "script"
-            | "search"
-            | "section"
-            | "style"
-            | "summary"
-            | "table"
-            | "tbody"
-            | "td"
-            | "textarea"
-            | "tfoot"
-            | "th"
-            | "thead"
-            | "title"
-            | "tr"
-            | "track"
-            | "ul"
-    )
+    BLOCK_ELEMENTS.contains(tag)
 }
