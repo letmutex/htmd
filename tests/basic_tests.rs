@@ -293,7 +293,7 @@ fn faithful_mode_blockquote() {
         indoc!(
             r#"<blockquote style="foo">
                 <em>Testing</em>
-            &#13;    <blockquote>Nested</blockquote>
+            &#10;    <blockquote>Nested</blockquote>
             </blockquote>"#
         )
     );
@@ -403,7 +403,7 @@ fn faithful_mode_html() {
         indoc!(
             r#"<details>
                 <summary>Test
-            &#13;        1</summary>
+            &#10;        1</summary>
                 Test 2
             </details>"#
         ),

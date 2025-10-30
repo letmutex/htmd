@@ -362,7 +362,7 @@ pub(crate) fn serialize_element(element: &Element) -> String {
                             Regex::new(r#"(\r?\n\s*)(\r?\n\s*)"#).unwrap())
                         .replace_all(&s, |caps: &Captures| {
                             caps[1].to_string()
-                                + &(caps[2].replace("\r", "&#10;").replace("\n", "&#13;"))
+                                + &(caps[2].replace("\r", "&#13;").replace("\n", "&#10;"))
                         })
                         .as_ref(),
                     "\n\n"
