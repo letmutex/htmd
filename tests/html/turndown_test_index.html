@@ -668,7 +668,17 @@ Another paragraph.
 Another div</pre>
 </div>
 
-<div class="case" data-name="comment" data-options='{"translationMode": "Pure"}'>
+<div class="case" data-name="multiple divs" data-options='{"translationMode": "Pure"}>
+  <div class="input">
+    <div>A div</div>
+    <div>Another div</div>
+  </div>
+  <pre class="expected">A div
+
+Another div</pre>
+</div>
+
+<div class="case" data-name="comment" data-options='{"translationMode": "Pure"}>
   <div class="input"><!-- comment --></div>
   <pre class="expected"></pre>
 </div>
