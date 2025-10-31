@@ -125,12 +125,15 @@ fn code_blocks_with_lang_class() {
     assert_eq!("```rust\nprintln!(\"Hello\");\n```", convert(html).unwrap());
 }
 
+// See https://github.com/letmutex/htmd/issues/14 for background on this test --
+// the `class` attribute is deliberately misplaced to support Markdown renderers
+// which don't follow the CommonMark spec.
 #[test]
 fn code_blocks_with_lang_class_on_pre_tag() {
     let html = r#"
-        <pre><code class="language-rust">println!("Hello");</code></pre>
+        <pre class="language-rust"><code>println!("Hello");</code></pre>
         "#;
-    assert_eq!("```rust\nprintln!(\"Hello\");\n```", convert(html).unwrap());
+    assert_eq!("```rust\nprintln!(\"Hello\");\n```", htmd::convert(html).unwrap());
 }
 
 #[test]
