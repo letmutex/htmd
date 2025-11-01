@@ -4,11 +4,11 @@ use html5ever::Attribute;
 use markup5ever_rcdom::Node;
 
 use crate::{
+    Element, ElementHandler,
     options::{LinkReferenceStyle, LinkStyle, Options},
+    serialize_if_faithful,
     text_util::{JoinOnStringIterator, StripWhitespace, TrimAsciiWhitespace, concat_strings},
 };
-
-use super::ElementHandler;
 
 pub(super) struct AnchorElementHandler {}
 
@@ -33,12 +33,13 @@ impl ElementHandler for AnchorElementHandler {
 
     fn on_visit(
         &self,
-        _node: &Rc<Node>,
-        _tag: &str,
+        node: &Rc<Node>,
+        options: &Options,
+        tag: &str,
         attrs: &[Attribute],
         content: &str,
-        options: &Options,
-    ) -> Option<String> {
+        markdown_translated: bool,
+    ) -> (Option<String>, bool) {
         let mut link: Option<String> = None;
         let mut title: Option<String> = None;
         for attr in attrs.iter() {
@@ -47,11 +48,24 @@ impl ElementHandler for AnchorElementHandler {
                 link = Some(attr.value.to_string())
             } else if name == "title" {
                 title = Some(attr.value.to_string());
+            } else {
+                // This is an attribute which can't be translated to Markdown.
+                serialize_if_faithful!(
+                    Element {
+                        node,
+                        tag,
+                        attrs,
+                        content,
+                        options,
+                        markdown_translated,
+                    },
+                    0
+                );
             }
         }
 
         let Some(link) = link else {
-            return Some(content.to_string());
+            return (Some(content.to_string()), true);
         };
 
         let process_title = |text: String| {
@@ -76,7 +90,7 @@ impl ElementHandler for AnchorElementHandler {
             }
         };
 
-        Some(md)
+        (Some(md), true)
     }
 }
 

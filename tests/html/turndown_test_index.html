@@ -79,7 +79,7 @@ sit</pre>
   <pre class="expected">`_emphasis_`</pre>
 </div>
 
-<div class="case" data-name="code containing markdown syntax in a span">
+<div class="case" data-name="code containing markdown syntax in a span" data-options='{"translationMode": "Pure"}'>
   <div class="input"><code><span>_emphasis_</span></code></div>
   <pre class="expected">`_emphasis_`</pre>
 </div>
@@ -126,7 +126,7 @@ sit</pre>
   <pre class="expected">#### Level Four Heading with `child`</pre>
 </div>
 
-<div class="case" data-name="invalid heading">
+<div class="case" data-name="invalid heading" data-options='{"translationMode": "Pure"}'>
   <div class="input"><h7>Level Seven Heading?</h7></div>
   <pre class="expected">Level Seven Heading?</pre>
 </div>
@@ -229,7 +229,7 @@ link")</pre>
   <pre class="expected">[An anchor](http://example.com?\(query\))</pre>
 </div>
 
-<div class="case" data-name="a without a src">
+<div class="case" data-name="a without a src" data-options='{"translationMode": "Pure"}'>
   <div class="input"><a id="about-anchor">Anchor without a title</a></div>
   <pre class="expected">Anchor without a title</pre>
 </div>
@@ -299,13 +299,13 @@ next:
 </div>
 
 <div class="case" data-name="pre/code block with multiple new lines">
-  <div class="input"><div><pre><code>Multiple new lines
+  <div class="input"><pre><code>Multiple new lines
 
 
 should not be
 
 
-removed</code></pre></div></div>
+removed</code></pre></div>
 
   <pre class="expected">    Multiple new lines
     
@@ -336,7 +336,7 @@ def a_fenced_code block; end
 
 <div class="case" data-name="escaping ~~~">
   <div class="input">
-    <pre>~~~ foo</pre>
+    ~~~ foo
   </div>
   <pre class="expected">\~~~ foo</pre>
 </div>
@@ -370,7 +370,7 @@ end;
   <div class="input">
     <pre></pre>
   </div>
-  <pre class="expected"></pre>
+  <pre class="expected"><pre></pre></pre>
 </div>
 
 <div class="case" data-name="ol">
@@ -658,7 +658,7 @@ Another paragraph.
 >     return 1 < 2 ? shell_exec('echo $input | $markdown_script') : 0;</pre>
 </div>
 
-<div class="case" data-name="multiple divs">
+<div class="case" data-name="multiple divs" data-options='{"translationMode": "Pure"}'>
   <div class="input">
     <div>A div</div>
     <div>Another div</div>
@@ -668,7 +668,7 @@ Another paragraph.
 Another div</pre>
 </div>
 
-<div class="case" data-name="multiple divs">
+<div class="case" data-name="multiple divs" data-options='{"translationMode": "Pure"}>
   <div class="input">
     <div>A div</div>
     <div>Another div</div>
@@ -678,12 +678,12 @@ Another div</pre>
 Another div</pre>
 </div>
 
-<div class="case" data-name="comment">
+<div class="case" data-name="comment" data-options='{"translationMode": "Pure"}>
   <div class="input"><!-- comment --></div>
   <pre class="expected"></pre>
 </div>
 
-<div class="case" data-name="pre/code with comment">
+<div class="case" data-name="pre/code with comment" data-options='{"translationMode": "Pure"}'>
   <div class="input">
     <pre ><code>Hello<!-- comment --> world</code></pre>
   </div>
@@ -769,7 +769,7 @@ before continuation</pre>
   <pre class="expected">Text before blank em … text after blank em</pre>
 </div>
 
-<div class="case" data-name="blank block elements">
+<div class="case" data-name="blank block elements" data-options='{"translationMode": "Pure"}'>
   <div class="input">
     Text before blank div … <div></div> text after blank div
   </div>
@@ -783,7 +783,7 @@ text after blank div</pre>
   <pre class="expected"></pre>
 </div>
 
-<div class="case" data-name="whitespace between blocks">
+<div class="case" data-name="whitespace between blocks" data-options='{"translationMode": "Pure"}'>
   <div class="input"><div><div>Content in a nested div</div></div>
 <div>Content in another div</div></div>
   <pre class="expected">Content in a nested div
@@ -952,7 +952,7 @@ Content in another div</pre>
   <pre class="expected">\_Really\_? Is that what it \_is\_? A \*\*2000\*\* year-old computer?</pre>
 </div>
 
-<div class="case" data-name="non-markdown block elements">
+<div class="case" data-name="non-markdown block elements" data-options='{"translationMode": "Pure"}'>
   <div class="input">
     Foo
     <div>Bar</div>
@@ -965,7 +965,7 @@ Bar
 Baz</pre>
 </div>
 
-<div class="case" data-name="non-markdown inline elements">
+<div class="case" data-name="non-markdown inline elements" data-options='{"translationMode": "Pure"}'>
   <div class="input">
     Foo <span>Bar</span>
   </div>
@@ -986,21 +986,21 @@ Baz</pre>
   <pre class="expected">![](http://example.com/logo.png)</pre>
 </div>
 
-<div class="case" data-name="elements with a nested void element">
+<div class="case" data-name="elements with a nested void element" data-options='{"translationMode": "Pure"}'>
   <div class="input">
     <p><span><img src="http://example.com/logo.png" /></span></p>
   </div>
   <pre class="expected">![](http://example.com/logo.png)</pre>
 </div>
 
-<div class="case" data-name="text separated by a space in an element">
+<div class="case" data-name="text separated by a space in an element" data-options='{"translationMode": "Pure"}'>
   <div class="input">
     <p>Foo<span> </span>Bar</p>
   </div>
   <pre class="expected">Foo Bar</pre>
 </div>
 
-<div class="case" data-name="text separated by a non-breaking space in an element">
+<div class="case" data-name="text separated by a non-breaking space in an element" data-options='{"translationMode": "Pure"}'>
   <div class="input">
     <p>Foo<span>&nbsp;</span>Bar</p>
   </div>
@@ -1063,7 +1063,7 @@ Code
 ```</pre>
 </div>
 
-<div class="case" data-name="text separated by ASCII and nonASCII space in an element">
+<div class="case" data-name="text separated by ASCII and nonASCII space in an element" data-options='{"translationMode": "Pure"}'>
   <div class="input">
     <p>Foo<span>  &nbsp;  </span>Bar</p>
   </div>

@@ -2,7 +2,7 @@ use htmd::{
     HtmlToMarkdown,
     options::{
         BrStyle, BulletListMarker, CodeBlockFence, CodeBlockStyle, HeadingStyle, HrStyle,
-        LinkReferenceStyle, LinkStyle, Options,
+        LinkReferenceStyle, LinkStyle, Options, TranslationMode,
     },
 };
 use pretty_assertions::assert_eq;
@@ -88,6 +88,13 @@ fn run_cases() {
 
         let preformatted_code = opt.is_some_and(|opt| opt == r#"{"preformattedCode": true}"#);
 
+        let translation_mode =
+            if opt.is_some_and(|opt| opt.contains(r#""translationMode": "Pure""#)) {
+                TranslationMode::Pure
+            } else {
+                TranslationMode::Faithful
+            };
+
         let converter = HtmlToMarkdown::builder()
             .options(Options {
                 heading_style,
@@ -101,6 +108,7 @@ fn run_cases() {
                 ul_bullet_spacing,
                 ol_number_spacing,
                 preformatted_code,
+                translation_mode,
             })
             .build();
 

@@ -1,6 +1,9 @@
-use crate::{Element, options::HeadingStyle, text_util::TrimAsciiWhitespace};
+use crate::{
+    Element, options::HeadingStyle, serialize_if_faithful, text_util::TrimAsciiWhitespace,
+};
 
-pub(super) fn headings_handler(element: Element) -> Option<String> {
+pub(super) fn headings_handler(element: Element) -> (Option<String>, bool) {
+    serialize_if_faithful!(element, 0);
     let level = element.tag.chars().nth(1).unwrap() as u32 - '0' as u32;
     let content = &element.content.trim_ascii_whitespace();
 
@@ -12,12 +15,11 @@ pub(super) fn headings_handler(element: Element) -> Option<String> {
         let ch = if level == 1 { "=" } else { "-" };
         result.push_str(&ch.repeat(content.chars().count()));
         result.push_str("\n\n");
-        Some(result)
     } else {
         result.push_str(&"#".repeat(level as usize));
         result.push(' ');
         result.push_str(content);
         result.push_str("\n\n");
-        Some(result)
     }
+    (Some(result), true)
 }

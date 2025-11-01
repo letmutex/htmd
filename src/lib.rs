@@ -41,6 +41,13 @@ pub struct Element<'a> {
     pub content: &'a str,
     /// Converter options.
     pub options: &'a Options,
+    /// When true, this element's children were all translated using Markdown,
+    /// not HTML. This is only needed in faithful translation mode (see the
+    /// `Options`): for code blocks, translating a `<pre><code>` sequence to
+    /// Markdown, not HTML, requires a Markdown translated `<code>` block;
+    /// likewise, translating lists ((`<ol>`/`<ul>`)`<li>`) to Markdown requires
+    /// all `<li>` elements are translated to Markdown.
+    pub markdown_translated: bool,
 }
 
 /// The html-to-markdown converter.
@@ -119,12 +126,12 @@ impl HtmlToMarkdown {
 
         walk_node(
             &dom.document,
-            None,
             &mut buffer,
             &self.handlers,
             &self.options,
-            false,
+            None,
             true,
+            false,
         );
 
         let mut content = buffer.join("").trim_matches(|ch| ch == '\n').to_string();
@@ -174,7 +181,7 @@ impl HtmlToMarkdownBuilder {
 
     /// Skip a group of tags when converting.
     pub fn skip_tags(self, tags: Vec<&str>) -> Self {
-        self.add_handler(tags, |_: Element| None)
+        self.add_handler(tags, |_: Element| (None, true))
     }
 
     /// Apply a custom element handler for a group of tags.
@@ -187,7 +194,7 @@ impl HtmlToMarkdownBuilder {
     /// let mut handlers = HtmlToMarkdownBuilder::new()
     ///    .add_handler(vec!["img"], |_: Element| {
     ///        // Skip the img tag when converting.
-    ///        None
+    ///        (None, true)
     ///    })
     ///    .add_handler(vec!["video"], |element: Element| {
     ///        // Handle the video tag.

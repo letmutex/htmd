@@ -1,5 +1,7 @@
-use crate::element_handler::Element;
+use crate::element_handler::{Element, serialize_element};
 use crate::node_util::{get_node_children, get_node_content, get_node_tag_name};
+use crate::options::TranslationMode;
+use crate::serialize_if_faithful;
 use crate::text_util::concat_strings;
 use markup5ever_rcdom::NodeData;
 use std::rc::Rc;
@@ -12,10 +14,18 @@ use std::rc::Rc;
 /// | ------- | ------- |
 /// | Cell1   | Cell2   |
 /// ```
-pub(crate) fn table_handler(element: Element) -> Option<String> {
+pub(crate) fn table_handler(element: Element) -> (Option<String>, bool) {
+    serialize_if_faithful!(element, 0);
+    // All child table elements must be markdown translated to markdown
+    // translate the table in faithful mode.
+    if element.options.translation_mode == TranslationMode::Faithful && !element.markdown_translated
+    {
+        return (Some(serialize_element(&element)), false);
+    }
+
     let content = element.content.trim();
     if content.is_empty() {
-        return None;
+        return (None, true);
     }
 
     // Extract table rows
@@ -101,7 +111,7 @@ pub(crate) fn table_handler(element: Element) -> Option<String> {
 
     // If we didn't find any rows or cells, just return the content as-is
     if rows.is_empty() && headers.is_empty() {
-        return Some(concat_strings!("\n\n", content, "\n\n"));
+        return (Some(concat_strings!("\n\n", content, "\n\n")), true);
     }
 
     // Determine the number of columns by finding the max column count
@@ -112,7 +122,7 @@ pub(crate) fn table_handler(element: Element) -> Option<String> {
     };
 
     if num_columns == 0 {
-        return Some(concat_strings!("\n\n", content, "\n\n"));
+        return (Some(concat_strings!("\n\n", content, "\n\n")), true);
     }
 
     // Build the Markdown table
@@ -133,7 +143,7 @@ pub(crate) fn table_handler(element: Element) -> Option<String> {
     }
 
     table_md.push('\n');
-    Some(table_md)
+    (Some(table_md), true)
 }
 
 /// Extract cells from a row node

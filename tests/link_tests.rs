@@ -1,7 +1,9 @@
 use htmd::{
-    HtmlToMarkdown, convert,
-    options::{LinkStyle, Options},
+    HtmlToMarkdown,
+    options::{LinkStyle, Options, TranslationMode},
 };
+mod common;
+use common::convert;
 
 #[test]
 fn links() {
@@ -28,6 +30,7 @@ fn links_with_spaces_around_text() {
 fn links_inlined_prefer_autolinks() {
     let converter = HtmlToMarkdown::builder()
         .options(Options {
+            translation_mode: TranslationMode::Faithful,
             link_style: LinkStyle::InlinedPreferAutolinks,
             ..Default::default()
         })

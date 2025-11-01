@@ -1,4 +1,9 @@
-use htmd::{HtmlToMarkdown, convert, options::Options};
+use htmd::{
+    HtmlToMarkdown,
+    options::{Options, TranslationMode},
+};
+mod common;
+use common::convert;
 
 #[test]
 fn unordered_lists() {
@@ -24,6 +29,7 @@ fn unordered_lists_custom_bullet_spacing() {
     let ul_bullet_spacing = 2;
     let md = HtmlToMarkdown::builder()
         .options(Options {
+            translation_mode: TranslationMode::Faithful,
             ul_bullet_spacing,
             ..Default::default()
         })
@@ -57,6 +63,7 @@ fn ordered_lists_custom_bullet_spacing() {
     let ol_number_spacing = 1;
     let md = HtmlToMarkdown::builder()
         .options(Options {
+            translation_mode: TranslationMode::Faithful,
             ol_number_spacing,
             ..Default::default()
         })
