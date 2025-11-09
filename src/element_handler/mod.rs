@@ -19,13 +19,16 @@ mod td_th;
 mod thead;
 mod tr;
 
-use crate::{dom_walker::is_block_element, options::TranslationMode, text_util::concat_strings};
+use crate::{
+    HtmlToMarkdown, dom_walker::is_block_element, options::TranslationMode,
+    text_util::concat_strings,
+};
 use html5ever::{
     serialize::{SerializeOpts, TraversalScope, serialize},
     tendril::Tendril,
 };
 
-use super::{Element, options::Options};
+use super::Element;
 use anchor::AnchorElementHandler;
 use blockquote::blockquote_handler;
 use br::br_handler;
@@ -63,7 +66,7 @@ pub trait ElementHandler: Send + Sync {
     fn on_visit(
         &self,
         node: &Rc<Node>,
-        options: &Options,
+        html_to_markdown: &HtmlToMarkdown,
         tag: &str,
         attrs: &[Attribute],
         content: &str,
@@ -83,7 +86,7 @@ where
     fn on_visit(
         &self,
         node: &Rc<Node>,
-        options: &Options,
+        html_to_markdown: &HtmlToMarkdown,
         tag: &str,
         attrs: &[Attribute],
         content: &str,
@@ -94,7 +97,7 @@ where
             tag,
             attrs,
             content,
-            options,
+            html_to_markdown,
             markdown_translated,
         })
     }
@@ -243,26 +246,30 @@ impl ElementHandler for ElementHandlers {
     fn on_visit(
         &self,
         node: &Rc<Node>,
-        options: &Options,
+        html_to_markdown: &HtmlToMarkdown,
         tag: &str,
         attrs: &[Attribute],
         content: &str,
         markdown_translated: bool,
     ) -> (Option<String>, bool) {
         match self.rules.iter().rev().find(|rule| rule.tags.contains(tag)) {
-            Some(rule) => {
-                rule.handler
-                    .on_visit(node, options, tag, attrs, content, markdown_translated)
-            }
+            Some(rule) => rule.handler.on_visit(
+                node,
+                html_to_markdown,
+                tag,
+                attrs,
+                content,
+                markdown_translated,
+            ),
             None => {
-                if options.translation_mode == TranslationMode::Faithful {
+                if html_to_markdown.options.translation_mode == TranslationMode::Faithful {
                     (
                         Some(serialize_element(&Element {
                             node,
                             tag,
                             attrs,
                             content,
-                            options,
+                            html_to_markdown,
                             markdown_translated,
                         })),
                         false,
@@ -276,7 +283,7 @@ impl ElementHandler for ElementHandlers {
 }
 
 fn block_handler(element: Element) -> (Option<String>, bool) {
-    if element.options.translation_mode == TranslationMode::Pure {
+    if element.html_to_markdown.options.translation_mode == TranslationMode::Pure {
         (Some(concat_strings!("\n\n", element.content, "\n\n")), true)
     } else {
         (Some(serialize_element(&element)), false)
@@ -455,7 +462,8 @@ macro_rules! serialize_if_faithful {
         // The maximum number of attributes allowed for this element.
         $num_attrs_allowed: expr
     ) => {
-        if $element.options.translation_mode == $crate::options::TranslationMode::Faithful
+        if $element.html_to_markdown.options.translation_mode
+            == $crate::options::TranslationMode::Faithful
             && $element.attrs.len() > $num_attrs_allowed
         {
             return (

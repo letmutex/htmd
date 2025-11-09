@@ -18,7 +18,8 @@ pub(crate) fn table_handler(element: Element) -> (Option<String>, bool) {
     serialize_if_faithful!(element, 0);
     // All child table elements must be markdown translated to markdown
     // translate the table in faithful mode.
-    if element.options.translation_mode == TranslationMode::Faithful && !element.markdown_translated
+    if element.html_to_markdown.options.translation_mode == TranslationMode::Faithful
+        && !element.markdown_translated
     {
         return (Some(serialize_element(&element)), false);
     }

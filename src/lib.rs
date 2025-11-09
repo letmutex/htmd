@@ -40,7 +40,7 @@ pub struct Element<'a> {
     /// The content text, can be raw text or converted Markdown text.
     pub content: &'a str,
     /// Converter options.
-    pub options: &'a Options,
+    pub html_to_markdown: &'a HtmlToMarkdown,
     /// When true, this element's children were all translated using Markdown,
     /// not HTML. This is only needed in faithful translation mode (see the
     /// `Options`): for code blocks, translating a `<pre><code>` sequence to
@@ -124,15 +124,7 @@ impl HtmlToMarkdown {
 
         let mut buffer: Vec<String> = Vec::new();
 
-        walk_node(
-            &dom.document,
-            &mut buffer,
-            &self.handlers,
-            &self.options,
-            None,
-            true,
-            false,
-        );
+        walk_node(&dom.document, &mut buffer, self, None, true, false);
 
         let mut content = buffer.join("").trim_matches(|ch| ch == '\n').to_string();
 

@@ -8,7 +8,9 @@ pub(super) fn headings_handler(element: Element) -> (Option<String>, bool) {
     let content = &element.content.trim_ascii_whitespace();
 
     let mut result = String::from("\n\n");
-    if (level == 1 || level == 2) && element.options.heading_style == HeadingStyle::Setex {
+    if (level == 1 || level == 2)
+        && element.html_to_markdown.options.heading_style == HeadingStyle::Setex
+    {
         // Use the Setext heading style for h1 and h2
         result.push_str(content);
         result.push('\n');

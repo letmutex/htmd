@@ -75,7 +75,7 @@ pub(super) fn is_parent_handler(
 ) -> (Option<String>, bool) {
     // In faithful mode, only include these as HTML if they're not a child of the
     // `<tr>` tag.
-    if element.options.translation_mode == TranslationMode::Faithful
+    if element.html_to_markdown.options.translation_mode == TranslationMode::Faithful
         && !parent_tag_name_equals(element.node, tag_names)
     {
         (Some(serialize_element(element)), false)
