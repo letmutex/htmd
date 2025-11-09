@@ -3,8 +3,8 @@ use std::rc::Rc;
 use markup5ever_rcdom::{Node, NodeData};
 
 use crate::{
-    Element, element_handler::serialize_element, options::TranslationMode,
-    text_util::concat_strings,
+    Element, HtmlToMarkdown, dom_walker::walk_node, element_handler::serialize_element,
+    options::TranslationMode, text_util::concat_strings,
 };
 
 pub(crate) fn get_node_tag_name(node: &Rc<Node>) -> Option<&str> {
@@ -45,22 +45,10 @@ pub(crate) fn get_node_children(node: &Rc<Node>) -> Vec<Rc<Node>> {
     children.iter().cloned().collect()
 }
 
-pub(crate) fn get_node_content(node: &Rc<Node>) -> String {
-    let mut content = String::new();
-
-    for child in get_node_children(node) {
-        match &child.data {
-            NodeData::Text { contents } => {
-                content.push_str(&contents.borrow());
-            }
-            NodeData::Element { .. } => {
-                content.push_str(&get_node_content(&child));
-            }
-            _ => {}
-        }
-    }
-
-    content
+pub(crate) fn get_node_content(node: &Rc<Node>, html_to_markdown: &HtmlToMarkdown) -> String {
+    let mut buffer = Vec::new();
+    walk_node(node, &mut buffer, html_to_markdown, None, true, false);
+    buffer.join("")
 }
 
 // A handler for tags whose only criteria (for faithful translation) is the tag
