@@ -260,7 +260,7 @@ impl ElementHandler for ElementHandlers {
             ),
             None => {
                 if html_to_markdown.options.translation_mode == TranslationMode::Faithful {
-                    let res = (
+                    (
                         Some(serialize_element(&Element {
                             node,
                             tag,
@@ -270,9 +270,7 @@ impl ElementHandler for ElementHandlers {
                             markdown_translated,
                         })),
                         false,
-                    );
-                    println!("{res:#?}");
-                    res
+                    )
                 } else {
                     (Some(content.to_string()), true)
                 }
