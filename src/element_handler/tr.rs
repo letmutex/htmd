@@ -1,6 +1,6 @@
-use crate::{Element, node_util::is_parent_handler, serialize_if_faithful};
+use crate::{Element, element_handler::Chain, node_util::is_parent_handler, serialize_if_faithful};
 
-pub(super) fn tr_handler(element: Element) -> (Option<String>, bool) {
+pub(super) fn tr_handler(_chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
     serialize_if_faithful!(element, 0);
     // This tag's ability to translate to markdown requires its children to be
     // markdown translatable as well.

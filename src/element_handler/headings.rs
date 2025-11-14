@@ -1,16 +1,15 @@
 use crate::{
-    Element, options::HeadingStyle, serialize_if_faithful, text_util::TrimAsciiWhitespace,
+    Element, element_handler::Chain, options::HeadingStyle, serialize_if_faithful,
+    text_util::TrimAsciiWhitespace,
 };
 
-pub(super) fn headings_handler(element: Element) -> (Option<String>, bool) {
+pub(super) fn headings_handler(_chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
     serialize_if_faithful!(element, 0);
     let level = element.tag.chars().nth(1).unwrap() as u32 - '0' as u32;
     let content = &element.content.trim_ascii_whitespace();
 
     let mut result = String::from("\n\n");
-    if (level == 1 || level == 2)
-        && element.html_to_markdown.options.heading_style == HeadingStyle::Setex
-    {
+    if (level == 1 || level == 2) && element.options.heading_style == HeadingStyle::Setex {
         // Use the Setext heading style for h1 and h2
         result.push_str(content);
         result.push('\n');

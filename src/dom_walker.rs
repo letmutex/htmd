@@ -3,10 +3,9 @@ use markup5ever_rcdom::{Node, NodeData};
 use phf::phf_set;
 use std::{borrow::Cow, cell::RefCell, rc::Rc};
 
-use crate::HtmlToMarkdown;
+use crate::element_handler::ElementHandlers;
 
 use super::{
-    element_handler::ElementHandler,
     node_util::get_node_tag_name,
     options::TranslationMode,
     text_util::{
@@ -18,7 +17,7 @@ use super::{
 pub(crate) fn walk_node(
     node: &Rc<Node>,
     buffer: &mut Vec<String>,
-    html_to_markdown: &HtmlToMarkdown,
+    handlers: &ElementHandlers,
     parent_tag: Option<&str>,
     trim_leading_spaces: bool,
     is_pre: bool,
@@ -26,7 +25,7 @@ pub(crate) fn walk_node(
     let mut markdown_translated = true;
     match node.data {
         NodeData::Document => {
-            let _ = walk_children(node, buffer, html_to_markdown, true, false);
+            let _ = walk_children(node, buffer, handlers, true, false);
             trim_buffer_end(buffer);
         }
 
@@ -72,15 +71,15 @@ pub(crate) fn walk_node(
             let is_pre = is_pre || tag == "pre" || tag == "code";
             let prev_buffer_len = buffer.len();
             let is_block = is_block_element(tag);
-            markdown_translated = walk_children(node, buffer, html_to_markdown, is_block, is_pre);
+            markdown_translated = walk_children(node, buffer, handlers, is_block, is_pre);
             let md;
-            (md, markdown_translated) = html_to_markdown.handlers.on_visit(
+            (md, markdown_translated) = handlers.handle(
                 node,
-                html_to_markdown,
                 tag,
                 &attrs.borrow(),
                 &join_contents(&buffer[prev_buffer_len..]),
                 markdown_translated,
+                0,
             );
             // Remove the temporary text clips of children
             buffer.truncate(prev_buffer_len);
@@ -92,7 +91,7 @@ pub(crate) fn walk_node(
         }
 
         NodeData::Comment { ref contents } => {
-            if html_to_markdown.options.translation_mode == TranslationMode::Faithful {
+            if handlers.options.translation_mode == TranslationMode::Faithful {
                 buffer.push(format!("<!--{}-->", contents));
             }
         }
@@ -198,7 +197,7 @@ fn can_combine(n1: &Node, n2: &Node) -> Option<RefCell<Tendril<UTF8>>> {
 fn walk_children(
     node: &Rc<Node>,
     buffer: &mut Vec<String>,
-    html_to_markdown: &HtmlToMarkdown,
+    handlers: &ElementHandlers,
     is_parent_block_element: bool,
     is_pre: bool,
     // Return value: `markdown_translated`.
@@ -241,14 +240,7 @@ fn walk_children(
 
         let buffer_len = buffer.len();
 
-        markdown_translated &= walk_node(
-            child,
-            buffer,
-            html_to_markdown,
-            tag,
-            trim_leading_spaces,
-            is_pre,
-        );
+        markdown_translated &= walk_node(child, buffer, handlers, tag, trim_leading_spaces, is_pre);
 
         if buffer.len() > buffer_len {
             // Something was appended, update the flag

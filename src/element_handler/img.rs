@@ -1,9 +1,11 @@
 use crate::{
-    Element, serialize_if_faithful,
+    Element,
+    element_handler::Chain,
+    serialize_if_faithful,
     text_util::{JoinOnStringIterator, TrimAsciiWhitespace, concat_strings},
 };
 
-pub(super) fn img_handler(element: Element) -> (Option<String>, bool) {
+pub(super) fn img_handler(_chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
     let mut link: Option<String> = None;
     let mut alt: Option<String> = None;
     let mut title: Option<String> = None;

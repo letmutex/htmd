@@ -1,15 +1,15 @@
 use crate::{
     Element,
-    element_handler::serialize_element,
+    element_handler::{Chain, serialize_element},
     node_util::{get_node_tag_name, get_parent_node},
     options::TranslationMode,
     serialize_if_faithful,
     text_util::concat_strings,
 };
 
-pub(super) fn list_handler(element: Element) -> (Option<String>, bool) {
+pub(super) fn list_handler(_chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
     // In faithful mode, ...
-    if element.html_to_markdown.options.translation_mode == TranslationMode::Faithful {
+    if element.options.translation_mode == TranslationMode::Faithful {
         // ...make sure this element's attributes can be translated as markdown.
         let has_start = element
             .attrs

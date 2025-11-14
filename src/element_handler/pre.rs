@@ -1,9 +1,13 @@
 use crate::{
-    Element, element_handler::serialize_element, node_util::get_node_tag_name,
-    options::TranslationMode, serialize_if_faithful, text_util::concat_strings,
+    Element,
+    element_handler::{Chain, serialize_element},
+    node_util::get_node_tag_name,
+    options::TranslationMode,
+    serialize_if_faithful,
+    text_util::concat_strings,
 };
 
-pub(super) fn pre_handler(element: Element) -> (Option<String>, bool) {
+pub(super) fn pre_handler(_chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
     serialize_if_faithful!(element, 0);
     // The only faithful translation for this is from
     // `<pre><code>blah</code></pre>` to a code block. So, check that this node
@@ -15,7 +19,7 @@ pub(super) fn pre_handler(element: Element) -> (Option<String>, bool) {
     //         No special treatment.
     //     2.  All other cases: produce HTML.
     let children = element.node.children.borrow();
-    if element.html_to_markdown.options.translation_mode == TranslationMode::Pure
+    if element.options.translation_mode == TranslationMode::Pure
         || (element.markdown_translated
             && children.len() == 1
             && get_node_tag_name(&children[0]) == Some("code"))

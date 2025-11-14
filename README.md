@@ -59,10 +59,10 @@ assert_eq!("Heading\n=======", converter.convert("<h1>Heading</h1>").unwrap());
 ### Custom tag handlers
 
 ```rust
-use htmd::HtmlToMarkdown;
+use htmd::{Element, HtmlToMarkdown, element_handler::Chain};
 
 let converter = HtmlToMarkdown::builder()
-    .add_handler(vec!["svg"], |_: Element| Some("[Svg Image]".to_string()))
+    .add_handler(vec!["svg"], |_chain: &dyn Chain, _: Element| (Some("[Svg Image]".to_string()), true))
     .build();
 assert_eq!("[Svg Image]", converter.convert("<svg></svg>").unwrap());
 ```

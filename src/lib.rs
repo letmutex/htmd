@@ -6,6 +6,7 @@ pub mod options;
 pub(crate) mod text_util;
 
 use std::rc::Rc;
+use std::sync::Arc;
 
 use dom_walker::walk_node;
 use element_handler::{ElementHandler, ElementHandlers};
@@ -14,6 +15,8 @@ use html5ever::tree_builder::TreeBuilderOpts;
 use html5ever::{Attribute, ParseOpts, parse_document};
 use markup5ever_rcdom::{Node, RcDom};
 use options::Options;
+
+use crate::element_handler::Chain;
 
 /// Convert HTML to Markdown.
 ///
@@ -40,7 +43,7 @@ pub struct Element<'a> {
     /// The content text, can be raw text or converted Markdown text.
     pub content: &'a str,
     /// Converter options.
-    pub html_to_markdown: &'a HtmlToMarkdown,
+    pub options: &'a Options,
     /// When true, this element's children were all translated using Markdown,
     /// not HTML. This is only needed in faithful translation mode (see the
     /// `Options`): for code blocks, translating a `<pre><code>` sequence to
@@ -48,6 +51,7 @@ pub struct Element<'a> {
     /// likewise, translating lists ((`<ol>`/`<ul>`)`<li>`) to Markdown requires
     /// all `<li>` elements are translated to Markdown.
     pub markdown_translated: bool,
+    pub skipped_handlers: usize,
 }
 
 /// The html-to-markdown converter.
@@ -69,7 +73,6 @@ pub struct Element<'a> {
 /// assert_eq!("", md);
 /// ```
 pub struct HtmlToMarkdown {
-    options: Options,
     handlers: ElementHandlers,
     scripting_enabled: bool,
 }
@@ -83,20 +86,16 @@ impl Default for HtmlToMarkdown {
 impl HtmlToMarkdown {
     /// Create a new converter.
     pub fn new() -> Self {
+        let options = Options::default();
+        let handlers = ElementHandlers::new(Arc::new(options));
         Self {
-            options: Options::default(),
-            handlers: ElementHandlers::new(),
+            handlers,
             scripting_enabled: true,
         }
     }
 
-    pub(crate) fn from_params(
-        options: Options,
-        handlers: ElementHandlers,
-        scripting_enabled: bool,
-    ) -> Self {
+    pub(crate) fn from_params(handlers: ElementHandlers, scripting_enabled: bool) -> Self {
         Self {
-            options,
             handlers,
             scripting_enabled,
         }
@@ -124,7 +123,14 @@ impl HtmlToMarkdown {
 
         let mut buffer: Vec<String> = Vec::new();
 
-        walk_node(&dom.document, &mut buffer, self, None, true, false);
+        walk_node(
+            &dom.document,
+            &mut buffer,
+            &self.handlers,
+            None,
+            true,
+            false,
+        );
 
         let mut content = buffer.join("").trim_matches(|ch| ch == '\n').to_string();
 
@@ -144,7 +150,6 @@ impl HtmlToMarkdown {
 
 /// The [HtmlToMarkdown] builder for advanced configurations.
 pub struct HtmlToMarkdownBuilder {
-    options: Options,
     handlers: ElementHandlers,
     scripting_enabled: bool,
 }
@@ -158,22 +163,23 @@ impl Default for HtmlToMarkdownBuilder {
 impl HtmlToMarkdownBuilder {
     /// Create a new builder.
     pub fn new() -> Self {
+        let options = Options::default();
+        let handlers = ElementHandlers::new(Arc::new(options));
         Self {
-            options: Options::default(),
-            handlers: ElementHandlers::new(),
+            handlers,
             scripting_enabled: true,
         }
     }
 
     /// Set converting options.
     pub fn options(mut self, options: Options) -> Self {
-        self.options = options;
+        self.handlers.options = Arc::new(options);
         self
     }
 
     /// Skip a group of tags when converting.
     pub fn skip_tags(self, tags: Vec<&str>) -> Self {
-        self.add_handler(tags, |_: Element| (None, true))
+        self.add_handler(tags, |_: &dyn Chain, _: Element| (None, true))
     }
 
     /// Apply a custom element handler for a group of tags.
@@ -181,14 +187,14 @@ impl HtmlToMarkdownBuilder {
     /// # Example
     ///
     /// ```
-    /// use htmd::{Element, HtmlToMarkdownBuilder};
+    /// use htmd::{Element, HtmlToMarkdownBuilder, element_handler::Chain};
     ///
     /// let mut handlers = HtmlToMarkdownBuilder::new()
-    ///    .add_handler(vec!["img"], |_: Element| {
+    ///    .add_handler(vec!["img"], |_chain: &dyn Chain, _: Element| {
     ///        // Skip the img tag when converting.
     ///        (None, true)
     ///    })
-    ///    .add_handler(vec!["video"], |element: Element| {
+    ///    .add_handler(vec!["video"], |_chain: &dyn Chain, element: Element| {
     ///        // Handle the video tag.
     ///        todo!("Return some text to represent this video element.")
     ///    });
@@ -210,6 +216,6 @@ impl HtmlToMarkdownBuilder {
 
     /// Create a new [HtmlToMarkdown].
     pub fn build(self) -> HtmlToMarkdown {
-        HtmlToMarkdown::from_params(self.options, self.handlers, self.scripting_enabled)
+        HtmlToMarkdown::from_params(self.handlers, self.scripting_enabled)
     }
 }

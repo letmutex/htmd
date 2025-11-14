@@ -1,5 +1,6 @@
 use crate::{
     Element,
+    element_handler::Chain,
     node_util::get_node_tag_name,
     options::BulletListMarker,
     serialize_if_faithful,
@@ -8,18 +9,17 @@ use crate::{
 use markup5ever_rcdom::NodeData;
 use std::rc::Rc;
 
-pub(super) fn list_item_handler(element: Element) -> (Option<String>, bool) {
+pub(super) fn list_item_handler(_chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
     serialize_if_faithful!(element, 0);
     let content = element.content.trim_start_ascii_whitespace().to_string();
 
     let ul_li = || {
-        let marker =
-            if element.html_to_markdown.options.bullet_list_marker == BulletListMarker::Asterisk {
-                "*"
-            } else {
-                "-"
-            };
-        let spacing = " ".repeat(element.html_to_markdown.options.ul_bullet_spacing.into());
+        let marker = if element.options.bullet_list_marker == BulletListMarker::Asterisk {
+            "*"
+        } else {
+            "-"
+        };
+        let spacing = " ".repeat(element.options.ul_bullet_spacing.into());
         let content = indent_text_except_first_line(&content, marker.len() + spacing.len(), true);
         (
             Some(concat_strings!("\n", marker, spacing, content, "\n")),
@@ -34,7 +34,7 @@ pub(super) fn list_item_handler(element: Element) -> (Option<String>, bool) {
     let ol_li = |index: usize, highest_list_item: usize| {
         let index_str = index.to_string();
         let spacing = " ".repeat(
-            element.html_to_markdown.options.ol_number_spacing as usize + digits(highest_list_item)
+            element.options.ol_number_spacing as usize + digits(highest_list_item)
                 - index_str.len(),
         );
         let content =
