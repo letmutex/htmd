@@ -458,6 +458,14 @@ fn faithful_mode_table() {
 }
 
 #[test]
+fn faithful_mode_nested_inline_html() {
+    assert_eq!(
+        convert("<p>Nested <foo><bar><em>content</em></bar></foo></p>").unwrap(),
+        "Nested <foo><bar>*content*</bar></foo>"
+    );
+}
+
+#[test]
 fn spaces_check() {
     let html = r#"<i>Italic</i> <em>Also italic</em>  <strong>Strong</strong> <b>Stronger </b>"#;
     assert_eq!(
