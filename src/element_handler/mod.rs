@@ -297,9 +297,9 @@ impl Chain for ElementHandlers {
 
     fn handle(&self, node: &Rc<Node>) -> (Option<String>, bool) {
         let mut buffer = Vec::new();
-        walk_node(node, &mut buffer, self, None, true, false);
+        let markdown_translated = walk_node(node, &mut buffer, self, None, true, false);
         let md = buffer.join("");
-        (Some(md), true)
+        (Some(md), markdown_translated)
     }
 }
 
