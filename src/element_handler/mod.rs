@@ -235,8 +235,7 @@ impl ElementHandlers {
             .iter()
             .filter(|rule| rule.tags.contains(tag))
             .rev()
-            .skip(skipped_handlers)
-            .next();
+            .nth(skipped_handlers);
         match rule {
             Some(rule) => rule.handler.on_visit(
                 self,
