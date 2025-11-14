@@ -4,8 +4,8 @@ use html5ever::Attribute;
 use markup5ever_rcdom::Node;
 
 use crate::{
-    Element, ElementHandler,
-    options::{LinkReferenceStyle, LinkStyle, Options},
+    Element, ElementHandler, HtmlToMarkdown,
+    options::{LinkReferenceStyle, LinkStyle},
     serialize_if_faithful,
     text_util::{JoinOnStringIterator, StripWhitespace, TrimAsciiWhitespace, concat_strings},
 };
@@ -34,7 +34,7 @@ impl ElementHandler for AnchorElementHandler {
     fn on_visit(
         &self,
         node: &Rc<Node>,
-        options: &Options,
+        html_to_markdown: &HtmlToMarkdown,
         tag: &str,
         attrs: &[Attribute],
         content: &str,
@@ -56,7 +56,7 @@ impl ElementHandler for AnchorElementHandler {
                         tag,
                         attrs,
                         content,
-                        options,
+                        html_to_markdown,
                         markdown_translated,
                     },
                     0
@@ -80,14 +80,17 @@ impl ElementHandler for AnchorElementHandler {
 
         let link = link.replace('(', "\\(").replace(')', "\\)");
 
-        let md = match options.link_style {
+        let md = match html_to_markdown.options.link_style {
             LinkStyle::Inlined => self.build_inlined_anchor(content, link, title, false),
             LinkStyle::InlinedPreferAutolinks => {
                 self.build_inlined_anchor(content, link, title, true)
             }
-            LinkStyle::Referenced => {
-                self.build_referenced_anchor(content, link, title, &options.link_reference_style)
-            }
+            LinkStyle::Referenced => self.build_referenced_anchor(
+                content,
+                link,
+                title,
+                &html_to_markdown.options.link_reference_style,
+            ),
         };
 
         (Some(md), true)

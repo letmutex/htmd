@@ -9,7 +9,7 @@ use crate::{
 
 pub(super) fn list_handler(element: Element) -> (Option<String>, bool) {
     // In faithful mode, ...
-    if element.options.translation_mode == TranslationMode::Faithful {
+    if element.html_to_markdown.options.translation_mode == TranslationMode::Faithful {
         // ...make sure this element's attributes can be translated as markdown.
         let has_start = element
             .attrs

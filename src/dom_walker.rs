@@ -3,10 +3,12 @@ use markup5ever_rcdom::{Node, NodeData};
 use phf::phf_set;
 use std::{borrow::Cow, cell::RefCell, rc::Rc};
 
+use crate::HtmlToMarkdown;
+
 use super::{
     element_handler::ElementHandler,
     node_util::get_node_tag_name,
-    options::{Options, TranslationMode},
+    options::TranslationMode,
     text_util::{
         TrimAsciiWhitespace, compress_whitespace, index_of_markdown_ordered_item_dot,
         is_markdown_atx_heading,
@@ -16,8 +18,7 @@ use super::{
 pub(crate) fn walk_node(
     node: &Rc<Node>,
     buffer: &mut Vec<String>,
-    handler: &dyn ElementHandler,
-    options: &Options,
+    html_to_markdown: &HtmlToMarkdown,
     parent_tag: Option<&str>,
     trim_leading_spaces: bool,
     is_pre: bool,
@@ -25,7 +26,7 @@ pub(crate) fn walk_node(
     let mut markdown_translated = true;
     match node.data {
         NodeData::Document => {
-            let _ = walk_children(node, buffer, handler, options, true, false);
+            let _ = walk_children(node, buffer, html_to_markdown, true, false);
             trim_buffer_end(buffer);
         }
 
@@ -71,11 +72,11 @@ pub(crate) fn walk_node(
             let is_pre = is_pre || tag == "pre" || tag == "code";
             let prev_buffer_len = buffer.len();
             let is_block = is_block_element(tag);
-            markdown_translated = walk_children(node, buffer, handler, options, is_block, is_pre);
+            markdown_translated = walk_children(node, buffer, html_to_markdown, is_block, is_pre);
             let md;
-            (md, markdown_translated) = handler.on_visit(
+            (md, markdown_translated) = html_to_markdown.handlers.on_visit(
                 node,
-                options,
+                html_to_markdown,
                 tag,
                 &attrs.borrow(),
                 &join_contents(&buffer[prev_buffer_len..]),
@@ -91,7 +92,7 @@ pub(crate) fn walk_node(
         }
 
         NodeData::Comment { ref contents } => {
-            if options.translation_mode == TranslationMode::Faithful {
+            if html_to_markdown.options.translation_mode == TranslationMode::Faithful {
                 buffer.push(format!("<!--{}-->", contents));
             }
         }
@@ -197,8 +198,7 @@ fn can_combine(n1: &Node, n2: &Node) -> Option<RefCell<Tendril<UTF8>>> {
 fn walk_children(
     node: &Rc<Node>,
     buffer: &mut Vec<String>,
-    handler: &dyn ElementHandler,
-    options: &Options,
+    html_to_markdown: &HtmlToMarkdown,
     is_parent_block_element: bool,
     is_pre: bool,
     // Return value: `markdown_translated`.
@@ -244,8 +244,7 @@ fn walk_children(
         markdown_translated &= walk_node(
             child,
             buffer,
-            handler,
-            options,
+            html_to_markdown,
             tag,
             trim_leading_spaces,
             is_pre,

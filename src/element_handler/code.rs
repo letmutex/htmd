@@ -15,7 +15,7 @@ use crate::{
 pub(super) fn code_handler(element: Element) -> (Option<String>, bool) {
     // In faithful mode, all children of a code tag must be text to translate
     // as markdown.
-    if element.options.translation_mode == TranslationMode::Faithful
+    if element.html_to_markdown.options.translation_mode == TranslationMode::Faithful
         && !element
             .node
             .children
@@ -42,8 +42,8 @@ pub(super) fn code_handler(element: Element) -> (Option<String>, bool) {
 fn handle_code_block(element: Element, parent: &Rc<Node>) -> (Option<String>, bool) {
     let content = element.content;
     let content = content.strip_suffix('\n').unwrap_or(content);
-    if element.options.code_block_style == CodeBlockStyle::Fenced {
-        let fence = if element.options.code_block_fence == CodeBlockFence::Tildes {
+    if element.html_to_markdown.options.code_block_style == CodeBlockStyle::Fenced {
+        let fence = if element.html_to_markdown.options.code_block_fence == CodeBlockFence::Tildes {
             get_code_fence_marker("~", content)
         } else {
             get_code_fence_marker("`", content)
@@ -124,7 +124,7 @@ fn handle_inline_code(element: Element) -> (Option<String>, bool) {
             }
         }
     }
-    let content = if element.options.preformatted_code {
+    let content = if element.html_to_markdown.options.preformatted_code {
         handle_preformatted_code(content)
     } else {
         content.trim_ascii_whitespace().to_string()

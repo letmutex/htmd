@@ -15,7 +15,7 @@ pub(super) fn pre_handler(element: Element) -> (Option<String>, bool) {
     //         No special treatment.
     //     2.  All other cases: produce HTML.
     let children = element.node.children.borrow();
-    if element.options.translation_mode == TranslationMode::Pure
+    if element.html_to_markdown.options.translation_mode == TranslationMode::Pure
         || (element.markdown_translated
             && children.len() == 1
             && get_node_tag_name(&children[0]) == Some("code"))

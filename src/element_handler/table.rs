@@ -1,8 +1,8 @@
 use crate::element_handler::{Element, serialize_element};
 use crate::node_util::{get_node_children, get_node_content, get_node_tag_name};
 use crate::options::TranslationMode;
-use crate::serialize_if_faithful;
 use crate::text_util::concat_strings;
+use crate::{HtmlToMarkdown, serialize_if_faithful};
 use markup5ever_rcdom::NodeData;
 use std::rc::Rc;
 
@@ -18,7 +18,8 @@ pub(crate) fn table_handler(element: Element) -> (Option<String>, bool) {
     serialize_if_faithful!(element, 0);
     // All child table elements must be markdown translated to markdown
     // translate the table in faithful mode.
-    if element.options.translation_mode == TranslationMode::Faithful && !element.markdown_translated
+    if element.html_to_markdown.options.translation_mode == TranslationMode::Faithful
+        && !element.markdown_translated
     {
         return (Some(serialize_element(&element)), false);
     }
@@ -42,7 +43,11 @@ pub(crate) fn table_handler(element: Element) -> (Option<String>, bool) {
 
                 match tag_name {
                     "caption" => {
-                        captions.push(get_node_content(&child).trim().to_string());
+                        captions.push(
+                            get_node_content(&child, element.html_to_markdown)
+                                .trim()
+                                .to_string(),
+                        );
                     }
                     "thead" => {
                         let tr = child
@@ -58,9 +63,9 @@ pub(crate) fn table_handler(element: Element) -> (Option<String>, bool) {
                         };
 
                         has_thead = true;
-                        headers = extract_row_cells(&row_node, "th");
+                        headers = extract_row_cells(&row_node, "th", element.html_to_markdown);
                         if headers.is_empty() {
-                            headers = extract_row_cells(&row_node, "td");
+                            headers = extract_row_cells(&row_node, "td", element.html_to_markdown);
                         }
                     }
                     "tbody" | "tfoot" => {
@@ -70,7 +75,11 @@ pub(crate) fn table_handler(element: Element) -> (Option<String>, bool) {
                             {
                                 // If no thead is found, use the first th row as header
                                 if !has_thead && headers.is_empty() {
-                                    headers = extract_row_cells(&row_node, "th");
+                                    headers = extract_row_cells(
+                                        &row_node,
+                                        "th",
+                                        element.html_to_markdown,
+                                    );
                                     has_thead = !headers.is_empty();
 
                                     if has_thead {
@@ -78,7 +87,8 @@ pub(crate) fn table_handler(element: Element) -> (Option<String>, bool) {
                                     }
                                 }
 
-                                let row_cells = extract_row_cells(&row_node, "td");
+                                let row_cells =
+                                    extract_row_cells(&row_node, "td", element.html_to_markdown);
                                 if !row_cells.is_empty() {
                                     rows.push(row_cells);
                                 }
@@ -88,16 +98,18 @@ pub(crate) fn table_handler(element: Element) -> (Option<String>, bool) {
                     "tr" => {
                         // If no thead is found, use the first row as headers
                         if !has_thead && headers.is_empty() {
-                            headers = extract_row_cells(&child, "th");
+                            headers = extract_row_cells(&child, "th", element.html_to_markdown);
                             if headers.is_empty() {
-                                let cells = extract_row_cells(&child, "td");
+                                let cells =
+                                    extract_row_cells(&child, "td", element.html_to_markdown);
                                 if !cells.is_empty() {
                                     headers = cells;
                                 }
                             }
                             has_thead = !headers.is_empty();
                         } else {
-                            let row_cells = extract_row_cells(&child, "td");
+                            let row_cells =
+                                extract_row_cells(&child, "td", element.html_to_markdown);
                             if !row_cells.is_empty() {
                                 rows.push(row_cells);
                             }
@@ -147,14 +159,20 @@ pub(crate) fn table_handler(element: Element) -> (Option<String>, bool) {
 }
 
 /// Extract cells from a row node
-fn extract_row_cells(row_node: &Rc<markup5ever_rcdom::Node>, cell_tag: &str) -> Vec<String> {
+fn extract_row_cells(
+    row_node: &Rc<markup5ever_rcdom::Node>,
+    cell_tag: &str,
+    html_to_markdown: &HtmlToMarkdown,
+) -> Vec<String> {
     let mut cells = Vec::new();
 
     for cell_node in get_node_children(row_node) {
         if let NodeData::Element { name, .. } = &cell_node.data
             && name.local.as_ref() == cell_tag
         {
-            let cell_content = get_node_content(&cell_node).trim().to_string();
+            let cell_content = get_node_content(&cell_node, html_to_markdown)
+                .trim()
+                .to_string();
             cells.push(cell_content);
         }
     }

@@ -133,7 +133,10 @@ fn code_blocks_with_lang_class_on_pre_tag() {
     let html = r#"
         <pre class="language-rust"><code>println!("Hello");</code></pre>
         "#;
-    assert_eq!("```rust\nprintln!(\"Hello\");\n```", htmd::convert(html).unwrap());
+    assert_eq!(
+        "```rust\nprintln!(\"Hello\");\n```",
+        htmd::convert(html).unwrap()
+    );
 }
 
 #[test]
@@ -609,4 +612,10 @@ fn multithreading() {
     for handle in handlers {
         handle.join().unwrap();
     }
+}
+
+#[test]
+fn unterminated_html() {
+    // The `<i>` tag isn't terminated. Make sure the conversion still works.
+    assert_eq!("# *A*", convert("<h1><i>A</h1>").unwrap());
 }
