@@ -5,6 +5,7 @@ use pretty_assertions::assert_eq;
 
 use htmd::{
     Element, HtmlToMarkdown,
+    element_handler::Chain,
     options::{BrStyle, LinkStyle, Options, TranslationMode},
 };
 mod common;
@@ -533,15 +534,40 @@ fn with_custom_rules() {
     // Remove element
     let html = r#"<img src="https://example.com"/>"#;
     let md = HtmlToMarkdown::builder()
-        .add_handler(vec!["img"], |_element: Element| (None, true))
-        .options(Options {
-            translation_mode: TranslationMode::Faithful,
-            ..Default::default()
-        })
+        .add_handler(vec!["img"], |_: &dyn Chain, _element: Element| (None, true))
         .build()
         .convert(html)
         .unwrap();
     assert_eq!("", &md);
+}
+
+#[test]
+fn with_custom_rules_and_fallback() {
+    let html = r#"<img src="https://example.com"/>"#;
+    let converter = HtmlToMarkdown::builder()
+        .add_handler(vec!["img"], |chain: &dyn Chain, element: Element| {
+            if element
+                .attrs
+                .iter()
+                .find(|attr| &attr.name.local == "id" && attr.value.as_ref() == "do_not_skip_me")
+                .is_some()
+            {
+                chain.proceed(element)
+            } else {
+                (None, true)
+            }
+        })
+        .options(Options {
+            ..Default::default()
+        })
+        .build();
+    assert_eq!("", &converter.convert(html).unwrap());
+
+    let html = r#"<img src="https://example.com" id="do_not_skip_me"/>"#;
+    assert_eq!(
+        "![](https://example.com)",
+        &converter.convert(html).unwrap()
+    );
 }
 
 #[test]

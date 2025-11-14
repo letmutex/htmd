@@ -20,7 +20,8 @@ mod thead;
 mod tr;
 
 use crate::{
-    HtmlToMarkdown, dom_walker::is_block_element, options::TranslationMode,
+    dom_walker::{is_block_element, walk_node},
+    options::{Options, TranslationMode},
     text_util::concat_strings,
 };
 use html5ever::serialize::{HtmlSerializer, SerializeOpts, Serializer, TraversalScope, serialize};
@@ -47,6 +48,7 @@ use std::{
     collections::HashSet,
     io::{self, Write},
     rc::Rc,
+    sync::Arc,
 };
 use table::table_handler;
 use tbody::tbody_handler;
@@ -60,15 +62,7 @@ pub trait ElementHandler: Send + Sync {
         None
     }
 
-    fn on_visit(
-        &self,
-        node: &Rc<Node>,
-        html_to_markdown: &HtmlToMarkdown,
-        tag: &str,
-        attrs: &[Attribute],
-        content: &str,
-        markdown_translated: bool,
-    ) -> (Option<String>, bool);
+    fn on_visit(&self, chain: &dyn Chain, element: Element) -> (Option<String>, bool);
 }
 
 pub(crate) struct HandlerRule {
@@ -78,36 +72,25 @@ pub(crate) struct HandlerRule {
 
 impl<F> ElementHandler for F
 where
-    F: (Fn(Element) -> (Option<String>, bool)) + Send + Sync,
+    F: (Fn(&dyn Chain, Element) -> (Option<String>, bool)) + Send + Sync,
 {
-    fn on_visit(
-        &self,
-        node: &Rc<Node>,
-        html_to_markdown: &HtmlToMarkdown,
-        tag: &str,
-        attrs: &[Attribute],
-        content: &str,
-        markdown_translated: bool,
-    ) -> (Option<String>, bool) {
-        self(Element {
-            node,
-            tag,
-            attrs,
-            content,
-            html_to_markdown,
-            markdown_translated,
-        })
+    fn on_visit(&self, chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
+        self(chain, element)
     }
 }
 
 /// Builtin element handlers
 pub(crate) struct ElementHandlers {
     pub(crate) rules: Vec<HandlerRule>,
+    pub(crate) options: Arc<Options>,
 }
 
 impl ElementHandlers {
-    pub fn new() -> Self {
-        let mut handlers = Self { rules: Vec::new() };
+    pub fn new(options: Arc<Options>) -> Self {
+        let mut handlers = Self {
+            rules: Vec::new(),
+            options,
+        };
 
         // img
         handlers.add_handler(vec!["img"], img_handler);
@@ -237,37 +220,46 @@ impl ElementHandlers {
         };
         self.rules.push(handler);
     }
-}
 
-impl ElementHandler for ElementHandlers {
-    fn on_visit(
+    pub fn handle(
         &self,
         node: &Rc<Node>,
-        html_to_markdown: &HtmlToMarkdown,
         tag: &str,
         attrs: &[Attribute],
         content: &str,
         markdown_translated: bool,
+        skipped_handlers: usize,
     ) -> (Option<String>, bool) {
-        match self.rules.iter().rev().find(|rule| rule.tags.contains(tag)) {
+        let rule = self
+            .rules
+            .iter()
+            .filter(|rule| rule.tags.contains(tag))
+            .rev()
+            .nth(skipped_handlers);
+        match rule {
             Some(rule) => rule.handler.on_visit(
-                node,
-                html_to_markdown,
-                tag,
-                attrs,
-                content,
-                markdown_translated,
+                self,
+                Element {
+                    node,
+                    tag,
+                    attrs,
+                    content,
+                    options: &self.options,
+                    markdown_translated,
+                    skipped_handlers,
+                },
             ),
             None => {
-                if html_to_markdown.options.translation_mode == TranslationMode::Faithful {
+                if self.options.translation_mode == TranslationMode::Faithful {
                     (
                         Some(serialize_element(&Element {
                             node,
                             tag,
                             attrs,
                             content,
-                            html_to_markdown,
+                            options: &self.options,
                             markdown_translated,
+                            skipped_handlers: 0,
                         })),
                         false,
                     )
@@ -279,20 +271,51 @@ impl ElementHandler for ElementHandlers {
     }
 }
 
-fn block_handler(element: Element) -> (Option<String>, bool) {
-    if element.html_to_markdown.options.translation_mode == TranslationMode::Pure {
+/// Provides access to the handler chain for processing elements and nodes.
+///
+/// Handlers can use this to delegate to other handlers or recursively process child nodes.
+pub trait Chain {
+    /// Skip the current handler and proceed to the previous handler (earlier in registration order).
+    fn proceed(&self, element: Element) -> (Option<String>, bool);
+
+    /// Process a `markup5ever` node through the handler chain.
+    fn handle(&self, node: &Rc<Node>) -> (Option<String>, bool);
+}
+
+impl Chain for ElementHandlers {
+    fn proceed(&self, element: Element) -> (Option<String>, bool) {
+        self.handle(
+            element.node,
+            element.tag,
+            element.attrs,
+            element.content,
+            element.markdown_translated,
+            element.skipped_handlers + 1,
+        )
+    }
+
+    fn handle(&self, node: &Rc<Node>) -> (Option<String>, bool) {
+        let mut buffer = Vec::new();
+        let markdown_translated = walk_node(node, &mut buffer, self, None, true, false);
+        let md = buffer.join("");
+        (Some(md), markdown_translated)
+    }
+}
+
+fn block_handler(_chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
+    if element.options.translation_mode == TranslationMode::Pure {
         (Some(concat_strings!("\n\n", element.content, "\n\n")), true)
     } else {
         (Some(serialize_element(&element)), false)
     }
 }
 
-fn bold_handler(element: Element) -> (Option<String>, bool) {
-    emphasis_handler(element, "**")
+fn bold_handler(chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
+    emphasis_handler(chain, element, "**")
 }
 
-fn italic_handler(element: Element) -> (Option<String>, bool) {
-    emphasis_handler(element, "*")
+fn italic_handler(chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
+    emphasis_handler(chain, element, "*")
 }
 
 // Given a node (which must be an element), serialize it (transform it back
@@ -439,8 +462,7 @@ macro_rules! serialize_if_faithful {
         // The maximum number of attributes allowed for this element.
         $num_attrs_allowed: expr
     ) => {
-        if $element.html_to_markdown.options.translation_mode
-            == $crate::options::TranslationMode::Faithful
+        if $element.options.translation_mode == $crate::options::TranslationMode::Faithful
             && $element.attrs.len() > $num_attrs_allowed
         {
             return (

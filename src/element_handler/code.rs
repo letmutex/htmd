@@ -5,17 +5,17 @@ use markup5ever_rcdom::{Node, NodeData};
 
 use crate::{
     Element,
-    element_handler::serialize_element,
+    element_handler::{Chain, serialize_element},
     node_util::{get_node_tag_name, get_parent_node},
     options::{CodeBlockFence, CodeBlockStyle, TranslationMode},
     serialize_if_faithful,
     text_util::{JoinOnStringIterator, TrimAsciiWhitespace, concat_strings},
 };
 
-pub(super) fn code_handler(element: Element) -> (Option<String>, bool) {
+pub(super) fn code_handler(_chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
     // In faithful mode, all children of a code tag must be text to translate
     // as markdown.
-    if element.html_to_markdown.options.translation_mode == TranslationMode::Faithful
+    if element.options.translation_mode == TranslationMode::Faithful
         && !element
             .node
             .children
@@ -42,8 +42,8 @@ pub(super) fn code_handler(element: Element) -> (Option<String>, bool) {
 fn handle_code_block(element: Element, parent: &Rc<Node>) -> (Option<String>, bool) {
     let content = element.content;
     let content = content.strip_suffix('\n').unwrap_or(content);
-    if element.html_to_markdown.options.code_block_style == CodeBlockStyle::Fenced {
-        let fence = if element.html_to_markdown.options.code_block_fence == CodeBlockFence::Tildes {
+    if element.options.code_block_style == CodeBlockStyle::Fenced {
+        let fence = if element.options.code_block_fence == CodeBlockFence::Tildes {
             get_code_fence_marker("~", content)
         } else {
             get_code_fence_marker("`", content)
@@ -124,7 +124,7 @@ fn handle_inline_code(element: Element) -> (Option<String>, bool) {
             }
         }
     }
-    let content = if element.html_to_markdown.options.preformatted_code {
+    let content = if element.options.preformatted_code {
         handle_preformatted_code(content)
     } else {
         content.trim_ascii_whitespace().to_string()

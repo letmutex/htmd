@@ -1,9 +1,11 @@
 use crate::{
-    Element, serialize_if_faithful,
+    Element,
+    element_handler::Chain,
+    serialize_if_faithful,
     text_util::{JoinOnStringIterator, TrimAsciiWhitespace, concat_strings},
 };
 
-pub(super) fn blockquote_handler(element: Element) -> (Option<String>, bool) {
+pub(super) fn blockquote_handler(_chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
     serialize_if_faithful!(element, 0);
     let content = element.content.trim_start_matches('\n');
     let content = content

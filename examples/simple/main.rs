@@ -1,4 +1,4 @@
-use htmd::{Element, HtmlToMarkdown, options::Options};
+use htmd::{Element, HtmlToMarkdown, element_handler::Chain, options::Options};
 
 fn main() {
     let converter = HtmlToMarkdown::new();
@@ -27,7 +27,7 @@ fn main() {
 
     // Custom tag handlers
     let converter = HtmlToMarkdown::builder()
-        .add_handler(vec!["svg"], |_: Element| {
+        .add_handler(vec!["svg"], |_: &dyn Chain, _: Element| {
             (Some("[Svg Image]".to_string()), true)
         })
         .build();

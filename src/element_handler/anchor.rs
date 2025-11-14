@@ -1,10 +1,8 @@
-use std::{cell::RefCell, rc::Rc};
-
-use html5ever::Attribute;
-use markup5ever_rcdom::Node;
+use std::cell::RefCell;
 
 use crate::{
-    Element, ElementHandler, HtmlToMarkdown,
+    Element, ElementHandler,
+    element_handler::Chain,
     options::{LinkReferenceStyle, LinkStyle},
     serialize_if_faithful,
     text_util::{JoinOnStringIterator, StripWhitespace, TrimAsciiWhitespace, concat_strings},
@@ -31,18 +29,10 @@ impl ElementHandler for AnchorElementHandler {
         })
     }
 
-    fn on_visit(
-        &self,
-        node: &Rc<Node>,
-        html_to_markdown: &HtmlToMarkdown,
-        tag: &str,
-        attrs: &[Attribute],
-        content: &str,
-        markdown_translated: bool,
-    ) -> (Option<String>, bool) {
+    fn on_visit(&self, _chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
         let mut link: Option<String> = None;
         let mut title: Option<String> = None;
-        for attr in attrs.iter() {
+        for attr in element.attrs.iter() {
             let name = &attr.name.local;
             if name == "href" {
                 link = Some(attr.value.to_string())
@@ -50,22 +40,12 @@ impl ElementHandler for AnchorElementHandler {
                 title = Some(attr.value.to_string());
             } else {
                 // This is an attribute which can't be translated to Markdown.
-                serialize_if_faithful!(
-                    Element {
-                        node,
-                        tag,
-                        attrs,
-                        content,
-                        html_to_markdown,
-                        markdown_translated,
-                    },
-                    0
-                );
+                serialize_if_faithful!(element, 0);
             }
         }
 
         let Some(link) = link else {
-            return (Some(content.to_string()), true);
+            return (Some(element.content.to_string()), true);
         };
 
         let process_title = |text: String| {
@@ -80,16 +60,16 @@ impl ElementHandler for AnchorElementHandler {
 
         let link = link.replace('(', "\\(").replace(')', "\\)");
 
-        let md = match html_to_markdown.options.link_style {
-            LinkStyle::Inlined => self.build_inlined_anchor(content, link, title, false),
+        let md = match element.options.link_style {
+            LinkStyle::Inlined => self.build_inlined_anchor(element.content, link, title, false),
             LinkStyle::InlinedPreferAutolinks => {
-                self.build_inlined_anchor(content, link, title, true)
+                self.build_inlined_anchor(element.content, link, title, true)
             }
             LinkStyle::Referenced => self.build_referenced_anchor(
-                content,
+                element.content,
                 link,
                 title,
-                &html_to_markdown.options.link_reference_style,
+                &element.options.link_reference_style,
             ),
         };
 

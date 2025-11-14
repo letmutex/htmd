@@ -1,9 +1,15 @@
 use crate::{
-    Element, serialize_if_faithful,
+    Element,
+    element_handler::Chain,
+    serialize_if_faithful,
     text_util::{StripWhitespace, concat_strings},
 };
 
-pub(super) fn emphasis_handler(element: Element, marker: &str) -> (Option<String>, bool) {
+pub(super) fn emphasis_handler(
+    _chain: &dyn Chain,
+    element: Element,
+    marker: &str,
+) -> (Option<String>, bool) {
     serialize_if_faithful!(element, 0);
     let content = element.content;
     if content.is_empty() {
