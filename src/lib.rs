@@ -134,8 +134,8 @@ impl HtmlToMarkdown {
         let mut content = buffer.join("").trim_matches(|ch| ch == '\n').to_string();
 
         let mut append = String::new();
-        for rule in &self.handlers.rules {
-            let Some(append_content) = rule.handler.append() else {
+        for handler in &self.handlers.handlers {
+            let Some(append_content) = handler.append() else {
                 continue;
             };
             append.push_str(&append_content);

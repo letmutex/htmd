@@ -45,7 +45,7 @@ use list::list_handler;
 use markup5ever_rcdom::Node;
 use p::p_handler;
 use pre::pre_handler;
-use std::{collections::HashSet, rc::Rc};
+use std::{collections::HashMap, rc::Rc};
 use table::table_handler;
 use tbody::tbody_handler;
 use td_th::td_th_handler;
@@ -85,11 +85,6 @@ pub trait ElementHandler: Send + Sync {
     fn handle(&self, chain: &dyn Chain, element: Element) -> Option<HandlerResult>;
 }
 
-pub(crate) struct HandlerRule {
-    tags: HashSet<String>,
-    pub(crate) handler: Box<dyn ElementHandler>,
-}
-
 impl<F> ElementHandler for F
 where
     F: (Fn(&dyn Chain, Element) -> Option<HandlerResult>) + Send + Sync,
@@ -101,14 +96,16 @@ where
 
 /// Builtin element handlers
 pub(crate) struct ElementHandlers {
-    pub(crate) rules: Vec<HandlerRule>,
+    pub(crate) handlers: Vec<Box<dyn ElementHandler>>,
+    pub(crate) tag_to_handler_indices: HashMap<String, Vec<usize>>,
     pub(crate) options: Options,
 }
 
 impl ElementHandlers {
     pub fn new(options: Options) -> Self {
         let mut handlers = Self {
-            rules: Vec::new(),
+            handlers: Vec::new(),
+            tag_to_handler_indices: HashMap::new(),
             options,
         };
 
@@ -234,11 +231,16 @@ impl ElementHandlers {
         Handler: ElementHandler + 'static,
     {
         assert!(!tags.is_empty(), "tags cannot be empty.");
-        let handler = HandlerRule {
-            tags: HashSet::from_iter(tags.iter().map(|tag| tag.to_string())),
-            handler: Box::new(handler),
-        };
-        self.rules.push(handler);
+        let handler_idx = self.handlers.len();
+        self.handlers.push(Box::new(handler));
+        // Update tag to handler indices
+        for tag in tags {
+            let indices = self
+                .tag_to_handler_indices
+                .entry(tag.to_owned())
+                .or_insert_with(|| Vec::new());
+            indices.push(handler_idx);
+        }
     }
 
     pub fn handle(
@@ -250,14 +252,8 @@ impl ElementHandlers {
         markdown_translated: bool,
         skipped_handlers: usize,
     ) -> Option<HandlerResult> {
-        let rule = self
-            .rules
-            .iter()
-            .filter(|rule| rule.tags.contains(tag))
-            .rev()
-            .nth(skipped_handlers);
-        match rule {
-            Some(rule) => rule.handler.handle(
+        match self.find_handler(tag, skipped_handlers) {
+            Some(handler) => handler.handle(
                 self,
                 Element {
                     node,
@@ -288,6 +284,12 @@ impl ElementHandlers {
                 }
             }
         }
+    }
+
+    fn find_handler(&self, tag: &str, skipped_handlers: usize) -> Option<&Box<dyn ElementHandler>> {
+        let handler_indices = self.tag_to_handler_indices.get(tag)?;
+        let idx = handler_indices.iter().rev().nth(skipped_handlers)?;
+        Some(&self.handlers[*idx])
     }
 }
 
