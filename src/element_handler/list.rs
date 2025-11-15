@@ -41,15 +41,15 @@ pub(super) fn list_handler(chain: &dyn Chain, element: Element) -> Option<Handle
         .unwrap_or(false);
 
     let content = if element.tag == "ol" {
-        &get_ol_content(chain, &element)
+        get_ol_content(chain, &element)
     } else {
-        element.content
+        element.content.to_owned()
     };
-
+    let trimmed = content.trim_matches(|ch| ch == '\n');
     if is_parent_li {
-        Some(concat_strings!("\n", content.trim_matches(|ch| ch == '\n'), "\n").into())
+        Some(concat_strings!("\n", trimmed, "\n").into())
     } else {
-        Some(concat_strings!("\n\n", content.trim_matches(|ch| ch == '\n'), "\n\n").into())
+        Some(concat_strings!("\n\n", trimmed, "\n\n").into())
     }
 }
 
