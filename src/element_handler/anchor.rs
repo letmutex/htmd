@@ -29,7 +29,7 @@ impl ElementHandler for AnchorElementHandler {
         })
     }
 
-    fn on_visit(&self, _chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
+    fn handle(&self, _chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
         let mut link: Option<String> = None;
         let mut title: Option<String> = None;
         for attr in element.attrs.iter() {

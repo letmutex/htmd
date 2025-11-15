@@ -85,7 +85,7 @@ pub trait ElementHandler: Send + Sync {
         None
     }
 
-    fn on_visit(&self, chain: &dyn Chain, element: Element) -> Option<HandlerResult>;
+    fn handle(&self, chain: &dyn Chain, element: Element) -> Option<HandlerResult>;
 }
 
 pub(crate) struct HandlerRule {
@@ -97,7 +97,7 @@ impl<F> ElementHandler for F
 where
     F: (Fn(&dyn Chain, Element) -> Option<HandlerResult>) + Send + Sync,
 {
-    fn on_visit(&self, chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
+    fn handle(&self, chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
         self(chain, element)
     }
 }
@@ -260,7 +260,7 @@ impl ElementHandlers {
             .rev()
             .nth(skipped_handlers);
         match rule {
-            Some(rule) => rule.handler.on_visit(
+            Some(rule) => rule.handler.handle(
                 self,
                 Element {
                     node,
