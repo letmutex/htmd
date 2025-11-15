@@ -60,19 +60,19 @@ pub struct HandlerResult {
 
 impl From<String> for HandlerResult {
     fn from(value: String) -> Self {
-        return HandlerResult {
+        HandlerResult {
             content: value,
             markdown_translated: true,
-        };
+        }
     }
 }
 
 impl From<&str> for HandlerResult {
     fn from(value: &str) -> Self {
-        return HandlerResult {
+        HandlerResult {
             content: value.to_string(),
             markdown_translated: true,
-        };
+        }
     }
 }
 
@@ -320,7 +320,7 @@ impl Chain for ElementHandlers {
         let md = buffer.join("");
         Some(HandlerResult {
             content: md,
-            markdown_translated: markdown_translated,
+            markdown_translated,
         })
     }
 }

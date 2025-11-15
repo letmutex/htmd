@@ -125,7 +125,7 @@ fn add_ol_li_marker(
     let index_str = index.to_string();
     let spacing =
         " ".repeat(options.ol_number_spacing as usize + digits(highest_index) - index_str.len());
-    let content = content.trim_start_matches(|c| c == '\n');
+    let content = content.trim_start_matches('\n');
     let content = indent_text_except_first_line(content, index_str.len() + 1 + spacing.len(), true);
     concat_strings!("\n", index_str, ".", spacing, content)
 }

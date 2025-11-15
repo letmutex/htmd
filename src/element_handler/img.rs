@@ -24,9 +24,7 @@ pub(super) fn img_handler(_chain: &dyn Chain, element: Element) -> Option<Handle
         }
     }
 
-    if link.as_ref().is_none() {
-        return None;
-    }
+    link.as_ref()?;
 
     let process_alt_title = |text: String| {
         text.lines()
