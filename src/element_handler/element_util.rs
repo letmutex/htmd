@@ -17,8 +17,8 @@ pub(super) fn handle_or_serialize_by_parent(
     // The value for `markdown_translate` to pass if this tag is markdown translatable.
     markdown_translated: bool,
 ) -> Option<HandlerResult> {
-    // In faithful mode, only include these as HTML if they're not a child of the
-    // `<tr>` tag.
+    // In faithful mode, fall back to HTML when this element's parent tag is not
+    // in `tag_names` (e.g., `<tbody>` outside `<table>`, `<td>` outside `<tr>`, etc.).
     if element.options.translation_mode == TranslationMode::Faithful
         && !parent_tag_name_equals(element.node, tag_names)
     {
