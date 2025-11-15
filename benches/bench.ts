@@ -10,7 +10,7 @@ if (!(await fs.exists(path.join(process.cwd(), "Cargo.toml")))) {
 
 console.log("Running benchmark...");
 
-const output = await $`cargo bench`.text();
+const output = await $`cargo bench --bench convert_bench`.text();
 
 const start = output.indexOf("convert()");
 if (start === -1) {
