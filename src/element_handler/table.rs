@@ -1,4 +1,5 @@
-use crate::element_handler::{Chain, Element, HandlerResult, serialize_element};
+use crate::element_handler::element_util::serialize_element;
+use crate::element_handler::{Chain, Element, HandlerResult};
 use crate::node_util::{get_node_children, get_node_tag_name};
 use crate::options::TranslationMode;
 use crate::serialize_if_faithful;

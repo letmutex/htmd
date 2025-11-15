@@ -1,7 +1,7 @@
 use crate::{
     Element,
+    element_handler::element_util::is_parent_handler,
     element_handler::{Chain, HandlerResult},
-    node_util::is_parent_handler,
     serialize_if_faithful,
 };
 

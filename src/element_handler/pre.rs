@@ -1,6 +1,6 @@
 use crate::{
     Element,
-    element_handler::{Chain, HandlerResult, serialize_element},
+    element_handler::{Chain, HandlerResult, element_util::serialize_element},
     node_util::get_node_tag_name,
     options::TranslationMode,
     serialize_if_faithful,
