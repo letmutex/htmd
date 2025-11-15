@@ -178,7 +178,7 @@ impl HtmlToMarkdownBuilder {
 
     /// Skip a group of tags when converting.
     pub fn skip_tags(self, tags: Vec<&str>) -> Self {
-        self.add_handler(tags, |_: &dyn Chain, _: Element| (None, true))
+        self.add_handler(tags, |_: &dyn Chain, _: Element| None)
     }
 
     /// Apply a custom element handler for a group of tags.
@@ -191,7 +191,7 @@ impl HtmlToMarkdownBuilder {
     /// let mut handlers = HtmlToMarkdownBuilder::new()
     ///    .add_handler(vec!["img"], |_chain: &dyn Chain, _: Element| {
     ///        // Skip the img tag when converting.
-    ///        (None, true)
+    ///        None
     ///    })
     ///    .add_handler(vec!["video"], |_chain: &dyn Chain, element: Element| {
     ///        // Handle the video tag.

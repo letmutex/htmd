@@ -3,7 +3,9 @@ use std::rc::Rc;
 use markup5ever_rcdom::{Node, NodeData};
 
 use crate::{
-    Element, element_handler::serialize_element, options::TranslationMode,
+    Element,
+    element_handler::{HandlerResult, serialize_element},
+    options::TranslationMode,
     text_util::concat_strings,
 };
 
@@ -54,17 +56,20 @@ pub(super) fn is_parent_handler(
     tag_names: &Vec<&str>,
     // The value for `markdown_translate` to pass if this tag is markdown translatable.
     markdown_translated: bool,
-) -> (Option<String>, bool) {
+) -> Option<HandlerResult> {
     // In faithful mode, only include these as HTML if they're not a child of the
     // `<tr>` tag.
     if element.options.translation_mode == TranslationMode::Faithful
         && !parent_tag_name_equals(element.node, tag_names)
     {
-        (Some(serialize_element(element)), false)
+        Some(HandlerResult {
+            content: serialize_element(element),
+            markdown_translated: false,
+        })
     } else {
-        (
-            Some(concat_strings!("\n\n", element.content, "\n\n")),
+        Some(HandlerResult {
+            content: concat_strings!("\n\n", element.content, "\n\n"),
             markdown_translated,
-        )
+        })
     }
 }

@@ -2,7 +2,7 @@ use std::cell::RefCell;
 
 use crate::{
     Element, ElementHandler,
-    element_handler::Chain,
+    element_handler::{Chain, HandlerResult},
     options::{LinkReferenceStyle, LinkStyle},
     serialize_if_faithful,
     text_util::{JoinOnStringIterator, StripWhitespace, TrimAsciiWhitespace, concat_strings},
@@ -29,7 +29,7 @@ impl ElementHandler for AnchorElementHandler {
         })
     }
 
-    fn on_visit(&self, _chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
+    fn on_visit(&self, _chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
         let mut link: Option<String> = None;
         let mut title: Option<String> = None;
         for attr in element.attrs.iter() {
@@ -45,7 +45,7 @@ impl ElementHandler for AnchorElementHandler {
         }
 
         let Some(link) = link else {
-            return (Some(element.content.to_string()), true);
+            return Some(element.content.into());
         };
 
         let process_title = |text: String| {
@@ -73,7 +73,7 @@ impl ElementHandler for AnchorElementHandler {
             ),
         };
 
-        (Some(md), true)
+        Some(md.into())
     }
 }
 

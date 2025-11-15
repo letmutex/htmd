@@ -55,13 +55,37 @@ use td_th::td_th_handler;
 use thead::thead_handler;
 use tr::tr_handler;
 
+/// The processing result of a [ElementHandler]
+pub struct HandlerResult {
+    pub content: String,
+    pub markdown_translated: bool,
+}
+
+impl From<String> for HandlerResult {
+    fn from(value: String) -> Self {
+        return HandlerResult {
+            content: value,
+            markdown_translated: true,
+        };
+    }
+}
+
+impl From<&str> for HandlerResult {
+    fn from(value: &str) -> Self {
+        return HandlerResult {
+            content: value.to_string(),
+            markdown_translated: true,
+        };
+    }
+}
+
 /// The DOM element handler.
 pub trait ElementHandler: Send + Sync {
     fn append(&self) -> Option<String> {
         None
     }
 
-    fn on_visit(&self, chain: &dyn Chain, element: Element) -> (Option<String>, bool);
+    fn on_visit(&self, chain: &dyn Chain, element: Element) -> Option<HandlerResult>;
 }
 
 pub(crate) struct HandlerRule {
@@ -71,9 +95,9 @@ pub(crate) struct HandlerRule {
 
 impl<F> ElementHandler for F
 where
-    F: (Fn(&dyn Chain, Element) -> (Option<String>, bool)) + Send + Sync,
+    F: (Fn(&dyn Chain, Element) -> Option<HandlerResult>) + Send + Sync,
 {
-    fn on_visit(&self, chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
+    fn on_visit(&self, chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
         self(chain, element)
     }
 }
@@ -228,7 +252,7 @@ impl ElementHandlers {
         content: &str,
         markdown_translated: bool,
         skipped_handlers: usize,
-    ) -> (Option<String>, bool) {
+    ) -> Option<HandlerResult> {
         let rule = self
             .rules
             .iter()
@@ -250,8 +274,8 @@ impl ElementHandlers {
             ),
             None => {
                 if self.options.translation_mode == TranslationMode::Faithful {
-                    (
-                        Some(serialize_element(&Element {
+                    Some(HandlerResult {
+                        content: serialize_element(&Element {
                             node,
                             tag,
                             attrs,
@@ -259,11 +283,11 @@ impl ElementHandlers {
                             options: &self.options,
                             markdown_translated,
                             skipped_handlers: 0,
-                        })),
-                        false,
-                    )
+                        }),
+                        markdown_translated: false,
+                    })
                 } else {
-                    (Some(content.to_string()), true)
+                    Some(content.into())
                 }
             }
         }
@@ -275,14 +299,14 @@ impl ElementHandlers {
 /// Handlers can use this to delegate to other handlers or recursively process child nodes.
 pub trait Chain {
     /// Skip the current handler and proceed to the previous handler (earlier in registration order).
-    fn proceed(&self, element: Element) -> (Option<String>, bool);
+    fn proceed(&self, element: Element) -> Option<HandlerResult>;
 
     /// Process a `markup5ever` node through the handler chain.
-    fn handle(&self, node: &Rc<Node>) -> (Option<String>, bool);
+    fn handle(&self, node: &Rc<Node>) -> Option<HandlerResult>;
 }
 
 impl Chain for ElementHandlers {
-    fn proceed(&self, element: Element) -> (Option<String>, bool) {
+    fn proceed(&self, element: Element) -> Option<HandlerResult> {
         self.handle(
             element.node,
             element.tag,
@@ -293,27 +317,33 @@ impl Chain for ElementHandlers {
         )
     }
 
-    fn handle(&self, node: &Rc<Node>) -> (Option<String>, bool) {
+    fn handle(&self, node: &Rc<Node>) -> Option<HandlerResult> {
         let mut buffer = Vec::new();
         let markdown_translated = walk_node(node, &mut buffer, self, None, true, false);
         let md = buffer.join("");
-        (Some(md), markdown_translated)
+        Some(HandlerResult {
+            content: md,
+            markdown_translated: markdown_translated,
+        })
     }
 }
 
-fn block_handler(_chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
+fn block_handler(_chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
     if element.options.translation_mode == TranslationMode::Pure {
-        (Some(concat_strings!("\n\n", element.content, "\n\n")), true)
+        Some(concat_strings!("\n\n", element.content, "\n\n").into())
     } else {
-        (Some(serialize_element(&element)), false)
+        Some(HandlerResult {
+            content: serialize_element(&element),
+            markdown_translated: false,
+        })
     }
 }
 
-fn bold_handler(chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
+fn bold_handler(chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
     emphasis_handler(chain, element, "**")
 }
 
-fn italic_handler(chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
+fn italic_handler(chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
     emphasis_handler(chain, element, "*")
 }
 
@@ -464,11 +494,11 @@ macro_rules! serialize_if_faithful {
         if $element.options.translation_mode == $crate::options::TranslationMode::Faithful
             && $element.attrs.len() > $num_attrs_allowed
         {
-            return (
-                Some($crate::element_handler::serialize_element(&$element)),
+            return Some($crate::element_handler::HandlerResult {
+                content: $crate::element_handler::serialize_element(&$element),
                 // This was translated using HTML, not Markdown.
-                false,
-            );
+                markdown_translated: false,
+            });
         }
     };
 }

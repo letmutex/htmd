@@ -72,8 +72,7 @@ pub(crate) fn walk_node(
             let prev_buffer_len = buffer.len();
             let is_block = is_block_element(tag);
             markdown_translated = walk_children(node, buffer, handlers, is_block, is_pre);
-            let md;
-            (md, markdown_translated) = handlers.handle(
+            let res = handlers.handle(
                 node,
                 tag,
                 &attrs.borrow(),
@@ -83,10 +82,11 @@ pub(crate) fn walk_node(
             );
             // Remove the temporary text clips of children
             buffer.truncate(prev_buffer_len);
-            if let Some(text) = md
-                && (!text.is_empty() || !is_head)
-            {
-                buffer.push(text);
+            if let Some(res) = res {
+                markdown_translated = res.markdown_translated;
+                if !res.content.is_empty() || !is_head {
+                    buffer.push(res.content);
+                }
             }
         }
 

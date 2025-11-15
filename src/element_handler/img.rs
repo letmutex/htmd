@@ -1,11 +1,11 @@
 use crate::{
     Element,
-    element_handler::Chain,
+    element_handler::{Chain, HandlerResult},
     serialize_if_faithful,
     text_util::{JoinOnStringIterator, TrimAsciiWhitespace, concat_strings},
 };
 
-pub(super) fn img_handler(_chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
+pub(super) fn img_handler(_chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
     let mut link: Option<String> = None;
     let mut alt: Option<String> = None;
     let mut title: Option<String> = None;
@@ -25,7 +25,7 @@ pub(super) fn img_handler(_chain: &dyn Chain, element: Element) -> (Option<Strin
     }
 
     if link.as_ref().is_none() {
-        return (None, true);
+        return None;
     }
 
     let process_alt_title = |text: String| {
@@ -57,5 +57,5 @@ pub(super) fn img_handler(_chain: &dyn Chain, element: Element) -> (Option<Strin
         if has_spaces_in_link { ">" } else { "" },
         ")"
     );
-    (Some(md), true)
+    Some(md.into())
 }

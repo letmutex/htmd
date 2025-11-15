@@ -5,14 +5,14 @@ use markup5ever_rcdom::{Node, NodeData};
 
 use crate::{
     Element,
-    element_handler::{Chain, serialize_element},
+    element_handler::{Chain, HandlerResult, serialize_element},
     node_util::{get_node_tag_name, get_parent_node},
     options::{CodeBlockFence, CodeBlockStyle, TranslationMode},
     serialize_if_faithful,
     text_util::{JoinOnStringIterator, TrimAsciiWhitespace, concat_strings},
 };
 
-pub(super) fn code_handler(_chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
+pub(super) fn code_handler(_chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
     // In faithful mode, all children of a code tag must be text to translate
     // as markdown.
     if element.options.translation_mode == TranslationMode::Faithful
@@ -23,7 +23,10 @@ pub(super) fn code_handler(_chain: &dyn Chain, element: Element) -> (Option<Stri
             .iter()
             .all(|node| matches!(node.data, NodeData::Text { .. }))
     {
-        return (Some(serialize_element(&element)), false);
+        return Some(HandlerResult {
+            content: serialize_element(&element),
+            markdown_translated: false,
+        });
     }
 
     // Determine the type: inline code or a code block.
@@ -39,7 +42,7 @@ pub(super) fn code_handler(_chain: &dyn Chain, element: Element) -> (Option<Stri
     }
 }
 
-fn handle_code_block(element: Element, parent: &Rc<Node>) -> (Option<String>, bool) {
+fn handle_code_block(element: Element, parent: &Rc<Node>) -> Option<HandlerResult> {
     let content = element.content;
     let content = content.strip_suffix('\n').unwrap_or(content);
     if element.options.code_block_style == CodeBlockStyle::Fenced {
@@ -64,14 +67,14 @@ fn handle_code_block(element: Element, parent: &Rc<Node>) -> (Option<String>, bo
         result.push_str(content);
         result.push('\n');
         result.push_str(&fence);
-        (Some(result), true)
+        Some(result.into())
     } else {
         serialize_if_faithful!(element, 0);
         let code = content
             .lines()
             .map(|line| concat_strings!("    ", line))
             .join("\n");
-        (Some(code), true)
+        Some(code.into())
     }
 }
 
@@ -102,7 +105,7 @@ fn find_language_from_attrs(attrs: &[Attribute]) -> Option<String> {
         .unwrap_or(None)
 }
 
-fn handle_inline_code(element: Element) -> (Option<String>, bool) {
+fn handle_inline_code(element: Element) -> Option<HandlerResult> {
     serialize_if_faithful!(element, 0);
     // Case: <code>There is a literal backtick (`) here</code>
     //   to: ``There is a literal backtick (`) here``
@@ -131,12 +134,12 @@ fn handle_inline_code(element: Element) -> (Option<String>, bool) {
     };
     if use_double_backticks {
         if surround_with_spaces {
-            (Some(concat_strings!("`` ", content, " ``")), true)
+            Some(concat_strings!("`` ", content, " ``").into())
         } else {
-            (Some(concat_strings!("``", content, "``")), true)
+            Some(concat_strings!("``", content, "``").into())
         }
     } else {
-        (Some(concat_strings!("`", content, "`")), true)
+        Some(concat_strings!("`", content, "`").into())
     }
 }
 

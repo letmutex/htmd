@@ -2,14 +2,14 @@ use markup5ever_rcdom::NodeData;
 
 use crate::{
     Element,
-    element_handler::{Chain, serialize_element},
+    element_handler::{Chain, HandlerResult, serialize_element},
     node_util::{get_node_tag_name, get_parent_node},
     options::{Options, TranslationMode},
     serialize_if_faithful,
     text_util::{concat_strings, indent_text_except_first_line, join_contents},
 };
 
-pub(super) fn list_handler(chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
+pub(super) fn list_handler(chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
     // In faithful mode, ...
     if element.options.translation_mode == TranslationMode::Faithful {
         // ...make sure this element's attributes can be translated as markdown.
@@ -29,7 +29,10 @@ pub(super) fn list_handler(chain: &dyn Chain, element: Element) -> (Option<Strin
                 tag_name == Some("li") || tag_name.is_none()
             })
         {
-            return (Some(serialize_element(&element)), false);
+            return Some(HandlerResult {
+                content: serialize_element(&element),
+                markdown_translated: false,
+            });
         }
     }
     let parent = get_parent_node(element.node);
@@ -44,23 +47,9 @@ pub(super) fn list_handler(chain: &dyn Chain, element: Element) -> (Option<Strin
     };
 
     if is_parent_li {
-        (
-            Some(concat_strings!(
-                "\n",
-                content.trim_matches(|ch| ch == '\n'),
-                "\n"
-            )),
-            true,
-        )
+        Some(concat_strings!("\n", content.trim_matches(|ch| ch == '\n'), "\n").into())
     } else {
-        (
-            Some(concat_strings!(
-                "\n\n",
-                content.trim_matches(|ch| ch == '\n'),
-                "\n\n"
-            )),
-            true,
-        )
+        Some(concat_strings!("\n\n", content.trim_matches(|ch| ch == '\n'), "\n\n").into())
     }
 }
 
@@ -81,7 +70,7 @@ fn get_ol_content(chain: &dyn Chain, element: &Element) -> String {
         .unwrap_or(1);
 
     for child in element.node.children.borrow().iter() {
-        let (Some(child_content), _) = chain.handle(child) else {
+        let Some(res) = chain.handle(child) else {
             continue;
         };
 
@@ -89,13 +78,13 @@ fn get_ol_content(chain: &dyn Chain, element: &Element) -> String {
             && &name.local == "li"
         {
             buffer.push(ListChildContent {
-                text: child_content,
+                text: res.content,
                 is_li: true,
             });
             li_count += 1;
         } else {
             buffer.push(ListChildContent {
-                text: child_content,
+                text: res.content,
                 is_li: false,
             });
         }

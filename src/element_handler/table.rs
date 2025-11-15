@@ -1,4 +1,4 @@
-use crate::element_handler::{Chain, Element, serialize_element};
+use crate::element_handler::{Chain, Element, HandlerResult, serialize_element};
 use crate::node_util::{get_node_children, get_node_tag_name};
 use crate::options::TranslationMode;
 use crate::serialize_if_faithful;
@@ -14,18 +14,21 @@ use std::rc::Rc;
 /// | ------- | ------- |
 /// | Cell1   | Cell2   |
 /// ```
-pub(crate) fn table_handler(chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
+pub(crate) fn table_handler(chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
     serialize_if_faithful!(element, 0);
     // All child table elements must be markdown translated to markdown
     // translate the table in faithful mode.
     if element.options.translation_mode == TranslationMode::Faithful && !element.markdown_translated
     {
-        return (Some(serialize_element(&element)), false);
+        return Some(HandlerResult {
+            content: serialize_element(&element),
+            markdown_translated: false,
+        });
     }
 
     let content = element.content.trim();
     if content.is_empty() {
-        return (None, true);
+        return None;
     }
 
     // Extract table rows
@@ -42,8 +45,8 @@ pub(crate) fn table_handler(chain: &dyn Chain, element: Element) -> (Option<Stri
 
                 match tag_name {
                     "caption" => {
-                        if let (Some(md), _) = chain.handle(&child) {
-                            captions.push(md.trim().to_string());
+                        if let Some(res) = chain.handle(&child) {
+                            captions.push(res.content.trim().to_string());
                         }
                     }
                     "thead" => {
@@ -113,7 +116,7 @@ pub(crate) fn table_handler(chain: &dyn Chain, element: Element) -> (Option<Stri
 
     // If we didn't find any rows or cells, just return the content as-is
     if rows.is_empty() && headers.is_empty() {
-        return (Some(concat_strings!("\n\n", content, "\n\n")), true);
+        return Some(concat_strings!("\n\n", content, "\n\n").into());
     }
 
     // Determine the number of columns by finding the max column count
@@ -124,7 +127,7 @@ pub(crate) fn table_handler(chain: &dyn Chain, element: Element) -> (Option<Stri
     };
 
     if num_columns == 0 {
-        return (Some(concat_strings!("\n\n", content, "\n\n")), true);
+        return Some(concat_strings!("\n\n", content, "\n\n").into());
     }
 
     // Build the Markdown table
@@ -145,7 +148,7 @@ pub(crate) fn table_handler(chain: &dyn Chain, element: Element) -> (Option<Stri
     }
 
     table_md.push('\n');
-    (Some(table_md), true)
+    Some(table_md.into())
 }
 
 /// Extract cells from a row node
@@ -160,10 +163,10 @@ fn extract_row_cells(
         if let NodeData::Element { name, .. } = &cell_node.data
             && name.local.as_ref() == cell_tag
         {
-            let (Some(md), _) = chain.handle(&cell_node) else {
+            let Some(res) = chain.handle(&cell_node) else {
                 continue;
             };
-            let cell_content = md.trim().to_string();
+            let cell_content = res.content.trim().to_string();
             cells.push(cell_content);
         }
     }

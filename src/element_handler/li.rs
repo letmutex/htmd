@@ -1,13 +1,13 @@
 use crate::{
     Element,
-    element_handler::Chain,
+    element_handler::{Chain, HandlerResult},
     node_util::{get_node_tag_name, get_parent_node},
     options::BulletListMarker,
     serialize_if_faithful,
     text_util::{TrimAsciiWhitespace, concat_strings, indent_text_except_first_line},
 };
 
-pub(super) fn list_item_handler(_chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
+pub(super) fn list_item_handler(_chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
     serialize_if_faithful!(element, 0);
     let content = element.content.trim_start_ascii_whitespace().to_string();
 
@@ -19,15 +19,13 @@ pub(super) fn list_item_handler(_chain: &dyn Chain, element: Element) -> (Option
         };
         let spacing = " ".repeat(element.options.ul_bullet_spacing.into());
         let content = indent_text_except_first_line(&content, marker.len() + spacing.len(), true);
-        (
-            Some(concat_strings!("\n", marker, spacing, content, "\n")),
-            true,
-        )
+
+        Some(concat_strings!("\n", marker, spacing, content, "\n").into())
     };
 
     let ol_li = || {
         // Marker will be added in the ol handler
-        (Some(concat_strings!("\n", content, "\n")), true)
+        Some(concat_strings!("\n", content, "\n").into())
     };
 
     if let Some(parent) = get_parent_node(element.node)
