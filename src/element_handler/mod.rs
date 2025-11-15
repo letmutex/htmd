@@ -3,6 +3,7 @@ mod blockquote;
 mod br;
 mod caption;
 mod code;
+mod element_util;
 mod emphasis;
 mod head_body;
 mod headings;
@@ -20,11 +21,11 @@ mod thead;
 mod tr;
 
 use crate::{
-    dom_walker::{is_block_element, walk_node},
+    dom_walker::walk_node,
+    element_handler::element_util::serialize_element,
     options::{Options, TranslationMode},
     text_util::concat_strings,
 };
-use html5ever::serialize::{HtmlSerializer, SerializeOpts, Serializer, TraversalScope, serialize};
 
 use super::Element;
 use anchor::AnchorElementHandler;
@@ -41,54 +42,74 @@ use html5ever::Attribute;
 use img::img_handler;
 use li::list_item_handler;
 use list::list_handler;
-use markup5ever_rcdom::{Node, NodeData, SerializableHandle};
+use markup5ever_rcdom::Node;
 use p::p_handler;
 use pre::pre_handler;
-use std::{
-    collections::HashSet,
-    io::{self, Write},
-    rc::Rc,
-    sync::Arc,
-};
+use std::{collections::HashMap, rc::Rc};
 use table::table_handler;
 use tbody::tbody_handler;
 use td_th::td_th_handler;
 use thead::thead_handler;
 use tr::tr_handler;
 
-/// The DOM element handler.
+/// The processing result of an `ElementHandler`.
+pub struct HandlerResult {
+    /// The converted content.
+    pub content: String,
+    /// See [`Element::markdown_translated`]
+    pub markdown_translated: bool,
+}
+
+impl From<String> for HandlerResult {
+    fn from(value: String) -> Self {
+        HandlerResult {
+            content: value,
+            markdown_translated: true,
+        }
+    }
+}
+
+impl From<&str> for HandlerResult {
+    fn from(value: &str) -> Self {
+        HandlerResult {
+            content: value.to_string(),
+            markdown_translated: true,
+        }
+    }
+}
+
+/// Trait for handling the conversion of a specific HTML element to Markdown.
 pub trait ElementHandler: Send + Sync {
+    /// Append additional content to the end of the converted Markdown.
     fn append(&self) -> Option<String> {
         None
     }
 
-    fn on_visit(&self, chain: &dyn Chain, element: Element) -> (Option<String>, bool);
-}
-
-pub(crate) struct HandlerRule {
-    tags: HashSet<String>,
-    pub(crate) handler: Box<dyn ElementHandler>,
+    /// Handle the conversion of an element.
+    fn handle(&self, chain: &dyn Chain, element: Element) -> Option<HandlerResult>;
 }
 
 impl<F> ElementHandler for F
 where
-    F: (Fn(&dyn Chain, Element) -> (Option<String>, bool)) + Send + Sync,
+    F: (Fn(&dyn Chain, Element) -> Option<HandlerResult>) + Send + Sync,
 {
-    fn on_visit(&self, chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
+    fn handle(&self, chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
         self(chain, element)
     }
 }
 
 /// Builtin element handlers
 pub(crate) struct ElementHandlers {
-    pub(crate) rules: Vec<HandlerRule>,
-    pub(crate) options: Arc<Options>,
+    pub(crate) handlers: Vec<Box<dyn ElementHandler>>,
+    pub(crate) tag_to_handler_indices: HashMap<String, Vec<usize>>,
+    pub(crate) options: Options,
 }
 
 impl ElementHandlers {
-    pub fn new(options: Arc<Options>) -> Self {
+    pub fn new(options: Options) -> Self {
         let mut handlers = Self {
-            rules: Vec::new(),
+            handlers: Vec::new(),
+            tag_to_handler_indices: HashMap::new(),
             options,
         };
 
@@ -214,11 +235,16 @@ impl ElementHandlers {
         Handler: ElementHandler + 'static,
     {
         assert!(!tags.is_empty(), "tags cannot be empty.");
-        let handler = HandlerRule {
-            tags: HashSet::from_iter(tags.iter().map(|tag| tag.to_string())),
-            handler: Box::new(handler),
-        };
-        self.rules.push(handler);
+        let handler_idx = self.handlers.len();
+        self.handlers.push(Box::new(handler));
+        // Update tag to handler indices
+        for tag in tags {
+            let indices = self
+                .tag_to_handler_indices
+                .entry(tag.to_owned())
+                .or_default();
+            indices.push(handler_idx);
+        }
     }
 
     pub fn handle(
@@ -229,15 +255,9 @@ impl ElementHandlers {
         content: &str,
         markdown_translated: bool,
         skipped_handlers: usize,
-    ) -> (Option<String>, bool) {
-        let rule = self
-            .rules
-            .iter()
-            .filter(|rule| rule.tags.contains(tag))
-            .rev()
-            .nth(skipped_handlers);
-        match rule {
-            Some(rule) => rule.handler.on_visit(
+    ) -> Option<HandlerResult> {
+        match self.find_handler(tag, skipped_handlers) {
+            Some(handler) => handler.handle(
                 self,
                 Element {
                     node,
@@ -251,8 +271,8 @@ impl ElementHandlers {
             ),
             None => {
                 if self.options.translation_mode == TranslationMode::Faithful {
-                    (
-                        Some(serialize_element(&Element {
+                    Some(HandlerResult {
+                        content: serialize_element(&Element {
                             node,
                             tag,
                             attrs,
@@ -260,14 +280,20 @@ impl ElementHandlers {
                             options: &self.options,
                             markdown_translated,
                             skipped_handlers: 0,
-                        })),
-                        false,
-                    )
+                        }),
+                        markdown_translated: false,
+                    })
                 } else {
-                    (Some(content.to_string()), true)
+                    Some(content.into())
                 }
             }
         }
+    }
+
+    fn find_handler(&self, tag: &str, skipped_handlers: usize) -> Option<&dyn ElementHandler> {
+        let handler_indices = self.tag_to_handler_indices.get(tag)?;
+        let idx = handler_indices.iter().rev().nth(skipped_handlers)?;
+        Some(self.handlers[*idx].as_ref())
     }
 }
 
@@ -276,14 +302,14 @@ impl ElementHandlers {
 /// Handlers can use this to delegate to other handlers or recursively process child nodes.
 pub trait Chain {
     /// Skip the current handler and proceed to the previous handler (earlier in registration order).
-    fn proceed(&self, element: Element) -> (Option<String>, bool);
+    fn proceed(&self, element: Element) -> Option<HandlerResult>;
 
     /// Process a `markup5ever` node through the handler chain.
-    fn handle(&self, node: &Rc<Node>) -> (Option<String>, bool);
+    fn handle(&self, node: &Rc<Node>) -> Option<HandlerResult>;
 }
 
 impl Chain for ElementHandlers {
-    fn proceed(&self, element: Element) -> (Option<String>, bool) {
+    fn proceed(&self, element: Element) -> Option<HandlerResult> {
         self.handle(
             element.node,
             element.tag,
@@ -294,182 +320,32 @@ impl Chain for ElementHandlers {
         )
     }
 
-    fn handle(&self, node: &Rc<Node>) -> (Option<String>, bool) {
+    fn handle(&self, node: &Rc<Node>) -> Option<HandlerResult> {
         let mut buffer = Vec::new();
         let markdown_translated = walk_node(node, &mut buffer, self, None, true, false);
         let md = buffer.join("");
-        (Some(md), markdown_translated)
+        Some(HandlerResult {
+            content: md,
+            markdown_translated,
+        })
     }
 }
 
-fn block_handler(_chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
+fn block_handler(_chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
     if element.options.translation_mode == TranslationMode::Pure {
-        (Some(concat_strings!("\n\n", element.content, "\n\n")), true)
+        Some(concat_strings!("\n\n", element.content, "\n\n").into())
     } else {
-        (Some(serialize_element(&element)), false)
+        Some(HandlerResult {
+            content: serialize_element(&element),
+            markdown_translated: false,
+        })
     }
 }
 
-fn bold_handler(chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
+fn bold_handler(chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
     emphasis_handler(chain, element, "**")
 }
 
-fn italic_handler(chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
+fn italic_handler(chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
     emphasis_handler(chain, element, "*")
-}
-
-// Given a node (which must be an element), serialize it (transform it back
-// to HTML).
-pub(crate) fn serialize_element(element: &Element) -> String {
-    let f = || -> io::Result<String> {
-        let so = SerializeOpts {
-            traversal_scope: TraversalScope::IncludeNode,
-            ..Default::default()
-        };
-        let mut bytes = vec![];
-        // If this is a block element, then serialize it and all its children.
-        // Otherwise, serialize just this element, but use the current contents in
-        // the place of children. This follows the Commonmark spec: [HTML
-        // blocks](https://spec.commonmark.org/0.31.2/#html-blocks) contain only
-        // HTML, not Markdown, while [raw HTML
-        // inlines](https://spec.commonmark.org/0.31.2/#raw-html) contain Markdown.
-        if !is_block_element(element.tag) {
-            // Write this element's start tag.
-            let NodeData::Element { name, attrs, .. } = &element.node.data else {
-                return Err(io::Error::other("Not an element.".to_string()));
-            };
-            let mut ser = HtmlSerializer::new(&mut bytes, so.clone());
-            ser.start_elem(
-                name.clone(),
-                attrs.borrow().iter().map(|at| (&at.name, &at.value[..])),
-            )?;
-            // Write out the contents, without escaping them. The standard serialization process escapes the contents, hence this manual approach.
-            ser.writer.write_all(element.content.as_bytes())?;
-            // Write the end tag, if needed (HtmlSerializer logic will automatically omit this).
-            ser.end_elem(name.clone())?;
-
-            String::from_utf8(bytes).map_err(io::Error::other)
-        } else {
-            let sh: SerializableHandle = SerializableHandle::from(element.node.clone());
-            serialize(&mut bytes, &sh, so)?;
-            let s = String::from_utf8(bytes).map_err(io::Error::other)?;
-            // We must avoid consecutive newlines in HTML blocks, since this
-            // terminates the block per the CommonMark spec. Therefore, this
-            // code replaces instances of two or more newlines with a single
-            // newline, followed by escaped newlines. This is a hand-coded
-            // version of the following regex:
-            //
-            // ```Rust
-            // Regex::new(r#"(\r?\n\s*)(\r?\n\s*)"#).unwrap())
-            //  .replace_all(&s, |caps: &Captures| {
-            //      caps[1].to_string()
-            //      + &(caps[2].replace("\r", "&#13;").replace("\n", "&#10;"))
-            //  })
-            // ```
-            //
-            // 1.  If the next character is an \\r or \\n, output it.
-            // 2.  If the previous character was a \\r and the next
-            //     character isn't a \\n, restart. Otherwise, output the
-            //     \\n.
-            // 3.  If the next character is whitespace but not \\n or \\r,
-            //     output it then repeat this step.
-            // 4.  If the next character is a \\r and the peeked following
-            //     character isn't an \\n, output the \\r and restart.
-            //     Otherwise, output an encoded \\r.
-            // 5.  If the peeked next character is a \\n, output an encoded
-            //     \\n. Otherwise, restart.
-            // 6.  If the next character is whitespace but not \\n or \\r,
-            //     output it then repeat this step. Otherwise, restart.
-            //
-            // Replace instances of two or more newlines with a newline
-            // followed by escaped newlines
-            let mut result = String::with_capacity(s.len());
-            let mut chars = s.chars().peekable();
-
-            while let Some(c) = chars.next() {
-                // Step 1.
-                if c == '\r' || c == '\n' {
-                    result.push(c);
-
-                    // Step 2.
-                    if c == '\r' {
-                        if chars.peek() == Some(&'\n') {
-                            result.push(chars.next().unwrap());
-                        } else {
-                            continue;
-                        }
-                    }
-
-                    // Step 3: Skip any whitespace after the newline.
-                    while let Some(&next) = chars.peek() {
-                        if next.is_whitespace() && next != '\r' && next != '\n' {
-                            result.push(next);
-                            chars.next();
-                        } else {
-                            break;
-                        }
-                    }
-
-                    // Step 4.
-                    if let Some(c) = chars.next() {
-                        if c == '\r' || c == '\n' {
-                            if c == '\r' {
-                                if chars.peek() == Some(&'\n') {
-                                    chars.next();
-                                    result.push_str("&#13;&#10;");
-                                } else {
-                                    // Step 6.
-                                    result.push('\r');
-                                    continue;
-                                }
-                            } else {
-                                result.push_str("&#10;");
-                            }
-
-                            // Step 6.
-                            while let Some(&next) = chars.peek() {
-                                if next.is_whitespace() && next != '\r' && next != '\n' {
-                                    result.push(next);
-                                    chars.next();
-                                } else {
-                                    break;
-                                }
-                            }
-                        } else {
-                            result.push(c);
-                        }
-                    }
-                } else {
-                    result.push(c);
-                }
-            }
-            Ok(concat_strings!("\n\n", result, "\n\n"))
-        }
-    };
-    match f() {
-        Ok(s) => s,
-        Err(err) => err.to_string(),
-    }
-}
-
-// When in faithful translation mode, return an HTML translation if this element
-// has more than the allowed number of attributes.
-#[macro_export]
-macro_rules! serialize_if_faithful {
-    (
-        // The element to translate.
-        $element: expr,
-        // The maximum number of attributes allowed for this element.
-        $num_attrs_allowed: expr
-    ) => {
-        if $element.options.translation_mode == $crate::options::TranslationMode::Faithful
-            && $element.attrs.len() > $num_attrs_allowed
-        {
-            return (
-                Some($crate::element_handler::serialize_element(&$element)),
-                // This was translated using HTML, not Markdown.
-                false,
-            );
-        }
-    };
 }

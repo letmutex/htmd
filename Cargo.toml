@@ -25,3 +25,6 @@ indoc = "2.0.6"
 [[bench]]
 name = "convert_bench"
 harness = false
+
+[profile.release]
+debug = true

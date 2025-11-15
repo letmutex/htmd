@@ -6,7 +6,6 @@ pub mod options;
 pub(crate) mod text_util;
 
 use std::rc::Rc;
-use std::sync::Arc;
 
 use dom_walker::walk_node;
 use element_handler::{ElementHandler, ElementHandlers};
@@ -51,7 +50,8 @@ pub struct Element<'a> {
     /// likewise, translating lists ((`<ol>`/`<ul>`)`<li>`) to Markdown requires
     /// all `<li>` elements are translated to Markdown.
     pub markdown_translated: bool,
-    pub skipped_handlers: usize,
+    /// The number of handlers to skip for this element.
+    pub(crate) skipped_handlers: usize,
 }
 
 /// The html-to-markdown converter.
@@ -87,7 +87,7 @@ impl HtmlToMarkdown {
     /// Create a new converter.
     pub fn new() -> Self {
         let options = Options::default();
-        let handlers = ElementHandlers::new(Arc::new(options));
+        let handlers = ElementHandlers::new(options);
         Self {
             handlers,
             scripting_enabled: true,
@@ -135,8 +135,8 @@ impl HtmlToMarkdown {
         let mut content = buffer.join("").trim_matches(|ch| ch == '\n').to_string();
 
         let mut append = String::new();
-        for rule in &self.handlers.rules {
-            let Some(append_content) = rule.handler.append() else {
+        for handler in &self.handlers.handlers {
+            let Some(append_content) = handler.append() else {
                 continue;
             };
             append.push_str(&append_content);
@@ -164,7 +164,7 @@ impl HtmlToMarkdownBuilder {
     /// Create a new builder.
     pub fn new() -> Self {
         let options = Options::default();
-        let handlers = ElementHandlers::new(Arc::new(options));
+        let handlers = ElementHandlers::new(options);
         Self {
             handlers,
             scripting_enabled: true,
@@ -173,13 +173,13 @@ impl HtmlToMarkdownBuilder {
 
     /// Set converting options.
     pub fn options(mut self, options: Options) -> Self {
-        self.handlers.options = Arc::new(options);
+        self.handlers.options = options;
         self
     }
 
     /// Skip a group of tags when converting.
     pub fn skip_tags(self, tags: Vec<&str>) -> Self {
-        self.add_handler(tags, |_: &dyn Chain, _: Element| (None, true))
+        self.add_handler(tags, |_: &dyn Chain, _: Element| None)
     }
 
     /// Apply a custom element handler for a group of tags.
@@ -192,7 +192,7 @@ impl HtmlToMarkdownBuilder {
     /// let mut handlers = HtmlToMarkdownBuilder::new()
     ///    .add_handler(vec!["img"], |_chain: &dyn Chain, _: Element| {
     ///        // Skip the img tag when converting.
-    ///        (None, true)
+    ///        None
     ///    })
     ///    .add_handler(vec!["video"], |_chain: &dyn Chain, element: Element| {
     ///        // Handle the video tag.

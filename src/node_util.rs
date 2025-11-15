@@ -2,11 +2,6 @@ use std::rc::Rc;
 
 use markup5ever_rcdom::{Node, NodeData};
 
-use crate::{
-    Element, element_handler::serialize_element, options::TranslationMode,
-    text_util::concat_strings,
-};
-
 pub(crate) fn get_node_tag_name(node: &Rc<Node>) -> Option<&str> {
     match &node.data {
         NodeData::Document => Some("html"),
@@ -43,28 +38,4 @@ pub(crate) fn parent_tag_name_equals(node: &Rc<Node>, tag_names: &Vec<&str>) -> 
 pub(crate) fn get_node_children(node: &Rc<Node>) -> Vec<Rc<Node>> {
     let children = node.children.borrow();
     children.iter().cloned().collect()
-}
-
-// A handler for tags whose only criteria (for faithful translation) is the tag
-// name of the parent.
-pub(super) fn is_parent_handler(
-    // The element to check.
-    element: &Element,
-    // A list of allowable tag names for this element's parent.
-    tag_names: &Vec<&str>,
-    // The value for `markdown_translate` to pass if this tag is markdown translatable.
-    markdown_translated: bool,
-) -> (Option<String>, bool) {
-    // In faithful mode, only include these as HTML if they're not a child of the
-    // `<tr>` tag.
-    if element.options.translation_mode == TranslationMode::Faithful
-        && !parent_tag_name_equals(element.node, tag_names)
-    {
-        (Some(serialize_element(element)), false)
-    } else {
-        (
-            Some(concat_strings!("\n\n", element.content, "\n\n")),
-            markdown_translated,
-        )
-    }
 }

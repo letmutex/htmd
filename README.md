@@ -62,7 +62,7 @@ assert_eq!("Heading\n=======", converter.convert("<h1>Heading</h1>").unwrap());
 use htmd::{Element, HtmlToMarkdown, element_handler::Chain};
 
 let converter = HtmlToMarkdown::builder()
-    .add_handler(vec!["svg"], |_chain: &dyn Chain, _: Element| (Some("[Svg Image]".to_string()), true))
+    .add_handler(vec!["svg"], |_chain: &dyn Chain, _: Element| Some("[Svg Image]".into()))
     .build();
 assert_eq!("[Svg Image]", converter.convert("<svg></svg>").unwrap());
 ```

@@ -1,9 +1,12 @@
 use crate::{
-    Element, element_handler::Chain, options::HeadingStyle, serialize_if_faithful,
+    Element,
+    element_handler::{Chain, HandlerResult},
+    options::HeadingStyle,
+    serialize_if_faithful,
     text_util::TrimAsciiWhitespace,
 };
 
-pub(super) fn headings_handler(_chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
+pub(super) fn headings_handler(_chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
     serialize_if_faithful!(element, 0);
     let level = element.tag.chars().nth(1).unwrap() as u32 - '0' as u32;
     let content = &element.content.trim_ascii_whitespace();
@@ -22,5 +25,5 @@ pub(super) fn headings_handler(_chain: &dyn Chain, element: Element) -> (Option<
         result.push_str(content);
         result.push_str("\n\n");
     }
-    (Some(result), true)
+    Some(result.into())
 }

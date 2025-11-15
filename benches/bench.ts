@@ -17,7 +17,10 @@ if (start === -1) {
   throw new Error(`Unexpected benchmark result:\n${output}`);
 }
 
-await writeResultReadme(output.substring(start).trim());
+const result = output.substring(start).trim();
+console.log(`Result:\n${result}`);
+
+await writeResultReadme(result);
 
 console.log("Saved result to benches/README.md");
 
@@ -44,7 +47,7 @@ async function libVersion(): Promise<string> {
 async function writeResultReadme(result: string) {
   const md = `# Benchmark
 
-A benchmark converts [Elon Musk - Wikipedia.html](<../examples/page-to-markdown/html/Elon Musk - Wikipedia.html>) to Markdown, IO time is not included. 
+A benchmark converts [Elon Musk - Wikipedia.html](<../examples/page-to-markdown/html/Elon Musk - Wikipedia.html>) to Markdown, IO time is not included.
 
 library version: ${await libVersion()}
 

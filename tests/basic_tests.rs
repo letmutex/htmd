@@ -534,7 +534,7 @@ fn with_custom_rules() {
     // Remove element
     let html = r#"<img src="https://example.com"/>"#;
     let md = HtmlToMarkdown::builder()
-        .add_handler(vec!["img"], |_: &dyn Chain, _element: Element| (None, true))
+        .add_handler(vec!["img"], |_: &dyn Chain, _element: Element| None)
         .build()
         .convert(html)
         .unwrap();
@@ -554,7 +554,7 @@ fn with_custom_rules_and_fallback() {
             {
                 chain.proceed(element)
             } else {
-                (None, true)
+                None
             }
         })
         .options(Options {

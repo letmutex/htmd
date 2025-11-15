@@ -3,7 +3,7 @@ use markup5ever_rcdom::{Node, NodeData};
 use phf::phf_set;
 use std::{borrow::Cow, cell::RefCell, rc::Rc};
 
-use crate::element_handler::ElementHandlers;
+use crate::{element_handler::ElementHandlers, text_util::join_contents};
 
 use super::{
     node_util::get_node_tag_name,
@@ -72,8 +72,7 @@ pub(crate) fn walk_node(
             let prev_buffer_len = buffer.len();
             let is_block = is_block_element(tag);
             markdown_translated = walk_children(node, buffer, handlers, is_block, is_pre);
-            let md;
-            (md, markdown_translated) = handlers.handle(
+            let res = handlers.handle(
                 node,
                 tag,
                 &attrs.borrow(),
@@ -83,10 +82,11 @@ pub(crate) fn walk_node(
             );
             // Remove the temporary text clips of children
             buffer.truncate(prev_buffer_len);
-            if let Some(text) = md
-                && (!text.is_empty() || !is_head)
-            {
-                buffer.push(text);
+            if let Some(res) = res {
+                markdown_translated = res.markdown_translated;
+                if !res.content.is_empty() || !is_head {
+                    buffer.push(res.content);
+                }
             }
         }
 
@@ -100,36 +100,6 @@ pub(crate) fn walk_node(
     }
 
     markdown_translated
-}
-
-/// Join text clips, inspired by:
-/// https://github.com/mixmark-io/turndown/blob/cc73387fb707e5fb5e1083e94078d08f38f3abc8/src/turndown.js#L221
-fn join_contents(contents: &[String]) -> String {
-    let mut result = String::new();
-    for content in contents {
-        let content_len = content.len();
-        if content_len == 0 {
-            continue;
-        }
-
-        let result_len = result.len();
-
-        let left = result.trim_end_matches('\n');
-        let right = content.trim_start_matches('\n');
-
-        let max_trimmed_new_lines =
-            std::cmp::max(result_len - left.len(), content_len - right.len());
-        let separator_new_lines = std::cmp::min(max_trimmed_new_lines, 2);
-        let separator = "\n".repeat(separator_new_lines);
-
-        let mut next_result = String::with_capacity(left.len() + separator.len() + right.len());
-        next_result.push_str(left);
-        next_result.push_str(&separator);
-        next_result.push_str(right);
-
-        result = next_result;
-    }
-    result
 }
 
 // Determine if the two nodes are similar, and should therefore be combined. If

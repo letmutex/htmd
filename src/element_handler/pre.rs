@@ -1,13 +1,13 @@
 use crate::{
     Element,
-    element_handler::{Chain, serialize_element},
+    element_handler::{Chain, HandlerResult, element_util::serialize_element},
     node_util::get_node_tag_name,
     options::TranslationMode,
     serialize_if_faithful,
     text_util::concat_strings,
 };
 
-pub(super) fn pre_handler(_chain: &dyn Chain, element: Element) -> (Option<String>, bool) {
+pub(super) fn pre_handler(_chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
     serialize_if_faithful!(element, 0);
     // The only faithful translation for this is from
     // `<pre><code>blah</code></pre>` to a code block. So, check that this node
@@ -24,8 +24,11 @@ pub(super) fn pre_handler(_chain: &dyn Chain, element: Element) -> (Option<Strin
             && children.len() == 1
             && get_node_tag_name(&children[0]) == Some("code"))
     {
-        (Some(concat_strings!("\n\n", element.content, "\n\n")), true)
+        Some(concat_strings!("\n\n", element.content, "\n\n").into())
     } else {
-        (Some(serialize_element(&element)), false)
+        Some(HandlerResult {
+            content: serialize_element(&element),
+            markdown_translated: false,
+        })
     }
 }
