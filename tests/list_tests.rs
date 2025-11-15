@@ -72,3 +72,33 @@ fn ordered_lists_custom_bullet_spacing() {
         .unwrap();
     assert_eq!("1. Item 1\n2. Item 2\n3. Item 3", md)
 }
+
+#[test]
+fn ordered_lists_start_with_zero_or_negative() {
+    let html = r#"
+        <ol start="0">
+            <li>Item 1</li>
+            <li>Item 2</li>
+            <li>Item 3</li>
+        </ol>
+        <ol start="-100">
+            <li>Item 1</li>
+            <li>Item 2</li>
+            <li>Item 3</li>
+        </ol>
+        "#;
+    let ol_number_spacing = 1;
+    let md = HtmlToMarkdown::builder()
+        .options(Options {
+            translation_mode: TranslationMode::Faithful,
+            ol_number_spacing,
+            ..Default::default()
+        })
+        .build()
+        .convert(html)
+        .unwrap();
+    assert_eq!(
+        "1. Item 1\n2. Item 2\n3. Item 3\n\n1. Item 1\n2. Item 2\n3. Item 3",
+        md
+    )
+}

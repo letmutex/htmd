@@ -66,7 +66,7 @@ fn get_ol_content(chain: &dyn Chain, element: &Element) -> String {
         .attrs
         .iter()
         .find(|attr| &attr.name.local == "start")
-        .map(|attr| attr.value.to_string().parse::<usize>().unwrap_or(1))
+        .map(|attr| attr.value.to_string().parse::<i32>().unwrap_or(1).max(1) as usize)
         .unwrap_or(1);
 
     for child in element.node.children.borrow().iter() {
