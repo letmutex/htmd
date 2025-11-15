@@ -50,6 +50,7 @@ pub struct Element<'a> {
     /// likewise, translating lists ((`<ol>`/`<ul>`)`<li>`) to Markdown requires
     /// all `<li>` elements are translated to Markdown.
     pub markdown_translated: bool,
+    /// The number of handlers to skip for this element.
     pub(crate) skipped_handlers: usize,
 }
 

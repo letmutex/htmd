@@ -52,9 +52,11 @@ use td_th::td_th_handler;
 use thead::thead_handler;
 use tr::tr_handler;
 
-/// The processing result of a [ElementHandler]
+/// The processing result of an `ElementHandler`.
 pub struct HandlerResult {
+    /// The converted content.
     pub content: String,
+    /// See [`Element::markdown_translated`]
     pub markdown_translated: bool,
 }
 
@@ -76,12 +78,14 @@ impl From<&str> for HandlerResult {
     }
 }
 
-/// The DOM element handler.
+/// Trait for handling the conversion of a specific HTML element to Markdown.
 pub trait ElementHandler: Send + Sync {
+    /// Append additional content to the end of the converted Markdown.
     fn append(&self) -> Option<String> {
         None
     }
 
+    /// Handle the conversion of an element.
     fn handle(&self, chain: &dyn Chain, element: Element) -> Option<HandlerResult>;
 }
 
