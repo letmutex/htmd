@@ -290,11 +290,10 @@ impl ElementHandlers {
         }
     }
 
-    #[allow(clippy::borrowed_box)]
-    fn find_handler(&self, tag: &str, skipped_handlers: usize) -> Option<&Box<dyn ElementHandler>> {
+    fn find_handler(&self, tag: &str, skipped_handlers: usize) -> Option<&dyn ElementHandler> {
         let handler_indices = self.tag_to_handler_indices.get(tag)?;
         let idx = handler_indices.iter().rev().nth(skipped_handlers)?;
-        Some(&self.handlers[*idx])
+        Some(self.handlers[*idx].as_ref())
     }
 }
 
