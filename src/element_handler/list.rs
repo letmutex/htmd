@@ -113,6 +113,9 @@ fn get_ol_content(chain: &dyn Chain, element: &Element) -> String {
 // Add 1 before computing log10, then take the ceiling: it avoids log10(0) =
 // Nan, and changes log10(10) = 1 into 2, log10(100) into 3, etc.
 fn digits(num: usize) -> usize {
+    if num == 0 {
+        return 1;
+    }
     ((num + 1) as f32).log10().ceil() as usize
 }
 
@@ -128,4 +131,17 @@ fn add_ol_li_marker(
     let content = content.trim_start_matches('\n');
     let content = indent_text_except_first_line(content, index_str.len() + 1 + spacing.len(), true);
     concat_strings!("\n", index_str, ".", spacing, content)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::element_handler::list::digits;
+
+    #[test]
+    fn test_count_digits() {
+        assert_eq!(1, digits(1));
+        assert_eq!(1, digits(0));
+        assert_eq!(2, digits(45));
+        assert_eq!(3, digits(450));
+    }
 }
