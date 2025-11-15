@@ -9,7 +9,7 @@ use std::io::{self, Write};
 
 // A handler for tags whose only criteria (for faithful translation) is the tag
 // name of the parent.
-pub(super) fn is_parent_handler(
+pub(super) fn handle_or_serialize_by_parent(
     // The element to check.
     element: &Element,
     // A list of allowable tag names for this element's parent.
