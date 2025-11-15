@@ -48,7 +48,6 @@ use std::{
     collections::HashSet,
     io::{self, Write},
     rc::Rc,
-    sync::Arc,
 };
 use table::table_handler;
 use tbody::tbody_handler;
@@ -82,11 +81,11 @@ where
 /// Builtin element handlers
 pub(crate) struct ElementHandlers {
     pub(crate) rules: Vec<HandlerRule>,
-    pub(crate) options: Arc<Options>,
+    pub(crate) options: Options,
 }
 
 impl ElementHandlers {
-    pub fn new(options: Arc<Options>) -> Self {
+    pub fn new(options: Options) -> Self {
         let mut handlers = Self {
             rules: Vec::new(),
             options,

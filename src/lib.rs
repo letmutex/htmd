@@ -6,7 +6,6 @@ pub mod options;
 pub(crate) mod text_util;
 
 use std::rc::Rc;
-use std::sync::Arc;
 
 use dom_walker::walk_node;
 use element_handler::{ElementHandler, ElementHandlers};
@@ -51,7 +50,7 @@ pub struct Element<'a> {
     /// likewise, translating lists ((`<ol>`/`<ul>`)`<li>`) to Markdown requires
     /// all `<li>` elements are translated to Markdown.
     pub markdown_translated: bool,
-    pub skipped_handlers: usize,
+    pub(crate) skipped_handlers: usize,
 }
 
 /// The html-to-markdown converter.
@@ -87,7 +86,7 @@ impl HtmlToMarkdown {
     /// Create a new converter.
     pub fn new() -> Self {
         let options = Options::default();
-        let handlers = ElementHandlers::new(Arc::new(options));
+        let handlers = ElementHandlers::new(options);
         Self {
             handlers,
             scripting_enabled: true,
@@ -164,7 +163,7 @@ impl HtmlToMarkdownBuilder {
     /// Create a new builder.
     pub fn new() -> Self {
         let options = Options::default();
-        let handlers = ElementHandlers::new(Arc::new(options));
+        let handlers = ElementHandlers::new(options);
         Self {
             handlers,
             scripting_enabled: true,
@@ -173,7 +172,7 @@ impl HtmlToMarkdownBuilder {
 
     /// Set converting options.
     pub fn options(mut self, options: Options) -> Self {
-        self.handlers.options = Arc::new(options);
+        self.handlers.options = options;
         self
     }
 
