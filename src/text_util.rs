@@ -47,35 +47,25 @@ where
 {
     fn strip_leading_whitespace(&self) -> (&str, Option<&str>) {
         let text = self.as_ref();
-        let mut start = 0;
-        for (idx, ch) in text.char_indices() {
-            if ch.is_whitespace() {
-                start = idx + ch.len_utf8();
-            } else {
-                break;
-            }
-        }
-        if start != 0 {
-            (&text[start..], Some(&text[..start]))
-        } else {
+        let trimmed_text = text.trim_start();
+        let stripped_len = text.len() - trimmed_text.len();
+        if stripped_len == 0 {
             (text, None)
+        } else {
+            let start_index = stripped_len;
+            (&text[start_index..], Some(&text[..start_index]))
         }
     }
 
     fn strip_trailing_whitespace(&self) -> (&str, Option<&str>) {
         let text = self.as_ref();
-        let mut end: Option<usize> = None;
-        for (idx, ch) in text.char_indices().rev() {
-            if ch.is_whitespace() {
-                end = Some(idx);
-            } else {
-                break;
-            }
-        }
-        if let Some(end) = end {
-            (&text[..end], Some(&text[end..]))
-        } else {
+        let trimmed_text = text.trim_end();
+        let stripped_len = text.len() - trimmed_text.len();
+        if stripped_len == 0 {
             (text, None)
+        } else {
+            let end_index = trimmed_text.len();
+            (&text[..end_index], Some(&text[end_index..]))
         }
     }
 }
@@ -106,7 +96,10 @@ where
 /// Join text clips, inspired by:
 /// https://github.com/mixmark-io/turndown/blob/cc73387fb707e5fb5e1083e94078d08f38f3abc8/src/turndown.js#L221
 pub(crate) fn join_contents(contents: &[String]) -> String {
-    let mut result = String::new();
+    // Pre-allocate capacity to avoid multiple re-allocations.
+    let capacity = contents.iter().map(String::len).sum();
+    let mut result = String::with_capacity(capacity);
+
     for content in contents {
         let content_len = content.len();
         if content_len == 0 {
@@ -114,21 +107,25 @@ pub(crate) fn join_contents(contents: &[String]) -> String {
         }
 
         let result_len = result.len();
-
         let left = result.trim_end_matches('\n');
         let right = content.trim_start_matches('\n');
 
         let max_trimmed_new_lines =
             std::cmp::max(result_len - left.len(), content_len - right.len());
         let separator_new_lines = std::cmp::min(max_trimmed_new_lines, 2);
-        let separator = "\n".repeat(separator_new_lines);
 
-        let mut next_result = String::with_capacity(left.len() + separator.len() + right.len());
-        next_result.push_str(left);
-        next_result.push_str(&separator);
-        next_result.push_str(right);
+        // Remove trailing newlines.
+        result.truncate(left.len());
 
-        result = next_result;
+        // Add the calculated separator
+        if separator_new_lines == 1 {
+            result.push('\n');
+        } else if separator_new_lines == 2 {
+            result.push_str("\n\n");
+        }
+
+        // Append the new, trimmed content
+        result.push_str(right);
     }
     result
 }
@@ -138,41 +135,54 @@ pub(crate) fn compress_whitespace(input: &str) -> Cow<'_, str> {
         return Cow::Borrowed(input);
     }
 
-    // Check if compression is actually needed
-    let needs_compression = input.chars().enumerate().any(|(i, c)| {
-        if c.is_ascii_whitespace() {
-            // If we have consecutive whitespace or non-space whitespace
-            return (i > 0
-                && input
-                    .chars()
-                    .nth(i - 1)
-                    .is_some_and(|prev| prev.is_ascii_whitespace()))
-                || c != ' ';
-        }
-        false
-    });
-
-    if !needs_compression {
-        return Cow::Borrowed(input);
-    }
-
-    // Perform the compression
-    let mut result = String::with_capacity(input.len());
+    let mut result: Option<String> = None;
     let mut in_whitespace = false;
 
-    for c in input.chars() {
+    // Use char_indices to get byte indices for slicing the input.
+    for (byte_index, c) in input.char_indices() {
         if c.is_ascii_whitespace() {
-            if !in_whitespace {
-                result.push(' ');
+            if in_whitespace {
+                // Consecutive whitespace: skip this character.
+                if result.is_none() {
+                    // Lazy allocation: First change found. Allocate and copy the prefix.
+                    let mut s = String::with_capacity(input.len());
+                    s.push_str(&input[..byte_index]);
+                    result = Some(s);
+                }
+            } else {
+                // First whitespace in sequence.
                 in_whitespace = true;
+                if c == ' ' {
+                    // Valid single space. If already allocating, append it.
+                    if let Some(res) = &mut result {
+                        res.push(' ');
+                    }
+                } else {
+                    // Non-space whitespace (e.g., \n): must be changed to ' '.
+                    if result.is_none() {
+                        // Lazy allocation: First change found. Allocate and copy the prefix.
+                        let mut s = String::with_capacity(input.len());
+                        s.push_str(&input[..byte_index]);
+                        result = Some(s);
+                    }
+                    result.as_mut().unwrap().push(' ');
+                }
             }
         } else {
-            result.push(c);
+            // Not whitespace.
             in_whitespace = false;
+            // If already allocating, append the character.
+            if let Some(res) = &mut result {
+                res.push(c);
+            }
         }
     }
 
-    Cow::Owned(result)
+    // If `result` is None, return Cow::Borrowed (no changes were made).
+    match result {
+        Some(s) => Cow::Owned(s),
+        None => Cow::Borrowed(input),
+    }
 }
 
 pub(crate) fn indent_text_except_first_line(
@@ -183,17 +193,22 @@ pub(crate) fn indent_text_except_first_line(
     if indent == 0 {
         return text.to_string();
     }
-    let mut result_lines: Vec<String> = Vec::new();
+    let line_count = text.lines().count();
+    let estimated_capacity = text.len() + (line_count.saturating_sub(1)) * indent;
+    let mut result = String::with_capacity(estimated_capacity);
     let indent_text = " ".repeat(indent);
     for (idx, line) in text.lines().enumerate() {
         let line = if trim_line_end { line.trim_end() } else { line };
+        if idx > 0 {
+            result.push('\n');
+        }
         if idx == 0 || line.is_empty() {
-            result_lines.push(line.to_string());
+            result.push_str(line);
         } else {
-            result_lines.push(concat_strings!(indent_text, line));
+            result.push_str(&concat_strings!(indent_text, line));
         }
     }
-    result_lines.join("\n")
+    result
 }
 
 pub(crate) fn is_markdown_atx_heading(text: &str) -> bool {

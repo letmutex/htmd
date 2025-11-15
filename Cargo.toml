@@ -26,5 +26,9 @@ indoc = "2.0.6"
 name = "convert_bench"
 harness = false
 
+[[bench]]
+name = "str_concat_bench"
+harness = false
+
 [profile.release]
 debug = true
