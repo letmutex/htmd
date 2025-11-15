@@ -242,7 +242,7 @@ impl ElementHandlers {
             let indices = self
                 .tag_to_handler_indices
                 .entry(tag.to_owned())
-                .or_insert_with(|| Vec::new());
+                .or_default();
             indices.push(handler_idx);
         }
     }
@@ -290,6 +290,7 @@ impl ElementHandlers {
         }
     }
 
+    #[allow(clippy::borrowed_box)]
     fn find_handler(&self, tag: &str, skipped_handlers: usize) -> Option<&Box<dyn ElementHandler>> {
         let handler_indices = self.tag_to_handler_indices.get(tag)?;
         let idx = handler_indices.iter().rev().nth(skipped_handlers)?;
