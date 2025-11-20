@@ -6,7 +6,7 @@ use crate::{
     node_util::{get_node_tag_name, get_parent_node},
     options::{Options, TranslationMode},
     serialize_if_faithful,
-    text_util::{concat_strings, indent_text_except_first_line, join_contents},
+    text_util::{concat_strings, indent_text_except_first_line, join_blocks},
 };
 
 pub(super) fn list_handler(chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
@@ -128,7 +128,7 @@ fn get_ol_content(chain: &dyn Chain, element: &Element) -> (String, bool) {
         })
         .collect::<Vec<String>>();
 
-    (join_contents(&contents), all_translated)
+    (join_blocks(&contents), all_translated)
 }
 
 // Add 1 before computing log10, then take the ceiling: it avoids log10(0) =
