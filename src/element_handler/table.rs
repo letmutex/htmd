@@ -132,7 +132,7 @@ pub(crate) fn table_handler(chain: &dyn Chain, element: Element) -> Option<Handl
 
     // If we didn't find any rows or cells, just return the content as-is
     if rows.is_empty() && headers.is_empty() {
-        let content = chain.walk_children(element.node);
+        let content = chain.walk_children(element.node).content;
         let content = content.trim_matches('\n');
         if content.is_empty() {
             return None;
@@ -148,7 +148,7 @@ pub(crate) fn table_handler(chain: &dyn Chain, element: Element) -> Option<Handl
     };
 
     if num_columns == 0 {
-        let content = chain.walk_children(element.node);
+        let content = chain.walk_children(element.node).content;
         let content = content.trim_matches('\n');
         if content.is_empty() {
             return None;

@@ -32,7 +32,7 @@ pub(super) fn handle_or_serialize_by_parent(
             markdown_translated: false,
         })
     } else {
-        let content = chain.walk_children(element.node);
+        let content = chain.walk_children(element.node).content;
         let content = content.trim_matches('\n');
         Some(HandlerResult {
             content: concat_strings!("\n\n", content, "\n\n"),
@@ -68,7 +68,7 @@ pub(crate) fn serialize_element(chain: &dyn Chain, element: &Element) -> String 
             )?;
             // Write out the contents, without escaping them. The standard serialization process escapes the contents, hence this manual approach.
             ser.writer
-                .write_all(chain.walk_children(element.node).as_bytes())?;
+                .write_all(chain.walk_children(element.node).content.as_bytes())?;
             // Write the end tag, if needed (HtmlSerializer logic will automatically omit this).
             ser.end_elem(name.clone())?;
 

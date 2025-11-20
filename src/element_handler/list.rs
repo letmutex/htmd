@@ -47,7 +47,7 @@ pub(super) fn list_handler(chain: &dyn Chain, element: Element) -> Option<Handle
             markdown_translated: translated,
         }
     } else {
-        chain.walk_children_with_status(element.node)
+        chain.walk_children(element.node)
     };
 
     if element.options.translation_mode == TranslationMode::Faithful && !result.markdown_translated

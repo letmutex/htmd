@@ -22,7 +22,7 @@ pub(super) fn html_handler(chain: &dyn Chain, element: Element) -> Option<Handle
     };
 
     if markdown_translatable {
-        let content = chain.walk_children(element.node);
+        let content = chain.walk_children(element.node).content;
         let content = content.trim_matches('\n');
         Some(concat_strings!("\n\n", content, "\n\n").into())
     } else {

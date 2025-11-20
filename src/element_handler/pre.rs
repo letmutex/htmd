@@ -26,7 +26,7 @@ pub(super) fn pre_handler(chain: &dyn Chain, element: Element) -> Option<Handler
     };
 
     if element.options.translation_mode == TranslationMode::Pure || is_simple_code_block {
-        let result = chain.walk_children_with_status(element.node);
+        let result = chain.walk_children(element.node);
 
         if element.options.translation_mode == TranslationMode::Faithful
             && !result.markdown_translated

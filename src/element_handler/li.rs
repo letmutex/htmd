@@ -11,6 +11,7 @@ pub(super) fn list_item_handler(chain: &dyn Chain, element: Element) -> Option<H
     serialize_if_faithful!(chain, element, 0);
     let content = chain
         .walk_children(element.node)
+        .content
         .trim_start_ascii_whitespace()
         .to_string();
 

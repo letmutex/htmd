@@ -47,7 +47,7 @@ fn handle_code_block(
     element: Element,
     parent: &Rc<Node>,
 ) -> Option<HandlerResult> {
-    let content = chain.walk_children(element.node);
+    let content = chain.walk_children(element.node).content;
     let content = content.strip_suffix('\n').unwrap_or(&content);
     if element.options.code_block_style == CodeBlockStyle::Fenced {
         let fence = if element.options.code_block_fence == CodeBlockFence::Tildes {
@@ -117,7 +117,7 @@ fn handle_inline_code(chain: &dyn Chain, element: Element) -> Option<HandlerResu
     // Case: <code>`starting with a backtick</code>
     //   to: `` `starting with a backtick ``
     let mut surround_with_spaces = false;
-    let content = chain.walk_children(element.node);
+    let content = chain.walk_children(element.node).content;
     let chars = content.chars().collect::<Vec<char>>();
     let len = chars.len();
     for (idx, c) in chars.iter().enumerate() {
