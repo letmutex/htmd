@@ -45,7 +45,7 @@ impl ElementHandler for AnchorElementHandler {
         }
 
         let Some(link) = link else {
-            return Some(chain.walk_children(element.node).into());
+            return Some(chain.walk_children(element.node));
         };
 
         let process_title = |text: String| {
