@@ -252,7 +252,6 @@ impl ElementHandlers {
         node: &Rc<Node>,
         tag: &str,
         attrs: &[Attribute],
-        content: &str,
         markdown_translated: bool,
         skipped_handlers: usize,
     ) -> Option<HandlerResult> {
@@ -263,7 +262,6 @@ impl ElementHandlers {
                     node,
                     tag,
                     attrs,
-                    content,
                     options: &self.options,
                     markdown_translated,
                     skipped_handlers,
@@ -272,19 +270,22 @@ impl ElementHandlers {
             None => {
                 if self.options.translation_mode == TranslationMode::Faithful {
                     Some(HandlerResult {
-                        content: serialize_element(&Element {
-                            node,
-                            tag,
-                            attrs,
-                            content,
-                            options: &self.options,
-                            markdown_translated,
-                            skipped_handlers: 0,
-                        }),
+                        content: serialize_element(
+                            self,
+                            &Element {
+                                node,
+                                tag,
+                                attrs,
+                                options: &self.options,
+                                markdown_translated,
+                                skipped_handlers: 0,
+                            },
+                        ),
                         markdown_translated: false,
                     })
                 } else {
-                    Some(content.into())
+                    // Default behavior: walk children and return their content
+                    Some(self.walk_children(node))
                 }
             }
         }
@@ -306,6 +307,9 @@ pub trait Chain {
 
     /// Process a `markup5ever` node through the handler chain.
     fn handle(&self, node: &Rc<Node>) -> Option<HandlerResult>;
+
+    /// Walks children of a node and returns both content and markdown_translated status.
+    fn walk_children(&self, node: &Rc<Node>) -> HandlerResult;
 }
 
 impl Chain for ElementHandlers {
@@ -314,7 +318,6 @@ impl Chain for ElementHandlers {
             element.node,
             element.tag,
             element.attrs,
-            element.content,
             element.markdown_translated,
             element.skipped_handlers + 1,
         )
@@ -329,14 +332,42 @@ impl Chain for ElementHandlers {
             markdown_translated,
         })
     }
+
+    fn walk_children(&self, node: &Rc<Node>) -> HandlerResult {
+        let mut buffer = Vec::new();
+        let tag = crate::node_util::get_node_tag_name(node);
+        let is_block = tag.is_some_and(crate::dom_walker::is_block_element);
+        let is_pre = tag.is_some_and(|t| t == "pre" || t == "code") || is_inside_pre(node);
+        let markdown_translated =
+            crate::dom_walker::walk_children(node, &mut buffer, self, is_block, is_pre);
+        HandlerResult {
+            content: buffer.join(""),
+            markdown_translated,
+        }
+    }
 }
 
-fn block_handler(_chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
+fn is_inside_pre(node: &Rc<Node>) -> bool {
+    let mut current = crate::node_util::get_parent_node(node);
+    while let Some(parent) = current {
+        if let Some(tag) = crate::node_util::get_node_tag_name(&parent)
+            && (tag == "pre" || tag == "code")
+        {
+            return true;
+        }
+        current = crate::node_util::get_parent_node(&parent);
+    }
+    false
+}
+
+fn block_handler(chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
     if element.options.translation_mode == TranslationMode::Pure {
-        Some(concat_strings!("\n\n", element.content, "\n\n").into())
+        let content = chain.walk_children(element.node).content;
+        let content = content.trim_matches('\n');
+        Some(concat_strings!("\n\n", content, "\n\n").into())
     } else {
         Some(HandlerResult {
-            content: serialize_element(&element),
+            content: serialize_element(chain, &element),
             markdown_translated: false,
         })
     }

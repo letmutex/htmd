@@ -5,7 +5,7 @@ use crate::{
     serialize_if_faithful,
 };
 
-pub(super) fn td_th_handler(_chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
-    serialize_if_faithful!(element, 0);
-    handle_or_serialize_by_parent(&element, &vec!["tr"], true)
+pub(super) fn td_th_handler(chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
+    serialize_if_faithful!(chain, element, 0);
+    handle_or_serialize_by_parent(chain, &element, &vec!["tr"], true)
 }

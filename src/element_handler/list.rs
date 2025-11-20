@@ -6,7 +6,7 @@ use crate::{
     node_util::{get_node_tag_name, get_parent_node},
     options::{Options, TranslationMode},
     serialize_if_faithful,
-    text_util::{concat_strings, indent_text_except_first_line, join_contents},
+    text_util::{concat_strings, indent_text_except_first_line, join_blocks},
 };
 
 pub(super) fn list_handler(chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
@@ -17,7 +17,7 @@ pub(super) fn list_handler(chain: &dyn Chain, element: Element) -> Option<Handle
             .attrs
             .first()
             .is_some_and(|attr| &attr.name.local == "start");
-        serialize_if_faithful!(element, if has_start { 1 } else { 0 });
+        serialize_if_faithful!(chain, element, if has_start { 1 } else { 0 });
 
         // ...all children must be translated as Markdown, and all children must
         // be li elements.
@@ -30,7 +30,7 @@ pub(super) fn list_handler(chain: &dyn Chain, element: Element) -> Option<Handle
             })
         {
             return Some(HandlerResult {
-                content: serialize_element(&element),
+                content: serialize_element(chain, &element),
                 markdown_translated: false,
             });
         }
@@ -40,12 +40,29 @@ pub(super) fn list_handler(chain: &dyn Chain, element: Element) -> Option<Handle
         .map(|p| get_node_tag_name(&p).is_some_and(|tag| tag == "li"))
         .unwrap_or(false);
 
-    let content = if element.tag == "ol" {
-        get_ol_content(chain, &element)
+    let result = if element.tag == "ol" {
+        let (content, translated) = get_ol_content(chain, &element);
+        HandlerResult {
+            content,
+            markdown_translated: translated,
+        }
     } else {
-        element.content.to_owned()
+        chain.walk_children(element.node)
     };
-    let trimmed = content.trim_matches(|ch| ch == '\n');
+
+    if element.options.translation_mode == TranslationMode::Faithful && !result.markdown_translated
+    {
+        return Some(HandlerResult {
+            content: serialize_element(chain, &element),
+            markdown_translated: false,
+        });
+    }
+
+    let trimmed = result.content.trim_matches(|ch| ch == '\n');
+    if trimmed.is_empty() {
+        return None;
+    }
+
     if is_parent_li {
         Some(concat_strings!("\n", trimmed, "\n").into())
     } else {
@@ -58,9 +75,10 @@ struct ListChildContent {
     is_li: bool,
 }
 
-fn get_ol_content(chain: &dyn Chain, element: &Element) -> String {
+fn get_ol_content(chain: &dyn Chain, element: &Element) -> (String, bool) {
     let mut buffer: Vec<ListChildContent> = Vec::new();
     let mut li_count = 0;
+    let mut all_translated = true;
 
     let start_idx = element
         .attrs
@@ -73,6 +91,9 @@ fn get_ol_content(chain: &dyn Chain, element: &Element) -> String {
         let Some(res) = chain.handle(child) else {
             continue;
         };
+        if !res.markdown_translated {
+            all_translated = false;
+        }
 
         if let NodeData::Element { ref name, .. } = child.data
             && &name.local == "li"
@@ -107,7 +128,7 @@ fn get_ol_content(chain: &dyn Chain, element: &Element) -> String {
         })
         .collect::<Vec<String>>();
 
-    join_contents(&contents)
+    (join_blocks(&contents), all_translated)
 }
 
 // Add 1 before computing log10, then take the ceiling: it avoids log10(0) =

@@ -3,7 +3,7 @@ use markup5ever_rcdom::{Node, NodeData};
 use phf::phf_set;
 use std::{borrow::Cow, cell::RefCell, rc::Rc};
 
-use crate::{element_handler::ElementHandlers, text_util::join_contents};
+use crate::element_handler::ElementHandlers;
 
 use super::{
     node_util::get_node_tag_name,
@@ -56,7 +56,9 @@ pub(crate) fn walk_node(
                 } else {
                     text.into_owned()
                 };
-                buffer.push(to_add);
+                if !to_add.is_empty() {
+                    buffer.push(to_add);
+                }
             }
         }
 
@@ -68,24 +70,22 @@ pub(crate) fn walk_node(
             // Visit this element.
             let tag = &*name.local;
             let is_head = tag == "head";
-            let is_pre = is_pre || tag == "pre" || tag == "code";
-            let prev_buffer_len = buffer.len();
-            let is_block = is_block_element(tag);
-            markdown_translated = walk_children(node, buffer, handlers, is_block, is_pre);
+
             let res = handlers.handle(
                 node,
                 tag,
                 &attrs.borrow(),
-                &join_contents(&buffer[prev_buffer_len..]),
-                markdown_translated,
+                true, // Default to true, handler will update
                 0,
             );
-            // Remove the temporary text clips of children
-            buffer.truncate(prev_buffer_len);
+
             if let Some(res) = res {
                 markdown_translated = res.markdown_translated;
                 if !res.content.is_empty() || !is_head {
-                    buffer.push(res.content);
+                    let content = normalize_content_for_buffer(buffer.last(), res.content, is_pre);
+                    if !content.is_empty() {
+                        buffer.push(content);
+                    }
                 }
             }
         }
@@ -97,6 +97,61 @@ pub(crate) fn walk_node(
         }
         NodeData::Doctype { .. } => {}
         NodeData::ProcessingInstruction { .. } => unreachable!(),
+    }
+
+    markdown_translated
+}
+
+pub(crate) fn walk_children(
+    node: &Rc<Node>,
+    buffer: &mut Vec<String>,
+    handlers: &ElementHandlers,
+    is_parent_block_element: bool,
+    is_pre: bool,
+    // Return value: `markdown_translated`.
+) -> bool {
+    // Combine similar adjacent blocks.
+    let mut children = node.children.borrow_mut();
+    let mut index = 1;
+    while index < children.len() {
+        if let Some(text) = can_combine(&children[index - 1], &children[index]) {
+            // Combine the text from `chidren[index]` with `children[index -
+            // 1]`, then remove `children[index]`.
+            children.remove(index);
+            index -= 1;
+            let children_of_index = children.get(index).unwrap().children.borrow();
+            let text_data = &children_of_index.first().unwrap().data;
+            let NodeData::Text { contents } = text_data else {
+                panic!("")
+            };
+            let mut inner_contents = contents.clone().into_inner();
+            inner_contents.push_tendril(&text.take());
+            contents.replace(inner_contents);
+        }
+        index += 1;
+    }
+    drop(children);
+
+    // Trim leading spaces of the first element/text in block elements (except pre/code)
+    let mut trim_leading_spaces = !is_pre && is_parent_block_element;
+    let tag = get_node_tag_name(node);
+    let mut markdown_translated = true;
+    for child in node.children.borrow().iter() {
+        let is_block = get_node_tag_name(child).is_some_and(is_block_element);
+
+        if is_block {
+            // Trim trailing spaces for the previous element
+            trim_buffer_end_spaces(buffer);
+        }
+
+        let buffer_len = buffer.len();
+
+        markdown_translated &= walk_node(child, buffer, handlers, tag, trim_leading_spaces, is_pre);
+
+        if buffer.len() > buffer_len {
+            // Something was appended, update the flag
+            trim_leading_spaces = is_block;
+        }
     }
 
     markdown_translated
@@ -164,61 +219,39 @@ fn can_combine(n1: &Node, n2: &Node) -> Option<RefCell<Tendril<UTF8>>> {
     }
 }
 
-fn walk_children(
-    node: &Rc<Node>,
-    buffer: &mut Vec<String>,
-    handlers: &ElementHandlers,
-    is_parent_block_element: bool,
+/// Normalizes content before adding to buffer by:
+/// 1. Collapsing excessive newlines (max 2 consecutive newlines)
+/// 2. Collapsing adjacent spaces between inline elements (when not in pre context)
+fn normalize_content_for_buffer(
+    last_buffer_item: Option<&String>,
+    mut content: String,
     is_pre: bool,
-    // Return value: `markdown_translated`.
-) -> bool {
-    // Combine similar adjacent blocks.
-    let mut children = node.children.borrow_mut();
-    let mut index = 1;
-    while index < children.len() {
-        if let Some(text) = can_combine(&children[index - 1], &children[index]) {
-            // Combine the text from `chidren[index]` with `children[index -
-            // 1]`, then remove `children[index]`.
-            children.remove(index);
-            index -= 1;
-            let children_of_index = children.get(index).unwrap().children.borrow();
-            let text_data = &children_of_index.first().unwrap().data;
-            let NodeData::Text { contents } = text_data else {
-                panic!("")
-            };
-            let mut inner_contents = contents.clone().into_inner();
-            inner_contents.push_tendril(&text.take());
-            contents.replace(inner_contents);
-        }
-        index += 1;
-    }
-    // Release `borrow_mut` now that adjacent blocks are combined.
-    drop(children);
+) -> String {
+    let Some(last) = last_buffer_item else {
+        return content;
+    };
 
-    // This will trim leading spaces of the first element/text in block elements
-    // (except pre and code elements)
-    let mut trim_leading_spaces = !is_pre && is_parent_block_element;
-    let tag = get_node_tag_name(node);
-    let mut markdown_translated = true;
-    for child in node.children.borrow().iter() {
-        let is_block = get_node_tag_name(child).is_some_and(is_block_element);
+    let last_newlines = last.chars().rev().take_while(|c| *c == '\n').count();
+    let content_newlines = content.chars().take_while(|c| *c == '\n').count();
+    let total_newlines = last_newlines + content_newlines;
 
-        if is_block {
-            // Trim trailing spaces for the previous element
-            trim_buffer_end_spaces(buffer);
-        }
-
-        let buffer_len = buffer.len();
-
-        markdown_translated &= walk_node(child, buffer, handlers, tag, trim_leading_spaces, is_pre);
-
-        if buffer.len() > buffer_len {
-            // Something was appended, update the flag
-            trim_leading_spaces = is_block;
-        }
+    // Collapse excessive newlines (max 2)
+    if total_newlines > 2 {
+        let to_remove = std::cmp::min(total_newlines - 2, content_newlines);
+        content.drain(..to_remove);
     }
 
-    markdown_translated
+    // Collapse adjacent spaces between inline elements (not in pre context)
+    if !is_pre
+        && last_newlines == 0
+        && content_newlines == 0
+        && last.chars().last().is_some_and(|c| c == ' ')
+        && content.chars().next().is_some_and(|c| c == ' ')
+    {
+        content.remove(0);
+    }
+
+    content
 }
 
 fn trim_buffer_end(buffer: &mut [String]) {

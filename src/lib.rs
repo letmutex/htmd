@@ -39,8 +39,6 @@ pub struct Element<'a> {
     pub tag: &'a str,
     /// The attribute list.
     pub attrs: &'a [Attribute],
-    /// The content text, can be raw text or converted Markdown text.
-    pub content: &'a str,
     /// Converter options.
     pub options: &'a Options,
     /// When true, this element's children were all translated using Markdown,

@@ -8,7 +8,7 @@ use crate::{
     text_util::concat_strings,
 };
 
-pub(super) fn html_handler(_chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
+pub(super) fn html_handler(chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
     // In faithful mode, this is markdown translatable only when it's the root
     // of the document.
     let markdown_translatable = if element.options.translation_mode == TranslationMode::Faithful
@@ -22,10 +22,12 @@ pub(super) fn html_handler(_chain: &dyn Chain, element: Element) -> Option<Handl
     };
 
     if markdown_translatable {
-        Some(concat_strings!("\n\n", element.content, "\n\n").into())
+        let content = chain.walk_children(element.node).content;
+        let content = content.trim_matches('\n');
+        Some(concat_strings!("\n\n", content, "\n\n").into())
     } else {
         Some(HandlerResult {
-            content: serialize_element(&element),
+            content: serialize_element(chain, &element),
             markdown_translated: false,
         })
     }

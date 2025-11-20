@@ -95,7 +95,7 @@ where
 
 /// Join text clips, inspired by:
 /// https://github.com/mixmark-io/turndown/blob/cc73387fb707e5fb5e1083e94078d08f38f3abc8/src/turndown.js#L221
-pub(crate) fn join_contents(contents: &[String]) -> String {
+pub(crate) fn join_blocks(contents: &[String]) -> String {
     // Pre-allocate capacity to avoid multiple re-allocations.
     let capacity = contents.iter().map(String::len).sum();
     let mut result = String::with_capacity(capacity);
