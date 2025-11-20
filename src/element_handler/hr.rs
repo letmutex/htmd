@@ -5,8 +5,8 @@ use crate::{
     serialize_if_faithful,
 };
 
-pub(super) fn hr_handler(_chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
-    serialize_if_faithful!(element, 0);
+pub(super) fn hr_handler(chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
+    serialize_if_faithful!(chain, element, 0);
     match element.options.hr_style {
         HrStyle::Dashes => Some("\n\n- - -\n\n".into()),
         HrStyle::Asterisks => Some("\n\n* * *\n\n".into()),

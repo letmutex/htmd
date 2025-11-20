@@ -7,8 +7,8 @@ use crate::{
     text_util::concat_strings,
 };
 
-pub(super) fn pre_handler(_chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
-    serialize_if_faithful!(element, 0);
+pub(super) fn pre_handler(chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
+    serialize_if_faithful!(chain, element, 0);
     // The only faithful translation for this is from
     // `<pre><code>blah</code></pre>` to a code block. So, check that this node
     // has only one element, a pure `<code>` element. Cases:
@@ -18,16 +18,30 @@ pub(super) fn pre_handler(_chain: &dyn Chain, element: Element) -> Option<Handle
     //     1.  The child is pure, consists of one element which is a code tag.
     //         No special treatment.
     //     2.  All other cases: produce HTML.
-    let children = element.node.children.borrow();
-    if element.options.translation_mode == TranslationMode::Pure
-        || (element.markdown_translated
+    let is_simple_code_block = {
+        let children = element.node.children.borrow();
+        element.markdown_translated
             && children.len() == 1
-            && get_node_tag_name(&children[0]) == Some("code"))
-    {
-        Some(concat_strings!("\n\n", element.content, "\n\n").into())
+            && get_node_tag_name(&children[0]) == Some("code")
+    };
+
+    if element.options.translation_mode == TranslationMode::Pure || is_simple_code_block {
+        let result = chain.walk_children_with_status(element.node);
+
+        if element.options.translation_mode == TranslationMode::Faithful
+            && !result.markdown_translated
+        {
+            return Some(HandlerResult {
+                content: serialize_element(chain, &element),
+                markdown_translated: false,
+            });
+        }
+
+        let content = result.content.trim_matches('\n');
+        Some(concat_strings!("\n\n", content, "\n\n").into())
     } else {
         Some(HandlerResult {
-            content: serialize_element(&element),
+            content: serialize_element(chain, &element),
             markdown_translated: false,
         })
     }

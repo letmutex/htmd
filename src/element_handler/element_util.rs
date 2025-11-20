@@ -1,6 +1,10 @@
 use crate::{
-    Element, dom_walker::is_block_element, element_handler::HandlerResult,
-    node_util::parent_tag_name_equals, options::TranslationMode, text_util::concat_strings,
+    Element,
+    dom_walker::is_block_element,
+    element_handler::{Chain, HandlerResult},
+    node_util::parent_tag_name_equals,
+    options::TranslationMode,
+    text_util::concat_strings,
 };
 use html5ever::serialize::{HtmlSerializer, SerializeOpts, Serializer, TraversalScope, serialize};
 
@@ -10,6 +14,7 @@ use std::io::{self, Write};
 // A handler for tags whose only criteria (for faithful translation) is the tag
 // name of the parent.
 pub(super) fn handle_or_serialize_by_parent(
+    chain: &dyn Chain,
     // The element to check.
     element: &Element,
     // A list of allowable tag names for this element's parent.
@@ -23,12 +28,14 @@ pub(super) fn handle_or_serialize_by_parent(
         && !parent_tag_name_equals(element.node, tag_names)
     {
         Some(HandlerResult {
-            content: serialize_element(element),
+            content: serialize_element(chain, element),
             markdown_translated: false,
         })
     } else {
+        let content = chain.walk_children(element.node);
+        let content = content.trim_matches('\n');
         Some(HandlerResult {
-            content: concat_strings!("\n\n", element.content, "\n\n"),
+            content: concat_strings!("\n\n", content, "\n\n"),
             markdown_translated,
         })
     }
@@ -36,7 +43,7 @@ pub(super) fn handle_or_serialize_by_parent(
 
 // Given a node (which must be an element), serialize it (transform it back
 // to HTML).
-pub(crate) fn serialize_element(element: &Element) -> String {
+pub(crate) fn serialize_element(chain: &dyn Chain, element: &Element) -> String {
     let f = || -> io::Result<String> {
         let so = SerializeOpts {
             traversal_scope: TraversalScope::IncludeNode,
@@ -60,7 +67,8 @@ pub(crate) fn serialize_element(element: &Element) -> String {
                 attrs.borrow().iter().map(|at| (&at.name, &at.value[..])),
             )?;
             // Write out the contents, without escaping them. The standard serialization process escapes the contents, hence this manual approach.
-            ser.writer.write_all(element.content.as_bytes())?;
+            ser.writer
+                .write_all(chain.walk_children(element.node).as_bytes())?;
             // Write the end tag, if needed (HtmlSerializer logic will automatically omit this).
             ser.end_elem(name.clone())?;
 
@@ -173,6 +181,8 @@ pub(crate) fn serialize_element(element: &Element) -> String {
 #[macro_export]
 macro_rules! serialize_if_faithful {
     (
+        // The chain to use for serialization.
+        $chain: expr,
         // The element to translate.
         $element: expr,
         // The maximum number of attributes allowed for this element.
@@ -182,7 +192,9 @@ macro_rules! serialize_if_faithful {
             && $element.attrs.len() > $num_attrs_allowed
         {
             return Some($crate::element_handler::HandlerResult {
-                content: $crate::element_handler::element_util::serialize_element(&$element),
+                content: $crate::element_handler::element_util::serialize_element(
+                    $chain, &$element,
+                ),
                 // This was translated using HTML, not Markdown.
                 markdown_translated: false,
             });

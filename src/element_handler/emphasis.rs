@@ -6,12 +6,12 @@ use crate::{
 };
 
 pub(super) fn emphasis_handler(
-    _chain: &dyn Chain,
+    chain: &dyn Chain,
     element: Element,
     marker: &str,
 ) -> Option<HandlerResult> {
-    serialize_if_faithful!(element, 0);
-    let content = element.content;
+    serialize_if_faithful!(chain, element, 0);
+    let content = chain.walk_children(element.node);
     if content.is_empty() {
         return None;
     }

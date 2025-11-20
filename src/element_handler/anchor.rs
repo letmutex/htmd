@@ -29,7 +29,7 @@ impl ElementHandler for AnchorElementHandler {
         })
     }
 
-    fn handle(&self, _chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
+    fn handle(&self, chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
         let mut link: Option<String> = None;
         let mut title: Option<String> = None;
         for attr in element.attrs.iter() {
@@ -40,12 +40,12 @@ impl ElementHandler for AnchorElementHandler {
                 title = Some(attr.value.to_string());
             } else {
                 // This is an attribute which can't be translated to Markdown.
-                serialize_if_faithful!(element, 0);
+                serialize_if_faithful!(chain, element, 0);
             }
         }
 
         let Some(link) = link else {
-            return Some(element.content.into());
+            return Some(chain.walk_children(element.node).into());
         };
 
         let process_title = |text: String| {
@@ -60,13 +60,14 @@ impl ElementHandler for AnchorElementHandler {
 
         let link = link.replace('(', "\\(").replace(')', "\\)");
 
+        let content = chain.walk_children(element.node);
         let md = match element.options.link_style {
-            LinkStyle::Inlined => self.build_inlined_anchor(element.content, link, title, false),
+            LinkStyle::Inlined => self.build_inlined_anchor(&content, link, title, false),
             LinkStyle::InlinedPreferAutolinks => {
-                self.build_inlined_anchor(element.content, link, title, true)
+                self.build_inlined_anchor(&content, link, title, true)
             }
             LinkStyle::Referenced => self.build_referenced_anchor(
-                element.content,
+                &content,
                 link,
                 title,
                 &element.options.link_reference_style,

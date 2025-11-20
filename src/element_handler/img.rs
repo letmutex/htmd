@@ -5,7 +5,7 @@ use crate::{
     text_util::{JoinOnStringIterator, TrimAsciiWhitespace, concat_strings},
 };
 
-pub(super) fn img_handler(_chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
+pub(super) fn img_handler(chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
     let mut link: Option<String> = None;
     let mut alt: Option<String> = None;
     let mut title: Option<String> = None;
@@ -20,7 +20,7 @@ pub(super) fn img_handler(_chain: &dyn Chain, element: Element) -> Option<Handle
         } else if name == "title" {
             title = Some(attr.value.to_string());
         } else {
-            serialize_if_faithful!(element, 0);
+            serialize_if_faithful!(chain, element, 0);
         }
     }
 

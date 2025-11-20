@@ -12,7 +12,7 @@ use crate::{
     text_util::{JoinOnStringIterator, TrimAsciiWhitespace, concat_strings},
 };
 
-pub(super) fn code_handler(_chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
+pub(super) fn code_handler(chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
     // In faithful mode, all children of a code tag must be text to translate
     // as markdown.
     if element.options.translation_mode == TranslationMode::Faithful
@@ -24,7 +24,7 @@ pub(super) fn code_handler(_chain: &dyn Chain, element: Element) -> Option<Handl
             .all(|node| matches!(node.data, NodeData::Text { .. }))
     {
         return Some(HandlerResult {
-            content: serialize_element(&element),
+            content: serialize_element(chain, &element),
             markdown_translated: false,
         });
     }
@@ -36,15 +36,19 @@ pub(super) fn code_handler(_chain: &dyn Chain, element: Element) -> Option<Handl
         .map(|parent| get_node_tag_name(parent).is_some_and(|t| t == "pre"))
         .unwrap_or(false);
     if is_code_block {
-        handle_code_block(element, &parent_node.unwrap())
+        handle_code_block(chain, element, &parent_node.unwrap())
     } else {
-        handle_inline_code(element)
+        handle_inline_code(chain, element)
     }
 }
 
-fn handle_code_block(element: Element, parent: &Rc<Node>) -> Option<HandlerResult> {
-    let content = element.content;
-    let content = content.strip_suffix('\n').unwrap_or(content);
+fn handle_code_block(
+    chain: &dyn Chain,
+    element: Element,
+    parent: &Rc<Node>,
+) -> Option<HandlerResult> {
+    let content = chain.walk_children(element.node);
+    let content = content.strip_suffix('\n').unwrap_or(&content);
     if element.options.code_block_style == CodeBlockStyle::Fenced {
         let fence = if element.options.code_block_fence == CodeBlockFence::Tildes {
             get_code_fence_marker("~", content)
@@ -58,7 +62,7 @@ fn handle_code_block(element: Element, parent: &Rc<Node>) -> Option<HandlerResul
                 None
             }
         });
-        serialize_if_faithful!(element, if language.is_none() { 0 } else { 1 });
+        serialize_if_faithful!(chain, element, if language.is_none() { 0 } else { 1 });
         let mut result = String::from(&fence);
         if let Some(ref lang) = language {
             result.push_str(lang);
@@ -69,7 +73,7 @@ fn handle_code_block(element: Element, parent: &Rc<Node>) -> Option<HandlerResul
         result.push_str(&fence);
         Some(result.into())
     } else {
-        serialize_if_faithful!(element, 0);
+        serialize_if_faithful!(chain, element, 0);
         let code = content
             .lines()
             .map(|line| concat_strings!("    ", line))
@@ -105,15 +109,15 @@ fn find_language_from_attrs(attrs: &[Attribute]) -> Option<String> {
         .unwrap_or(None)
 }
 
-fn handle_inline_code(element: Element) -> Option<HandlerResult> {
-    serialize_if_faithful!(element, 0);
+fn handle_inline_code(chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
+    serialize_if_faithful!(chain, element, 0);
     // Case: <code>There is a literal backtick (`) here</code>
     //   to: ``There is a literal backtick (`) here``
     let mut use_double_backticks = false;
     // Case: <code>`starting with a backtick</code>
     //   to: `` `starting with a backtick ``
     let mut surround_with_spaces = false;
-    let content = element.content;
+    let content = chain.walk_children(element.node);
     let chars = content.chars().collect::<Vec<char>>();
     let len = chars.len();
     for (idx, c) in chars.iter().enumerate() {
@@ -128,7 +132,7 @@ fn handle_inline_code(element: Element) -> Option<HandlerResult> {
         }
     }
     let content = if element.options.preformatted_code {
-        handle_preformatted_code(content)
+        handle_preformatted_code(&content)
     } else {
         content.trim_ascii_whitespace().to_string()
     };

@@ -7,9 +7,12 @@ use crate::{
     text_util::{TrimAsciiWhitespace, concat_strings, indent_text_except_first_line},
 };
 
-pub(super) fn list_item_handler(_chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
-    serialize_if_faithful!(element, 0);
-    let content = element.content.trim_start_ascii_whitespace().to_string();
+pub(super) fn list_item_handler(chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
+    serialize_if_faithful!(chain, element, 0);
+    let content = chain
+        .walk_children(element.node)
+        .trim_start_ascii_whitespace()
+        .to_string();
 
     let ul_li = || {
         let marker = if element.options.bullet_list_marker == BulletListMarker::Asterisk {
@@ -20,7 +23,7 @@ pub(super) fn list_item_handler(_chain: &dyn Chain, element: Element) -> Option<
         let spacing = " ".repeat(element.options.ul_bullet_spacing.into());
         let content = indent_text_except_first_line(&content, marker.len() + spacing.len(), true);
 
-        Some(concat_strings!("\n", marker, spacing, content, "\n").into())
+        Some(concat_strings!("\n", marker, spacing, content).into())
     };
 
     let ol_li = || {

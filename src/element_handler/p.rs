@@ -5,7 +5,9 @@ use crate::{
     text_util::concat_strings,
 };
 
-pub(super) fn p_handler(_chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
-    serialize_if_faithful!(element, 0);
-    Some(concat_strings!("\n\n", element.content, "\n\n").into())
+pub(super) fn p_handler(chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
+    serialize_if_faithful!(chain, element, 0);
+    let content = chain.walk_children(element.node);
+    let content = content.trim_matches('\n');
+    Some(concat_strings!("\n\n", content, "\n\n").into())
 }
