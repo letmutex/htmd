@@ -10,7 +10,7 @@ An HTML to Markdown converter for Rust, inspired by [turndown.js](https://github
 - Reliable, it passes [all test cases](https://github.com/mixmark-io/turndown/blob/master/test/index.html) of turndown.js
 - HTML table to Markdown table conversion
 - Minimum dependencies, it uses only [html5ever](https://github.com/servo/html5ever)
-- Fast, it takes ~70ms to convert a 1.37MB Wikipedia page on an i5 7th gen CPU (See [Bench README](benches/README.md))
+- Fast, it takes ~16ms to convert a 1.37MB Wikipedia page on Apple M4 (See [Bench README](benches/README.md))
 - Faithful mode, which can preserve HTML output for tags not supported by Markdown. (See [#54](https://github.com/letmutex/htmd/pull/54))
 
 *Looking for the cli tool? Try [htmd-cli](https://github.com/letmutex/htmd-cli) now!*
