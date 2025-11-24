@@ -181,8 +181,8 @@ pub(crate) fn serialize_element(handlers: &dyn Handlers, element: &Element) -> S
 #[macro_export]
 macro_rules! serialize_if_faithful {
     (
-        // The chain to use for serialization.
-        $chain: expr,
+        // The handlers to use for serialization.
+        $handlers: expr,
         // The element to translate.
         $element: expr,
         // The maximum number of attributes allowed for this element.
@@ -193,7 +193,7 @@ macro_rules! serialize_if_faithful {
         {
             return Some($crate::element_handler::HandlerResult {
                 content: $crate::element_handler::element_util::serialize_element(
-                    $chain, &$element,
+                    $handlers, &$element,
                 ),
                 // This was translated using HTML, not Markdown.
                 markdown_translated: false,
