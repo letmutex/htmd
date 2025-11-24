@@ -1,5 +1,5 @@
 use crate::element_handler::element_util::serialize_element;
-use crate::element_handler::{Chain, Element, HandlerResult};
+use crate::element_handler::{Element, HandlerResult, Handlers};
 use crate::node_util::{get_node_children, get_node_tag_name};
 use crate::options::TranslationMode;
 use crate::serialize_if_faithful;
@@ -15,8 +15,8 @@ use std::rc::Rc;
 /// | ------- | ------- |
 /// | Cell1   | Cell2   |
 /// ```
-pub(crate) fn table_handler(chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
-    serialize_if_faithful!(chain, element, 0);
+pub(crate) fn table_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
+    serialize_if_faithful!(handlers, element, 0);
     // All child table elements must be markdown translated to markdown
     // translate the table in faithful mode.
     // We track markdown translation status manually because we iterate children
@@ -41,7 +41,7 @@ pub(crate) fn table_handler(chain: &dyn Chain, element: Element) -> Option<Handl
 
                 match tag_name {
                     "caption" => {
-                        if let Some(res) = chain.handle(&child) {
+                        if let Some(res) = handlers.handle(&child) {
                             captions.push(res.content.trim().to_string());
                         }
                     }
@@ -59,11 +59,11 @@ pub(crate) fn table_handler(chain: &dyn Chain, element: Element) -> Option<Handl
                         };
 
                         has_thead = true;
-                        let (cells, translated) = extract_row_cells(chain, &row_node, "th");
+                        let (cells, translated) = extract_row_cells(handlers, &row_node, "th");
                         headers = cells;
                         all_children_translated &= translated;
                         if headers.is_empty() {
-                            let (cells, translated) = extract_row_cells(chain, &row_node, "td");
+                            let (cells, translated) = extract_row_cells(handlers, &row_node, "td");
                             headers = cells;
                             all_children_translated &= translated;
                         }
@@ -76,7 +76,7 @@ pub(crate) fn table_handler(chain: &dyn Chain, element: Element) -> Option<Handl
                                 // If no thead is found, use the first th row as header
                                 if !has_thead && headers.is_empty() {
                                     let (cells, translated) =
-                                        extract_row_cells(chain, &row_node, "th");
+                                        extract_row_cells(handlers, &row_node, "th");
                                     headers = cells;
                                     all_children_translated &= translated;
                                     has_thead = !headers.is_empty();
@@ -87,7 +87,7 @@ pub(crate) fn table_handler(chain: &dyn Chain, element: Element) -> Option<Handl
                                 }
 
                                 let (row_cells, translated) =
-                                    extract_row_cells(chain, &row_node, "td");
+                                    extract_row_cells(handlers, &row_node, "td");
                                 all_children_translated &= translated;
                                 if !row_cells.is_empty() {
                                     rows.push(row_cells);
@@ -98,11 +98,11 @@ pub(crate) fn table_handler(chain: &dyn Chain, element: Element) -> Option<Handl
                     "tr" => {
                         // If no thead is found, use the first row as headers
                         if !has_thead && headers.is_empty() {
-                            let (cells, translated) = extract_row_cells(chain, &child, "th");
+                            let (cells, translated) = extract_row_cells(handlers, &child, "th");
                             headers = cells;
                             all_children_translated &= translated;
                             if headers.is_empty() {
-                                let (cells, translated) = extract_row_cells(chain, &child, "td");
+                                let (cells, translated) = extract_row_cells(handlers, &child, "td");
                                 if !cells.is_empty() {
                                     headers = cells;
                                     all_children_translated &= translated;
@@ -110,7 +110,7 @@ pub(crate) fn table_handler(chain: &dyn Chain, element: Element) -> Option<Handl
                             }
                             has_thead = !headers.is_empty();
                         } else {
-                            let (row_cells, translated) = extract_row_cells(chain, &child, "td");
+                            let (row_cells, translated) = extract_row_cells(handlers, &child, "td");
                             all_children_translated &= translated;
                             if !row_cells.is_empty() {
                                 rows.push(row_cells);
@@ -125,14 +125,14 @@ pub(crate) fn table_handler(chain: &dyn Chain, element: Element) -> Option<Handl
 
     if element.options.translation_mode == TranslationMode::Faithful && !all_children_translated {
         return Some(HandlerResult {
-            content: serialize_element(chain, &element),
+            content: serialize_element(handlers, &element),
             markdown_translated: false,
         });
     }
 
     // If we didn't find any rows or cells, just return the content as-is
     if rows.is_empty() && headers.is_empty() {
-        let content = chain.walk_children(element.node).content;
+        let content = handlers.walk_children(element.node).content;
         let content = content.trim_matches('\n');
         if content.is_empty() {
             return None;
@@ -148,7 +148,7 @@ pub(crate) fn table_handler(chain: &dyn Chain, element: Element) -> Option<Handl
     };
 
     if num_columns == 0 {
-        let content = chain.walk_children(element.node).content;
+        let content = handlers.walk_children(element.node).content;
         let content = content.trim_matches('\n');
         if content.is_empty() {
             return None;
@@ -179,7 +179,7 @@ pub(crate) fn table_handler(chain: &dyn Chain, element: Element) -> Option<Handl
 
 /// Extract cells from a row node
 fn extract_row_cells(
-    chain: &dyn Chain,
+    handlers: &dyn Handlers,
     row_node: &Rc<markup5ever_rcdom::Node>,
     cell_tag: &str,
 ) -> (Vec<String>, bool) {
@@ -190,7 +190,7 @@ fn extract_row_cells(
         if let NodeData::Element { name, .. } = &cell_node.data
             && name.local.as_ref() == cell_tag
         {
-            let Some(res) = chain.handle(&cell_node) else {
+            let Some(res) = handlers.handle(&cell_node) else {
                 continue;
             };
             if !res.markdown_translated {

@@ -15,7 +15,7 @@ use html5ever::{Attribute, ParseOpts, parse_document};
 use markup5ever_rcdom::{Node, RcDom};
 use options::Options;
 
-use crate::element_handler::Chain;
+use crate::element_handler::Handlers;
 
 /// Convert HTML to Markdown.
 ///
@@ -177,7 +177,7 @@ impl HtmlToMarkdownBuilder {
 
     /// Skip a group of tags when converting.
     pub fn skip_tags(self, tags: Vec<&str>) -> Self {
-        self.add_handler(tags, |_: &dyn Chain, _: Element| None)
+        self.add_handler(tags, |_: &dyn Handlers, _: Element| None)
     }
 
     /// Apply a custom element handler for a group of tags.
@@ -185,14 +185,14 @@ impl HtmlToMarkdownBuilder {
     /// # Example
     ///
     /// ```
-    /// use htmd::{Element, HtmlToMarkdownBuilder, element_handler::Chain};
+    /// use htmd::{Element, HtmlToMarkdownBuilder, element_handler::Handlers};
     ///
     /// let mut handlers = HtmlToMarkdownBuilder::new()
-    ///    .add_handler(vec!["img"], |_chain: &dyn Chain, _: Element| {
+    ///    .add_handler(vec!["img"], |_handlers: &dyn Handlers, _: Element| {
     ///        // Skip the img tag when converting.
     ///        None
     ///    })
-    ///    .add_handler(vec!["video"], |_chain: &dyn Chain, element: Element| {
+    ///    .add_handler(vec!["video"], |_handlers: &dyn Handlers, element: Element| {
     ///        // Handle the video tag.
     ///        todo!("Return some text to represent this video element.")
     ///    });

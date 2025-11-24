@@ -1,7 +1,7 @@
 use crate::{
     Element,
     dom_walker::is_block_element,
-    element_handler::{Chain, HandlerResult},
+    element_handler::{HandlerResult, Handlers},
     node_util::parent_tag_name_equals,
     options::TranslationMode,
     text_util::concat_strings,
@@ -14,7 +14,7 @@ use std::io::{self, Write};
 // A handler for tags whose only criteria (for faithful translation) is the tag
 // name of the parent.
 pub(super) fn handle_or_serialize_by_parent(
-    chain: &dyn Chain,
+    handlers: &dyn Handlers,
     // The element to check.
     element: &Element,
     // A list of allowable tag names for this element's parent.
@@ -28,11 +28,11 @@ pub(super) fn handle_or_serialize_by_parent(
         && !parent_tag_name_equals(element.node, tag_names)
     {
         Some(HandlerResult {
-            content: serialize_element(chain, element),
+            content: serialize_element(handlers, element),
             markdown_translated: false,
         })
     } else {
-        let content = chain.walk_children(element.node).content;
+        let content = handlers.walk_children(element.node).content;
         let content = content.trim_matches('\n');
         Some(HandlerResult {
             content: concat_strings!("\n\n", content, "\n\n"),
@@ -43,7 +43,7 @@ pub(super) fn handle_or_serialize_by_parent(
 
 // Given a node (which must be an element), serialize it (transform it back
 // to HTML).
-pub(crate) fn serialize_element(chain: &dyn Chain, element: &Element) -> String {
+pub(crate) fn serialize_element(handlers: &dyn Handlers, element: &Element) -> String {
     let f = || -> io::Result<String> {
         let so = SerializeOpts {
             traversal_scope: TraversalScope::IncludeNode,
@@ -68,7 +68,7 @@ pub(crate) fn serialize_element(chain: &dyn Chain, element: &Element) -> String 
             )?;
             // Write out the contents, without escaping them. The standard serialization process escapes the contents, hence this manual approach.
             ser.writer
-                .write_all(chain.walk_children(element.node).content.as_bytes())?;
+                .write_all(handlers.walk_children(element.node).content.as_bytes())?;
             // Write the end tag, if needed (HtmlSerializer logic will automatically omit this).
             ser.end_elem(name.clone())?;
 

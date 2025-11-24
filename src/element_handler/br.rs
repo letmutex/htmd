@@ -1,12 +1,12 @@
 use crate::{
     Element,
-    element_handler::{Chain, HandlerResult},
+    element_handler::{HandlerResult, Handlers},
     options::BrStyle,
     serialize_if_faithful,
 };
 
-pub(super) fn br_handler(chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
-    serialize_if_faithful!(chain, element, 0);
+pub(super) fn br_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
+    serialize_if_faithful!(handlers, element, 0);
 
     match element.options.br_style {
         BrStyle::TwoSpaces => Some("  \n".into()),

@@ -2,7 +2,7 @@ use std::cell::RefCell;
 
 use crate::{
     Element, ElementHandler,
-    element_handler::{Chain, HandlerResult},
+    element_handler::{HandlerResult, Handlers},
     options::{LinkReferenceStyle, LinkStyle},
     serialize_if_faithful,
     text_util::{JoinOnStringIterator, StripWhitespace, TrimAsciiWhitespace, concat_strings},
@@ -29,7 +29,7 @@ impl ElementHandler for AnchorElementHandler {
         })
     }
 
-    fn handle(&self, chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
+    fn handle(&self, handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
         let mut link: Option<String> = None;
         let mut title: Option<String> = None;
         for attr in element.attrs.iter() {
@@ -40,12 +40,12 @@ impl ElementHandler for AnchorElementHandler {
                 title = Some(attr.value.to_string());
             } else {
                 // This is an attribute which can't be translated to Markdown.
-                serialize_if_faithful!(chain, element, 0);
+                serialize_if_faithful!(handlers, element, 0);
             }
         }
 
         let Some(link) = link else {
-            return Some(chain.walk_children(element.node));
+            return Some(handlers.walk_children(element.node));
         };
 
         let process_title = |text: String| {
@@ -60,7 +60,7 @@ impl ElementHandler for AnchorElementHandler {
 
         let link = link.replace('(', "\\(").replace(')', "\\)");
 
-        let content = chain.walk_children(element.node).content;
+        let content = handlers.walk_children(element.node).content;
         let md = match element.options.link_style {
             LinkStyle::Inlined => self.build_inlined_anchor(&content, link, title, false),
             LinkStyle::InlinedPreferAutolinks => {

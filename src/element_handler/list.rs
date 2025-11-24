@@ -2,14 +2,14 @@ use markup5ever_rcdom::NodeData;
 
 use crate::{
     Element,
-    element_handler::{Chain, HandlerResult, serialize_element},
+    element_handler::{HandlerResult, Handlers, serialize_element},
     node_util::{get_node_tag_name, get_parent_node},
     options::{Options, TranslationMode},
     serialize_if_faithful,
     text_util::{concat_strings, indent_text_except_first_line, join_blocks},
 };
 
-pub(super) fn list_handler(chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
+pub(super) fn list_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
     // In faithful mode, ...
     if element.options.translation_mode == TranslationMode::Faithful {
         // ...make sure this element's attributes can be translated as markdown.
@@ -17,7 +17,7 @@ pub(super) fn list_handler(chain: &dyn Chain, element: Element) -> Option<Handle
             .attrs
             .first()
             .is_some_and(|attr| &attr.name.local == "start");
-        serialize_if_faithful!(chain, element, if has_start { 1 } else { 0 });
+        serialize_if_faithful!(handlers, element, if has_start { 1 } else { 0 });
 
         // ...all children must be translated as Markdown, and all children must
         // be li elements.
@@ -30,7 +30,7 @@ pub(super) fn list_handler(chain: &dyn Chain, element: Element) -> Option<Handle
             })
         {
             return Some(HandlerResult {
-                content: serialize_element(chain, &element),
+                content: serialize_element(handlers, &element),
                 markdown_translated: false,
             });
         }
@@ -41,19 +41,19 @@ pub(super) fn list_handler(chain: &dyn Chain, element: Element) -> Option<Handle
         .unwrap_or(false);
 
     let result = if element.tag == "ol" {
-        let (content, translated) = get_ol_content(chain, &element);
+        let (content, translated) = get_ol_content(handlers, &element);
         HandlerResult {
             content,
             markdown_translated: translated,
         }
     } else {
-        chain.walk_children(element.node)
+        handlers.walk_children(element.node)
     };
 
     if element.options.translation_mode == TranslationMode::Faithful && !result.markdown_translated
     {
         return Some(HandlerResult {
-            content: serialize_element(chain, &element),
+            content: serialize_element(handlers, &element),
             markdown_translated: false,
         });
     }
@@ -75,7 +75,7 @@ struct ListChildContent {
     is_li: bool,
 }
 
-fn get_ol_content(chain: &dyn Chain, element: &Element) -> (String, bool) {
+fn get_ol_content(handlers: &dyn Handlers, element: &Element) -> (String, bool) {
     let mut buffer: Vec<ListChildContent> = Vec::new();
     let mut li_count = 0;
     let mut all_translated = true;
@@ -88,7 +88,7 @@ fn get_ol_content(chain: &dyn Chain, element: &Element) -> (String, bool) {
         .unwrap_or(1);
 
     for child in element.node.children.borrow().iter() {
-        let Some(res) = chain.handle(child) else {
+        let Some(res) = handlers.handle(child) else {
             continue;
         };
         if !res.markdown_translated {
