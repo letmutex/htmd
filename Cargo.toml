@@ -1,6 +1,6 @@
 [package]
 name = "htmd"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2024"
 authors = ["letmutex"]
 description = "A turndown.js inspired HTML to Markdown converter."

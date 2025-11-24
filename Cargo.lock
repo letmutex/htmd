@@ -289,7 +289,7 @@ dependencies = [
 
 [[package]]
 name = "htmd"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "criterion",
  "html5ever 0.35.0",
