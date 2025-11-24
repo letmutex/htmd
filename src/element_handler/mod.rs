@@ -302,8 +302,8 @@ impl ElementHandlers {
 ///
 /// Handlers can use this to delegate to other handlers or recursively process child nodes.
 pub trait Handlers {
-    /// Skip the current handler and proceed to the previous handler (earlier in registration order).
-    fn proceed(&self, element: Element) -> Option<HandlerResult>;
+    /// Skip the current handler and fall back to the previous handler (earlier in registration order).
+    fn fallback(&self, element: Element) -> Option<HandlerResult>;
 
     /// Process a `markup5ever` node through the handlers.
     fn handle(&self, node: &Rc<Node>) -> Option<HandlerResult>;
@@ -313,7 +313,7 @@ pub trait Handlers {
 }
 
 impl Handlers for ElementHandlers {
-    fn proceed(&self, element: Element) -> Option<HandlerResult> {
+    fn fallback(&self, element: Element) -> Option<HandlerResult> {
         self.handle(
             element.node,
             element.tag,
