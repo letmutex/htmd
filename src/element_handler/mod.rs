@@ -262,7 +262,6 @@ impl ElementHandlers {
                     node,
                     tag,
                     attrs,
-                    options: &self.options,
                     markdown_translated,
                     skipped_handlers,
                 },
@@ -276,7 +275,6 @@ impl ElementHandlers {
                                 node,
                                 tag,
                                 attrs,
-                                options: &self.options,
                                 markdown_translated,
                                 skipped_handlers: 0,
                             },
@@ -310,6 +308,9 @@ pub trait Handlers {
 
     /// Walks children of a node and returns both content and markdown_translated status.
     fn walk_children(&self, node: &Rc<Node>) -> HandlerResult;
+
+    /// Get the conversion options.
+    fn options(&self) -> &Options;
 }
 
 impl Handlers for ElementHandlers {
@@ -345,6 +346,10 @@ impl Handlers for ElementHandlers {
             markdown_translated,
         }
     }
+
+    fn options(&self) -> &Options {
+        &self.options
+    }
 }
 
 fn is_inside_pre(node: &Rc<Node>) -> bool {
@@ -361,7 +366,7 @@ fn is_inside_pre(node: &Rc<Node>) -> bool {
 }
 
 fn block_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
-    if element.options.translation_mode == TranslationMode::Pure {
+    if handlers.options().translation_mode == TranslationMode::Pure {
         let content = handlers.walk_children(element.node).content;
         let content = content.trim_matches('\n');
         Some(concat_strings!("\n\n", content, "\n\n").into())

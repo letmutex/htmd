@@ -25,10 +25,10 @@ pub(super) fn pre_handler(handlers: &dyn Handlers, element: Element) -> Option<H
             && get_node_tag_name(&children[0]) == Some("code")
     };
 
-    if element.options.translation_mode == TranslationMode::Pure || is_simple_code_block {
+    if handlers.options().translation_mode == TranslationMode::Pure || is_simple_code_block {
         let result = handlers.walk_children(element.node);
 
-        if element.options.translation_mode == TranslationMode::Faithful
+        if handlers.options().translation_mode == TranslationMode::Faithful
             && !result.markdown_translated
         {
             return Some(HandlerResult {
