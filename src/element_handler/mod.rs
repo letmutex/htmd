@@ -86,15 +86,15 @@ pub trait ElementHandler: Send + Sync {
     }
 
     /// Handle the conversion of an element.
-    fn handle(&self, chain: &dyn Chain, element: Element) -> Option<HandlerResult>;
+    fn handle(&self, handlers: &dyn Handlers, element: Element) -> Option<HandlerResult>;
 }
 
 impl<F> ElementHandler for F
 where
-    F: (Fn(&dyn Chain, Element) -> Option<HandlerResult>) + Send + Sync,
+    F: (Fn(&dyn Handlers, Element) -> Option<HandlerResult>) + Send + Sync,
 {
-    fn handle(&self, chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
-        self(chain, element)
+    fn handle(&self, handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
+        self(handlers, element)
     }
 }
 
@@ -298,22 +298,22 @@ impl ElementHandlers {
     }
 }
 
-/// Provides access to the handler chain for processing elements and nodes.
+/// Provides access to the handlers for processing elements and nodes.
 ///
 /// Handlers can use this to delegate to other handlers or recursively process child nodes.
-pub trait Chain {
-    /// Skip the current handler and proceed to the previous handler (earlier in registration order).
-    fn proceed(&self, element: Element) -> Option<HandlerResult>;
+pub trait Handlers {
+    /// Skip the current handler and fall back to the previous handler (earlier in registration order).
+    fn fallback(&self, element: Element) -> Option<HandlerResult>;
 
-    /// Process a `markup5ever` node through the handler chain.
+    /// Process a `markup5ever` node through the handlers.
     fn handle(&self, node: &Rc<Node>) -> Option<HandlerResult>;
 
     /// Walks children of a node and returns both content and markdown_translated status.
     fn walk_children(&self, node: &Rc<Node>) -> HandlerResult;
 }
 
-impl Chain for ElementHandlers {
-    fn proceed(&self, element: Element) -> Option<HandlerResult> {
+impl Handlers for ElementHandlers {
+    fn fallback(&self, element: Element) -> Option<HandlerResult> {
         self.handle(
             element.node,
             element.tag,
@@ -360,23 +360,23 @@ fn is_inside_pre(node: &Rc<Node>) -> bool {
     false
 }
 
-fn block_handler(chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
+fn block_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
     if element.options.translation_mode == TranslationMode::Pure {
-        let content = chain.walk_children(element.node).content;
+        let content = handlers.walk_children(element.node).content;
         let content = content.trim_matches('\n');
         Some(concat_strings!("\n\n", content, "\n\n").into())
     } else {
         Some(HandlerResult {
-            content: serialize_element(chain, &element),
+            content: serialize_element(handlers, &element),
             markdown_translated: false,
         })
     }
 }
 
-fn bold_handler(chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
-    emphasis_handler(chain, element, "**")
+fn bold_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
+    emphasis_handler(handlers, element, "**")
 }
 
-fn italic_handler(chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
-    emphasis_handler(chain, element, "*")
+fn italic_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
+    emphasis_handler(handlers, element, "*")
 }

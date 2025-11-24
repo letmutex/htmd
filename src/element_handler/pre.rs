@@ -1,14 +1,14 @@
 use crate::{
     Element,
-    element_handler::{Chain, HandlerResult, element_util::serialize_element},
+    element_handler::{HandlerResult, Handlers, element_util::serialize_element},
     node_util::get_node_tag_name,
     options::TranslationMode,
     serialize_if_faithful,
     text_util::concat_strings,
 };
 
-pub(super) fn pre_handler(chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
-    serialize_if_faithful!(chain, element, 0);
+pub(super) fn pre_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
+    serialize_if_faithful!(handlers, element, 0);
     // The only faithful translation for this is from
     // `<pre><code>blah</code></pre>` to a code block. So, check that this node
     // has only one element, a pure `<code>` element. Cases:
@@ -26,13 +26,13 @@ pub(super) fn pre_handler(chain: &dyn Chain, element: Element) -> Option<Handler
     };
 
     if element.options.translation_mode == TranslationMode::Pure || is_simple_code_block {
-        let result = chain.walk_children(element.node);
+        let result = handlers.walk_children(element.node);
 
         if element.options.translation_mode == TranslationMode::Faithful
             && !result.markdown_translated
         {
             return Some(HandlerResult {
-                content: serialize_element(chain, &element),
+                content: serialize_element(handlers, &element),
                 markdown_translated: false,
             });
         }
@@ -41,7 +41,7 @@ pub(super) fn pre_handler(chain: &dyn Chain, element: Element) -> Option<Handler
         Some(concat_strings!("\n\n", content, "\n\n").into())
     } else {
         Some(HandlerResult {
-            content: serialize_element(chain, &element),
+            content: serialize_element(handlers, &element),
             markdown_translated: false,
         })
     }

@@ -1,15 +1,18 @@
 use crate::{
     Element,
-    element_handler::{Chain, HandlerResult},
+    element_handler::{HandlerResult, Handlers},
     node_util::{get_node_tag_name, get_parent_node},
     options::BulletListMarker,
     serialize_if_faithful,
     text_util::{TrimAsciiWhitespace, concat_strings, indent_text_except_first_line},
 };
 
-pub(super) fn list_item_handler(chain: &dyn Chain, element: Element) -> Option<HandlerResult> {
-    serialize_if_faithful!(chain, element, 0);
-    let content = chain
+pub(super) fn list_item_handler(
+    handlers: &dyn Handlers,
+    element: Element,
+) -> Option<HandlerResult> {
+    serialize_if_faithful!(handlers, element, 0);
+    let content = handlers
         .walk_children(element.node)
         .content
         .trim_start_ascii_whitespace()

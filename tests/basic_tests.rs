@@ -5,7 +5,7 @@ use pretty_assertions::assert_eq;
 
 use htmd::{
     Element, HtmlToMarkdown,
-    element_handler::Chain,
+    element_handler::Handlers,
     options::{BrStyle, LinkStyle, Options, TranslationMode},
 };
 mod common;
@@ -534,7 +534,7 @@ fn with_custom_rules() {
     // Remove element
     let html = r#"<img src="https://example.com"/>"#;
     let md = HtmlToMarkdown::builder()
-        .add_handler(vec!["img"], |_: &dyn Chain, _element: Element| None)
+        .add_handler(vec!["img"], |_: &dyn Handlers, _element: Element| None)
         .build()
         .convert(html)
         .unwrap();
@@ -545,14 +545,14 @@ fn with_custom_rules() {
 fn with_custom_rules_and_fallback() {
     let html = r#"<img src="https://example.com"/>"#;
     let converter = HtmlToMarkdown::builder()
-        .add_handler(vec!["img"], |chain: &dyn Chain, element: Element| {
+        .add_handler(vec!["img"], |handlers: &dyn Handlers, element: Element| {
             if element
                 .attrs
                 .iter()
                 .find(|attr| &attr.name.local == "id" && attr.value.as_ref() == "do_not_skip_me")
                 .is_some()
             {
-                chain.proceed(element)
+                handlers.fallback(element)
             } else {
                 None
             }
