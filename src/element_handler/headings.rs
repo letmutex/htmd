@@ -14,7 +14,7 @@ pub(super) fn headings_handler(handlers: &dyn Handlers, element: Element) -> Opt
     let content = content.trim_matches('\n');
 
     let mut result = String::from("\n\n");
-    if (level == 1 || level == 2) && element.options.heading_style == HeadingStyle::Setex {
+    if (level == 1 || level == 2) && handlers.options().heading_style == HeadingStyle::Setex {
         // Use the Setext heading style for h1 and h2
         result.push_str(content);
         result.push('\n');

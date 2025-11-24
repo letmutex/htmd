@@ -19,12 +19,12 @@ pub(super) fn list_item_handler(
         .to_string();
 
     let ul_li = || {
-        let marker = if element.options.bullet_list_marker == BulletListMarker::Asterisk {
+        let marker = if handlers.options().bullet_list_marker == BulletListMarker::Asterisk {
             "*"
         } else {
             "-"
         };
-        let spacing = " ".repeat(element.options.ul_bullet_spacing.into());
+        let spacing = " ".repeat(handlers.options().ul_bullet_spacing.into());
         let content = indent_text_except_first_line(&content, marker.len() + spacing.len(), true);
 
         Some(concat_strings!("\n", marker, spacing, content).into())

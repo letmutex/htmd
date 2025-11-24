@@ -11,14 +11,14 @@ use crate::{
 pub(super) fn html_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
     // In faithful mode, this is markdown translatable only when it's the root
     // of the document.
-    let markdown_translatable = if element.options.translation_mode == TranslationMode::Faithful
+    let markdown_translatable = if handlers.options().translation_mode == TranslationMode::Faithful
         && let Some(parent) = get_parent_node(element.node)
         && let NodeData::Document = parent.data
     {
         true
     } else {
         // It's always markdown translatable in pure mode.
-        element.options.translation_mode == TranslationMode::Pure
+        handlers.options().translation_mode == TranslationMode::Pure
     };
 
     if markdown_translatable {

@@ -123,7 +123,7 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: Element) -> Option
         }
     }
 
-    if element.options.translation_mode == TranslationMode::Faithful && !all_children_translated {
+    if handlers.options().translation_mode == TranslationMode::Faithful && !all_children_translated {
         return Some(HandlerResult {
             content: serialize_element(handlers, &element),
             markdown_translated: false,

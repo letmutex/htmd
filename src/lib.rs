@@ -39,8 +39,6 @@ pub struct Element<'a> {
     pub tag: &'a str,
     /// The attribute list.
     pub attrs: &'a [Attribute],
-    /// Converter options.
-    pub options: &'a Options,
     /// When true, this element's children were all translated using Markdown,
     /// not HTML. This is only needed in faithful translation mode (see the
     /// `Options`): for code blocks, translating a `<pre><code>` sequence to

@@ -24,7 +24,7 @@ pub(super) fn handle_or_serialize_by_parent(
 ) -> Option<HandlerResult> {
     // In faithful mode, fall back to HTML when this element's parent tag is not
     // in `tag_names` (e.g., `<tbody>` outside `<table>`, `<td>` outside `<tr>`, etc.).
-    if element.options.translation_mode == TranslationMode::Faithful
+    if handlers.options().translation_mode == TranslationMode::Faithful
         && !parent_tag_name_equals(element.node, tag_names)
     {
         Some(HandlerResult {
@@ -188,7 +188,7 @@ macro_rules! serialize_if_faithful {
         // The maximum number of attributes allowed for this element.
         $num_attrs_allowed: expr
     ) => {
-        if $element.options.translation_mode == $crate::options::TranslationMode::Faithful
+        if $handlers.options().translation_mode == $crate::options::TranslationMode::Faithful
             && $element.attrs.len() > $num_attrs_allowed
         {
             return Some($crate::element_handler::HandlerResult {

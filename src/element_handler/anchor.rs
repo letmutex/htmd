@@ -61,7 +61,7 @@ impl ElementHandler for AnchorElementHandler {
         let link = link.replace('(', "\\(").replace(')', "\\)");
 
         let content = handlers.walk_children(element.node).content;
-        let md = match element.options.link_style {
+        let md = match handlers.options().link_style {
             LinkStyle::Inlined => self.build_inlined_anchor(&content, link, title, false),
             LinkStyle::InlinedPreferAutolinks => {
                 self.build_inlined_anchor(&content, link, title, true)
@@ -70,7 +70,7 @@ impl ElementHandler for AnchorElementHandler {
                 &content,
                 link,
                 title,
-                &element.options.link_reference_style,
+                &handlers.options().link_reference_style,
             ),
         };
 

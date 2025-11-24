@@ -11,7 +11,7 @@ use crate::{
 
 pub(super) fn list_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
     // In faithful mode, ...
-    if element.options.translation_mode == TranslationMode::Faithful {
+    if handlers.options().translation_mode == TranslationMode::Faithful {
         // ...make sure this element's attributes can be translated as markdown.
         let has_start = element
             .attrs
@@ -50,7 +50,8 @@ pub(super) fn list_handler(handlers: &dyn Handlers, element: Element) -> Option<
         handlers.walk_children(element.node)
     };
 
-    if element.options.translation_mode == TranslationMode::Faithful && !result.markdown_translated
+    if handlers.options().translation_mode == TranslationMode::Faithful
+        && !result.markdown_translated
     {
         return Some(HandlerResult {
             content: serialize_element(handlers, &element),
@@ -121,7 +122,12 @@ fn get_ol_content(handlers: &dyn Handlers, element: &Element) -> (String, bool) 
         .map(|content| {
             if content.is_li {
                 curr_li_idx += 1;
-                add_ol_li_marker(element.options, &content.text, curr_li_idx, highest_index)
+                add_ol_li_marker(
+                    handlers.options(),
+                    &content.text,
+                    curr_li_idx,
+                    highest_index,
+                )
             } else {
                 content.text
             }
