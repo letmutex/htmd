@@ -653,3 +653,22 @@ fn unterminated_html() {
     // The `<i>` tag isn't terminated. Make sure the conversion still works.
     assert_eq!("# *A*", convert("<h1><i>A</h1>").unwrap());
 }
+
+#[test]
+fn math() {
+    assert_eq!(
+        "$x^2$",
+        convert(r#"<p><span class="math math-inline">x^2</math>"#).unwrap()
+    );
+
+    assert_eq!(
+        "$$x^2$$",
+        convert(r#"<p><span class="math math-display">x^2</math>"#).unwrap()
+    );
+
+    // Test escaping -- values inside math should not be escaped.
+    assert_eq!(
+        "$${a}_1, b_{2}, a*1, b*2, [a](b), 3 <a> b, a \\; b$$",
+        convert(r#"<p><span class="math math-display">{a}_1, b_{2}, a*1, b*2, [a](b), 3 &lt;a&gt; b, a \; b</span></p>"#).unwrap()
+    );
+}

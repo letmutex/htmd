@@ -14,6 +14,7 @@ mod li;
 mod list;
 mod p;
 mod pre;
+mod span;
 mod table;
 mod tbody;
 mod td_th;
@@ -22,7 +23,7 @@ mod tr;
 
 use crate::{
     dom_walker::walk_node,
-    element_handler::element_util::serialize_element,
+    element_handler::{element_util::serialize_element, span::span_handler},
     options::{Options, TranslationMode},
     text_util::concat_strings,
 };
@@ -175,6 +176,8 @@ impl ElementHandlers {
 
         // html
         handlers.add_handler(vec!["html"], html_handler);
+
+        handlers.add_handler(vec!["span"], span_handler);
 
         // Other block elements. This is taken from the [CommonMark
         // spec](https://spec.commonmark.org/0.31.2/#html-blocks).
