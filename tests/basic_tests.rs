@@ -658,12 +658,12 @@ fn unterminated_html() {
 fn math() {
     assert_eq!(
         "$x^2$",
-        convert(r#"<p><span class="math math-inline">x^2</math>"#).unwrap()
+        convert(r#"<p><span class="math math-inline">x^2</span></p>"#).unwrap()
     );
 
     assert_eq!(
         "$$x^2$$",
-        convert(r#"<p><span class="math math-display">x^2</math>"#).unwrap()
+        convert(r#"<p><span class="math math-display">x^2</span></p>"#).unwrap()
     );
 
     // Test escaping -- values inside math should not be escaped.

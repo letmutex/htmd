@@ -185,7 +185,8 @@ macro_rules! serialize_if_faithful {
         $handlers: expr,
         // The element to translate.
         $element: expr,
-        // The maximum number of attributes allowed for this element.
+        // The maximum number of attributes allowed for this element. Supply
+        // -1 to serialize in faithful mode, even with no attributes.
         $num_attrs_allowed: expr
     ) => {
         if $handlers.options().translation_mode == $crate::options::TranslationMode::Faithful
