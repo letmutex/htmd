@@ -549,8 +549,7 @@ fn with_custom_rules_and_fallback() {
             if element
                 .attrs
                 .iter()
-                .find(|attr| &attr.name.local == "id" && attr.value.as_ref() == "do_not_skip_me")
-                .is_some()
+                .any(|attr| &attr.name.local == "id" && attr.value.as_ref() == "do_not_skip_me")
             {
                 handlers.fallback(element)
             } else {
