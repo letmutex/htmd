@@ -14,6 +14,7 @@ mod li;
 mod list;
 mod p;
 mod pre;
+mod span;
 mod table;
 mod tbody;
 mod td_th;
@@ -45,6 +46,7 @@ use list::list_handler;
 use markup5ever_rcdom::Node;
 use p::p_handler;
 use pre::pre_handler;
+use span::span_handler;
 use std::{collections::HashMap, rc::Rc};
 use table::table_handler;
 use tbody::tbody_handler;
@@ -175,6 +177,8 @@ impl ElementHandlers {
 
         // html
         handlers.add_handler(vec!["html"], html_handler);
+
+        handlers.add_handler(vec!["span"], span_handler);
 
         // Other block elements. This is taken from the [CommonMark
         // spec](https://spec.commonmark.org/0.31.2/#html-blocks).
