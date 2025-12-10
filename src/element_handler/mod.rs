@@ -23,7 +23,7 @@ mod tr;
 
 use crate::{
     dom_walker::walk_node,
-    element_handler::{element_util::serialize_element, span::span_handler},
+    element_handler::element_util::serialize_element,
     options::{Options, TranslationMode},
     text_util::concat_strings,
 };
@@ -46,6 +46,7 @@ use list::list_handler;
 use markup5ever_rcdom::Node;
 use p::p_handler;
 use pre::pre_handler;
+use span::span_handler;
 use std::{collections::HashMap, rc::Rc};
 use table::table_handler;
 use tbody::tbody_handler;
