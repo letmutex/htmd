@@ -671,3 +671,20 @@ fn math() {
         convert(r#"<p><span class="math math-display">{a}_1, b_{2}, a*1, b*2, [a](b), 3 &lt;a&gt; b, a \; b</span></p>"#).unwrap()
     );
 }
+
+// Document white space characters don't include non-breaking spaces; these should be preserved.
+#[test]
+fn document_whitespace() {
+    assert_eq!(
+        "bar\u{a0}\n\n*   foo\u{a0}",
+        convert(indoc!(
+            "
+            <p>bar&nbsp;</p>
+            <ul>
+              <li>foo&nbsp;</li>
+            </ul>
+            "
+        ))
+        .unwrap()
+    );
+}

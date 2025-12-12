@@ -1,31 +1,28 @@
-pub(crate) trait TrimAsciiWhitespace {
-    fn trim_ascii_whitespace(&self) -> &str;
+pub(crate) trait TrimDocumentWhitespace {
+    fn trim_document_whitespace(&self) -> &str;
 
-    fn trim_start_ascii_whitespace(&self) -> &str;
+    fn trim_start_document_whitespace(&self) -> &str;
 
-    fn trim_end_ascii_whitespace(&self) -> &str;
+    fn trim_end_document_whitespace(&self) -> &str;
 }
 
-impl<S> TrimAsciiWhitespace for S
+impl<S> TrimDocumentWhitespace for S
 where
     S: AsRef<str>,
 {
     #[inline]
-    fn trim_ascii_whitespace(&self) -> &str {
-        self.as_ref()
-            .trim_matches(|ch: char| ch.is_ascii_whitespace())
+    fn trim_document_whitespace(&self) -> &str {
+        self.as_ref().trim_matches(is_document_whitespace)
     }
 
     #[inline]
-    fn trim_start_ascii_whitespace(&self) -> &str {
-        self.as_ref()
-            .trim_start_matches(|ch: char| ch.is_ascii_whitespace())
+    fn trim_start_document_whitespace(&self) -> &str {
+        self.as_ref().trim_start_matches(is_document_whitespace)
     }
 
     #[inline]
-    fn trim_end_ascii_whitespace(&self) -> &str {
-        self.as_ref()
-            .trim_end_matches(|ch: char| ch.is_ascii_whitespace())
+    fn trim_end_document_whitespace(&self) -> &str {
+        self.as_ref().trim_end_matches(is_document_whitespace)
     }
 }
 
@@ -33,11 +30,13 @@ pub(crate) trait StripWhitespace {
     /// Strip leading whitespace.
     ///
     /// A tuple of (striped_text, Option<leading_whitespace>) will be returned.
+    fn strip_leading_document_whitespace(&self) -> (&str, Option<&str>);
     fn strip_leading_whitespace(&self) -> (&str, Option<&str>);
 
     /// Strip trailing whitespace.
     ///
     /// A tuple of (striped_text, Option<trailing_whitespace>) will be returned.
+    fn strip_trailing_document_whitespace(&self) -> (&str, Option<&str>);
     fn strip_trailing_whitespace(&self) -> (&str, Option<&str>);
 }
 
@@ -57,9 +56,33 @@ where
         }
     }
 
+    fn strip_leading_document_whitespace(&self) -> (&str, Option<&str>) {
+        let text = self.as_ref();
+        let trimmed_text = text.trim_start_document_whitespace();
+        let stripped_len = text.len() - trimmed_text.len();
+        if stripped_len == 0 {
+            (text, None)
+        } else {
+            let start_index = stripped_len;
+            (&text[start_index..], Some(&text[..start_index]))
+        }
+    }
+
     fn strip_trailing_whitespace(&self) -> (&str, Option<&str>) {
         let text = self.as_ref();
         let trimmed_text = text.trim_end();
+        let stripped_len = text.len() - trimmed_text.len();
+        if stripped_len == 0 {
+            (text, None)
+        } else {
+            let end_index = trimmed_text.len();
+            (&text[..end_index], Some(&text[end_index..]))
+        }
+    }
+
+    fn strip_trailing_document_whitespace(&self) -> (&str, Option<&str>) {
+        let text = self.as_ref();
+        let trimmed_text = text.trim_end_document_whitespace();
         let stripped_len = text.len() - trimmed_text.len();
         if stripped_len == 0 {
             (text, None)
@@ -185,6 +208,13 @@ pub(crate) fn compress_whitespace(input: &str) -> Cow<'_, str> {
     }
 }
 
+// Per [MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Text/Whitespace),
+// document white space characters only include spaces, tabs, line
+// feeds, and newlines. Remove only these from the end of a line.
+fn is_document_whitespace(c: char) -> bool {
+    ['\t', '\n', '\r', ' '].contains(&c)
+}
+
 pub(crate) fn indent_text_except_first_line(
     text: &str,
     indent: usize,
@@ -198,7 +228,11 @@ pub(crate) fn indent_text_except_first_line(
     let mut result = String::with_capacity(estimated_capacity);
     let indent_text = " ".repeat(indent);
     for (idx, line) in text.lines().enumerate() {
-        let line = if trim_line_end { line.trim_end() } else { line };
+        let line = if trim_line_end {
+            line.trim_end_matches(is_document_whitespace)
+        } else {
+            line
+        };
         if idx > 0 {
             result.push('\n');
         }
