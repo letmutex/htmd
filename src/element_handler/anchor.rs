@@ -5,7 +5,7 @@ use crate::{
     element_handler::{HandlerResult, Handlers},
     options::{LinkReferenceStyle, LinkStyle},
     serialize_if_faithful,
-    text_util::{JoinOnStringIterator, StripWhitespace, TrimAsciiWhitespace, concat_strings},
+    text_util::{JoinOnStringIterator, StripWhitespace, TrimDocumentWhitespace, concat_strings},
 };
 
 pub(super) struct AnchorElementHandler {}
@@ -50,7 +50,7 @@ impl ElementHandler for AnchorElementHandler {
 
         let process_title = |text: String| {
             text.lines()
-                .map(|line| line.trim_ascii_whitespace().replace('"', "\\\""))
+                .map(|line| line.trim_document_whitespace().replace('"', "\\\""))
                 .filter(|line| !line.is_empty())
                 .join("\n")
         };
@@ -95,8 +95,8 @@ impl AnchorElementHandler {
         }
 
         let has_spaces_in_link = link.contains(' ');
-        let (content, _) = content.strip_leading_whitespace();
-        let (content, trailing_whitespace) = content.strip_trailing_whitespace();
+        let (content, _) = content.strip_leading_document_whitespace();
+        let (content, trailing_whitespace) = content.strip_trailing_document_whitespace();
         concat_strings!(
             "[",
             content,

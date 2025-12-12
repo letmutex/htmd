@@ -9,7 +9,7 @@ use crate::{
     node_util::{get_node_tag_name, get_parent_node},
     options::{CodeBlockFence, CodeBlockStyle, TranslationMode},
     serialize_if_faithful,
-    text_util::{JoinOnStringIterator, TrimAsciiWhitespace, concat_strings},
+    text_util::{JoinOnStringIterator, TrimDocumentWhitespace, concat_strings},
 };
 
 pub(super) fn code_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
@@ -134,7 +134,7 @@ fn handle_inline_code(handlers: &dyn Handlers, element: Element) -> Option<Handl
     let content = if handlers.options().preformatted_code {
         handle_preformatted_code(&content)
     } else {
-        content.trim_ascii_whitespace().to_string()
+        content.trim_document_whitespace().to_string()
     };
     if use_double_backticks {
         if surround_with_spaces {

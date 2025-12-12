@@ -3,7 +3,7 @@ use crate::element_handler::{Element, HandlerResult, Handlers};
 use crate::node_util::{get_node_children, get_node_tag_name};
 use crate::options::TranslationMode;
 use crate::serialize_if_faithful;
-use crate::text_util::concat_strings;
+use crate::text_util::{TrimDocumentWhitespace, concat_strings};
 use markup5ever_rcdom::NodeData;
 use std::rc::Rc;
 
@@ -42,7 +42,7 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: Element) -> Option
                 match tag_name {
                     "caption" => {
                         if let Some(res) = handlers.handle(&child) {
-                            captions.push(res.content.trim().to_string());
+                            captions.push(res.content.trim_document_whitespace().to_string());
                         }
                     }
                     "thead" => {
@@ -123,7 +123,8 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: Element) -> Option
         }
     }
 
-    if handlers.options().translation_mode == TranslationMode::Faithful && !all_children_translated {
+    if handlers.options().translation_mode == TranslationMode::Faithful && !all_children_translated
+    {
         return Some(HandlerResult {
             content: serialize_element(handlers, &element),
             markdown_translated: false,
@@ -196,7 +197,7 @@ fn extract_row_cells(
             if !res.markdown_translated {
                 all_translated = false;
             }
-            let cell_content = res.content.trim().to_string();
+            let cell_content = res.content.trim_document_whitespace().to_string();
             cells.push(cell_content);
         }
     }
@@ -210,7 +211,7 @@ fn normalize_cell_content(content: &str) -> String {
         .replace('\n', " ")
         .replace('\r', "")
         .replace('|', "&#124;");
-    content.trim().to_string()
+    content.trim_document_whitespace().to_string()
 }
 
 fn format_row_padded(row: &[String], num_columns: usize, col_widths: &[usize]) -> String {

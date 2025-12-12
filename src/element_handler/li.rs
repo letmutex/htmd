@@ -4,7 +4,7 @@ use crate::{
     node_util::{get_node_tag_name, get_parent_node},
     options::BulletListMarker,
     serialize_if_faithful,
-    text_util::{TrimAsciiWhitespace, concat_strings, indent_text_except_first_line},
+    text_util::{TrimDocumentWhitespace, concat_strings, indent_text_except_first_line},
 };
 
 pub(super) fn list_item_handler(
@@ -15,7 +15,7 @@ pub(super) fn list_item_handler(
     let content = handlers
         .walk_children(element.node)
         .content
-        .trim_start_ascii_whitespace()
+        .trim_start_document_whitespace()
         .to_string();
 
     let ul_li = || {

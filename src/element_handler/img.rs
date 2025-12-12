@@ -2,7 +2,7 @@ use crate::{
     Element,
     element_handler::{HandlerResult, Handlers},
     serialize_if_faithful,
-    text_util::{JoinOnStringIterator, TrimAsciiWhitespace, concat_strings},
+    text_util::{JoinOnStringIterator, TrimDocumentWhitespace, concat_strings},
 };
 
 pub(super) fn img_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
@@ -28,7 +28,7 @@ pub(super) fn img_handler(handlers: &dyn Handlers, element: Element) -> Option<H
 
     let process_alt_title = |text: String| {
         text.lines()
-            .map(|line| line.trim_ascii_whitespace().replace('"', "\\\""))
+            .map(|line| line.trim_document_whitespace().replace('"', "\\\""))
             .filter(|line| !line.is_empty())
             .join("\n")
     };
