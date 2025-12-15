@@ -13,13 +13,11 @@ readme = "README.md"
 
 [dependencies]
 html5ever = "0.36"
-# Used in integration tests, so it must appear here. It's macros only, adding
-# no code to the resulting binary.
-indoc = "2.0.6"
 markup5ever_rcdom = "0.36"
 phf = { version = "0.13.1", features = ["macros"] }
 
 [dev-dependencies]
+indoc = "2.0.6"
 scraper = "0.25"
 criterion = { version = "0.8", features = ["html_reports"] }
 pretty_assertions = "1.4.1"
