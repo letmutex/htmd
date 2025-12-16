@@ -9,7 +9,7 @@ use super::{
     node_util::get_node_tag_name,
     options::TranslationMode,
     text_util::{
-        TrimAsciiWhitespace, compress_whitespace, index_of_markdown_ordered_item_dot,
+        TrimDocumentWhitespace, compress_whitespace, index_of_markdown_ordered_item_dot,
         is_markdown_atx_heading,
     },
 };
@@ -256,7 +256,7 @@ fn normalize_content_for_buffer(
 
 fn trim_buffer_end(buffer: &mut [String]) {
     for content in buffer.iter_mut().rev() {
-        let trimmed = content.trim_end_ascii_whitespace();
+        let trimmed = content.trim_end_document_whitespace();
         if trimmed.len() == content.len() {
             break;
         }

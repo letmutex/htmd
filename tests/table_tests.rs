@@ -4,6 +4,7 @@ use common::convert;
 #[cfg(test)]
 mod table_tests_1 {
     use super::convert;
+    use indoc::indoc;
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -177,5 +178,48 @@ Sample Table
         let markdown = convert(html).unwrap();
         let result = markdown.trim();
         assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn test_table_block_cells() {
+        assert_eq!(
+            indoc!(
+                r#"
+                <table>
+                    <thead>
+                        <tr>
+                            <th>a</th>
+                            <th><p>b</p></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>c</td>
+                            <td>d</td>
+                        </tr>
+                    </tbody>
+                </table>"#
+            ),
+            // This has a block (a paragraph) in the table headings.
+            convert(indoc!(
+                r#"
+                <table>
+                    <thead>
+                        <tr>
+                            <th>a</th>
+                            <th><p>b</p></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>c</td>
+                            <td>d</td>
+                        </tr>
+                    </tbody>
+                </table>
+                "#
+            ))
+            .unwrap()
+        );
     }
 }

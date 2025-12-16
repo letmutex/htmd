@@ -549,8 +549,7 @@ fn with_custom_rules_and_fallback() {
             if element
                 .attrs
                 .iter()
-                .find(|attr| &attr.name.local == "id" && attr.value.as_ref() == "do_not_skip_me")
-                .is_some()
+                .any(|attr| &attr.name.local == "id" && attr.value.as_ref() == "do_not_skip_me")
             {
                 handlers.fallback(element)
             } else {
@@ -652,4 +651,40 @@ fn multithreading() {
 fn unterminated_html() {
     // The `<i>` tag isn't terminated. Make sure the conversion still works.
     assert_eq!("# *A*", convert("<h1><i>A</h1>").unwrap());
+}
+
+#[test]
+fn math() {
+    assert_eq!(
+        "$x^2$",
+        convert(r#"<p><span class="math math-inline">x^2</span></p>"#).unwrap()
+    );
+
+    assert_eq!(
+        "$$x^2$$",
+        convert(r#"<p><span class="math math-display">x^2</span></p>"#).unwrap()
+    );
+
+    // Test escaping -- values inside math should not be escaped.
+    assert_eq!(
+        "$${a}_1, b_{2}, a*1, b*2, [a](b), 3 <a> b, a \\; b$$",
+        convert(r#"<p><span class="math math-display">{a}_1, b_{2}, a*1, b*2, [a](b), 3 &lt;a&gt; b, a \; b</span></p>"#).unwrap()
+    );
+}
+
+// Document white space characters don't include non-breaking spaces; these should be preserved.
+#[test]
+fn document_whitespace() {
+    assert_eq!(
+        "bar\u{a0}\n\n*   foo\u{a0}",
+        convert(indoc!(
+            "
+            <p>bar&nbsp;</p>
+            <ul>
+              <li>foo&nbsp;</li>
+            </ul>
+            "
+        ))
+        .unwrap()
+    );
 }
