@@ -119,20 +119,17 @@ fn handle_inline_code(handlers: &dyn Handlers, element: Element) -> Option<Handl
     let mut surround_with_spaces = false;
     let content = handlers.walk_children(element.node).content;
     // Scan for an isolated backtick without allocating a `Vec<char>`.
-    {
-        let bytes = content.as_bytes();
-        let mut i = 0;
-        while i < bytes.len() {
-            if bytes[i] == b'`' {
-                let prev = if i > 0 { bytes[i - 1] } else { 0 };
-                let next = bytes.get(i + 1).copied().unwrap_or(0);
-                if prev != b'`' && next != b'`' {
-                    use_double_backticks = true;
-                    surround_with_spaces = i == 0;
-                    break;
-                }
-            }
-            i += 1;
+    let bytes = content.as_bytes();
+    for (i, &b) in bytes.iter().enumerate() {
+        if b != b'`' {
+            continue;
+        }
+        let prev = if i > 0 { bytes[i - 1] } else { 0 };
+        let next = bytes.get(i + 1).copied().unwrap_or(0);
+        if prev != b'`' && next != b'`' {
+            use_double_backticks = true;
+            surround_with_spaces = i == 0;
+            break;
         }
     }
     let content = if handlers.options().preformatted_code {

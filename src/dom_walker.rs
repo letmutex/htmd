@@ -275,10 +275,9 @@ fn append_normalized_content(output: &mut String, mut content: String, is_pre: b
         return;
     }
 
-    // Newlines and spaces are ASCII, so byte scans are valid and cheaper than
-    // iterating `char`s.
-    let last_newlines = count_trailing_newlines(output.as_bytes());
-    let content_newlines = count_leading_newlines(content.as_bytes());
+    // Same newline-count idiom as `join_blocks`: len after trim_matches.
+    let last_newlines = output.len() - output.trim_end_matches('\n').len();
+    let content_newlines = content.len() - content.trim_start_matches('\n').len();
     let total_newlines = last_newlines + content_newlines;
 
     // Collapse excessive newlines (max 2)
@@ -291,23 +290,13 @@ fn append_normalized_content(output: &mut String, mut content: String, is_pre: b
     if !is_pre
         && last_newlines == 0
         && content_newlines == 0
-        && output.as_bytes().last() == Some(&b' ')
-        && content.as_bytes().first() == Some(&b' ')
+        && output.ends_with(' ')
+        && content.starts_with(' ')
     {
         content.remove(0);
     }
 
     output.push_str(&content);
-}
-
-#[inline]
-fn count_trailing_newlines(bytes: &[u8]) -> usize {
-    bytes.iter().rev().take_while(|&&b| b == b'\n').count()
-}
-
-#[inline]
-fn count_leading_newlines(bytes: &[u8]) -> usize {
-    bytes.iter().take_while(|&&b| b == b'\n').count()
 }
 
 fn trim_output_end(output: &mut String) {
@@ -349,11 +338,13 @@ fn escape_if_needed(text: Cow<'_, str>) -> Cow<'_, str> {
         return crate::html_escape::escape_html(text);
     }
 
-    // Decide whether a leading backslash is needed before building the string,
-    // so we never pay for `insert(0, ...)`.
+    // Decide structural leading escapes on the raw input before rewriting
+    // specials: the specials pass does not alter ATX `#` prefixes or the
+    // second-char space of list markers, so pre-escape checks match the old
+    // post-escape behavior without `insert(0, ...)`.
     let needs_leading_backslash = match first {
         '=' | '~' | '>' => true,
-        '-' | '+' => text.as_bytes().get(1) == Some(&b' '),
+        '-' | '+' => text.chars().nth(1) == Some(' '),
         '#' => is_markdown_atx_heading(text.as_ref()),
         _ => false,
     };
