@@ -33,4 +33,4 @@ d300ee4	17.347	keep	baseline average of 3 sequential median-based runs after ben
 ca2c724	14.962	keep	one-shot parse + walk micro-opts (14.944, 15.018, 14.926; -2.85%)
 ca2c724	14.776	discard	capacity heuristics + compress_whitespace rewrite
 ca2c724	14.883	discard	can_combine early-exit reorder + table format rewrite
-1dd821b	14.794	keep	review cleanup: house-style newline counts, named MARKDOWN_BUF_HINT, clearer code/escape (14.710, 14.801, 14.871)
+5f244d5	14.794	keep	review cleanup: house-style newline counts, named MARKDOWN_BUF_HINT, clearer code/escape (14.710, 14.801, 14.871)
