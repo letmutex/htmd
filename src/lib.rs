@@ -128,10 +128,7 @@ impl HtmlToMarkdown {
     /// Convert a DOM tree to Markdown. For convenience, `Node` is re-exported;
     /// simply `use htmd::Node;` to access this type.
     pub fn tree_to_markdown(&self, tree: &Rc<Node>) -> String {
-        // Initial markdown buffer size. Large pages grow past this; it only
-        // avoids a few early reallocations on medium/large docs.
-        const MARKDOWN_BUF_HINT: usize = 4096;
-        let mut content = String::with_capacity(MARKDOWN_BUF_HINT);
+        let mut content = String::new();
 
         walk_node(tree, &mut content, &self.handlers, None, true, false);
 
