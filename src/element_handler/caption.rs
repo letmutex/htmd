@@ -10,7 +10,7 @@ pub(super) fn caption_handler(handlers: &dyn Handlers, element: Element) -> Opti
     handle_or_serialize_by_parent(
         handlers,
         &element,
-        &vec!["table"],
+        &["table"],
         element.markdown_translated,
     )
 }

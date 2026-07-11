@@ -8,5 +8,5 @@ pub(super) fn head_body_handler(
     handlers: &dyn Handlers,
     element: Element,
 ) -> Option<HandlerResult> {
-    handle_or_serialize_by_parent(handlers, &element, &vec!["html"], true)
+    handle_or_serialize_by_parent(handlers, &element, &["html"], true)
 }

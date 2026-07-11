@@ -12,7 +12,7 @@ pub(super) fn tr_handler(handlers: &dyn Handlers, element: Element) -> Option<Ha
     handle_or_serialize_by_parent(
         handlers,
         &element,
-        &vec!["tbody", "thead"],
+        &["tbody", "thead"],
         element.markdown_translated,
     )
 }

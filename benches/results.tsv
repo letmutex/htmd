@@ -29,3 +29,7 @@ d300ee4	17.347	keep	baseline average of 3 sequential median-based runs after ben
 62eb1c2	16.180	discard	replace DOM mutation in can_combine with read-only temporary merged inline nodes
 2cd0014	15.808	keep	reduce anchor handler string churn in append/title/link formatting
 2cd0014	15.964	discard	simplify ordered-list assembly by mutating collected child strings in place
+396be33	15.401	keep	baseline back-to-back (15.354, 15.411, 15.436)
+wip	14.962	keep	one-shot parse + walk micro-opts (14.944, 15.018, 14.926; -2.85%)
+wip	14.776	discard	capacity heuristics + compress_whitespace rewrite
+wip	14.883	discard	can_combine early-exit reorder + table format rewrite

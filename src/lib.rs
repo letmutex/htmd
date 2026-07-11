@@ -106,6 +106,10 @@ impl HtmlToMarkdown {
 
     /// Convert HTML to a DOM tree.
     pub fn html_to_tree(&self, html: &str) -> std::io::Result<Rc<Node>> {
+        // Feed the whole UTF-8 string to the parser in one shot. This avoids
+        // the 4 KiB chunked `read_from` path and the UTF-8 lossy decoder layer
+        // used by `from_utf8()`, both of which add overhead when the input is
+        // already a valid `&str`.
         let dom = parse_document(
             RcDom::default(),
             ParseOpts {
@@ -116,8 +120,7 @@ impl HtmlToMarkdown {
                 ..Default::default()
             },
         )
-        .from_utf8()
-        .read_from(&mut html.as_bytes())?;
+        .one(html);
 
         Ok(dom.document)
     }
@@ -125,11 +128,19 @@ impl HtmlToMarkdown {
     /// Convert a DOM tree to Markdown. For convenience, `Node` is re-exported;
     /// simply `use htmd::Node;` to access this type.
     pub fn tree_to_markdown(&self, tree: &Rc<Node>) -> String {
-        let mut content = String::new();
+        // Modest default capacity to cut early reallocations on large docs
+        // without over-allocating on tiny inputs.
+        let mut content = String::with_capacity(4096);
 
         walk_node(tree, &mut content, &self.handlers, None, true, false);
 
-        let mut content = content.trim_matches(|ch| ch == '\n').to_string();
+        // Trim leading/trailing newlines in place instead of allocating a copy.
+        let start = content.len() - content.trim_start_matches('\n').len();
+        if start > 0 {
+            content.drain(..start);
+        }
+        let end = content.trim_end_matches('\n').len();
+        content.truncate(end);
 
         let mut append = String::new();
         for handler in &self.handlers.handlers {

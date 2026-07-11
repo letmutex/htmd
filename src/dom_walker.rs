@@ -271,12 +271,14 @@ fn can_combine(n1: &Node, n2: &Node) -> Option<RefCell<Tendril<UTF8>>> {
 /// 2. Collapsing adjacent spaces between inline elements (when not in pre context)
 fn append_normalized_content(output: &mut String, mut content: String, is_pre: bool) {
     if output.is_empty() {
-        output.push_str(&content);
+        *output = content;
         return;
     }
 
-    let last_newlines = output.chars().rev().take_while(|c| *c == '\n').count();
-    let content_newlines = content.chars().take_while(|c| *c == '\n').count();
+    // Newlines and spaces are ASCII, so byte scans are valid and cheaper than
+    // iterating `char`s.
+    let last_newlines = count_trailing_newlines(output.as_bytes());
+    let content_newlines = count_leading_newlines(content.as_bytes());
     let total_newlines = last_newlines + content_newlines;
 
     // Collapse excessive newlines (max 2)
@@ -289,13 +291,23 @@ fn append_normalized_content(output: &mut String, mut content: String, is_pre: b
     if !is_pre
         && last_newlines == 0
         && content_newlines == 0
-        && output.ends_with(' ')
-        && content.chars().next().is_some_and(|c| c == ' ')
+        && output.as_bytes().last() == Some(&b' ')
+        && content.as_bytes().first() == Some(&b' ')
     {
         content.remove(0);
     }
 
     output.push_str(&content);
+}
+
+#[inline]
+fn count_trailing_newlines(bytes: &[u8]) -> usize {
+    bytes.iter().rev().take_while(|&&b| b == b'\n').count()
+}
+
+#[inline]
+fn count_leading_newlines(bytes: &[u8]) -> usize {
+    bytes.iter().take_while(|&&b| b == b'\n').count()
 }
 
 fn trim_output_end(output: &mut String) {
@@ -327,16 +339,29 @@ fn escape_if_needed(text: Cow<'_, str>) -> Cow<'_, str> {
     let mut need_escape = matches!(first, '=' | '~' | '>' | '-' | '+' | '#' | '0'..='9');
 
     if !need_escape {
+        // Markdown specials are all ASCII; byte scan avoids UTF-8 decoding.
         need_escape = text
-            .chars()
-            .any(|c| c == '\\' || c == '*' || c == '_' || c == '`' || c == '[' || c == ']');
+            .bytes()
+            .any(|b| matches!(b, b'\\' | b'*' | b'_' | b'`' | b'[' | b']'));
     }
 
     if !need_escape {
         return crate::html_escape::escape_html(text);
     }
 
-    let mut escaped = String::new();
+    // Decide whether a leading backslash is needed before building the string,
+    // so we never pay for `insert(0, ...)`.
+    let needs_leading_backslash = match first {
+        '=' | '~' | '>' => true,
+        '-' | '+' => text.as_bytes().get(1) == Some(&b' '),
+        '#' => is_markdown_atx_heading(text.as_ref()),
+        _ => false,
+    };
+
+    let mut escaped = String::with_capacity(text.len() + 8 + usize::from(needs_leading_backslash));
+    if needs_leading_backslash {
+        escaped.push('\\');
+    }
     for ch in text.chars() {
         match ch {
             '\\' => escaped.push_str("\\\\"),
@@ -349,26 +374,10 @@ fn escape_if_needed(text: Cow<'_, str>) -> Cow<'_, str> {
         }
     }
 
-    match first {
-        '=' | '~' | '>' => {
-            escaped.insert(0, '\\');
-        }
-        '-' | '+' => {
-            if escaped.chars().nth(1).is_some_and(|ch| ch == ' ') {
-                escaped.insert(0, '\\');
-            }
-        }
-        '#' => {
-            if is_markdown_atx_heading(&escaped) {
-                escaped.insert(0, '\\');
-            }
-        }
-        '0'..='9' => {
-            if let Some(dot_idx) = index_of_markdown_ordered_item_dot(&escaped) {
-                escaped.replace_range(dot_idx..(dot_idx + 1), "\\.");
-            }
-        }
-        _ => {}
+    if matches!(first, '0'..='9')
+        && let Some(dot_idx) = index_of_markdown_ordered_item_dot(&escaped)
+    {
+        escaped.replace_range(dot_idx..(dot_idx + 1), "\\.");
     }
 
     // Perform the HTML escape after the other escapes, so that the \\
