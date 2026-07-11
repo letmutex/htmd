@@ -365,7 +365,7 @@ fn escape_if_needed(text: Cow<'_, str>) -> Cow<'_, str> {
         }
     }
 
-    if matches!(first, '0'..='9')
+    if first.is_ascii_digit()
         && let Some(dot_idx) = index_of_markdown_ordered_item_dot(&escaped)
     {
         escaped.replace_range(dot_idx..(dot_idx + 1), "\\.");
