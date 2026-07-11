@@ -211,8 +211,9 @@ pub(crate) fn compress_whitespace(input: &str) -> Cow<'_, str> {
 // Per [MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Text/Whitespace),
 // document white space characters only include spaces, tabs, line
 // feeds, and newlines. Remove only these from the end of a line.
+#[inline]
 fn is_document_whitespace(c: char) -> bool {
-    ['\t', '\n', '\r', ' '].contains(&c)
+    matches!(c, '\t' | '\n' | '\r' | ' ')
 }
 
 pub(crate) fn indent_text_except_first_line(

@@ -18,7 +18,7 @@ pub(super) fn handle_or_serialize_by_parent(
     // The element to check.
     element: &Element,
     // A list of allowable tag names for this element's parent.
-    tag_names: &Vec<&str>,
+    tag_names: &[&str],
     // The value for `markdown_translate` to pass if this tag is markdown translatable.
     markdown_translated: bool,
 ) -> Option<HandlerResult> {

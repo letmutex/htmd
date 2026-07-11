@@ -118,17 +118,18 @@ fn handle_inline_code(handlers: &dyn Handlers, element: Element) -> Option<Handl
     //   to: `` `starting with a backtick ``
     let mut surround_with_spaces = false;
     let content = handlers.walk_children(element.node).content;
-    let chars = content.chars().collect::<Vec<char>>();
-    let len = chars.len();
-    for (idx, c) in chars.iter().enumerate() {
-        if c == &'`' {
-            let prev = if idx > 0 { chars[idx - 1] } else { '\0' };
-            let next = if idx < len - 1 { chars[idx + 1] } else { '\0' };
-            if prev != '`' && next != '`' {
-                use_double_backticks = true;
-                surround_with_spaces = idx == 0;
-                break;
-            }
+    // Scan for an isolated backtick without allocating a `Vec<char>`.
+    let bytes = content.as_bytes();
+    for (i, &b) in bytes.iter().enumerate() {
+        if b != b'`' {
+            continue;
+        }
+        let prev = if i > 0 { bytes[i - 1] } else { 0 };
+        let next = bytes.get(i + 1).copied().unwrap_or(0);
+        if prev != b'`' && next != b'`' {
+            use_double_backticks = true;
+            surround_with_spaces = i == 0;
+            break;
         }
     }
     let content = if handlers.options().preformatted_code {
