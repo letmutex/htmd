@@ -35,3 +35,9 @@ ca2c724	14.776	discard	capacity heuristics + compress_whitespace rewrite
 ca2c724	14.883	discard	can_combine early-exit reorder + table format rewrite
 5f244d5	14.794	keep	review cleanup: house-style newline counts, named MARKDOWN_BUF_HINT, clearer code/escape (14.710, 14.801, 14.871)
 0c311d2	14.827	keep	drop MARKDOWN_BUF_HINT; String::new() (14.772, 14.884, 14.826; flat vs 14.794)
+a36f2d3	15.421	keep	autoresearch-r2 baseline (15.382, 15.401, 15.482; cv 0.28%)
+a36f2d3	15.501	discard	reuse a static default converter in convert() (15.391, 15.593, 15.519; cv 0.54%)
+a36f2d3	15.983	discard	avoid borrowing children for ordinary non-math span classes (16.103, 15.890, 15.957; cv 0.56%)
+a36f2d3	14.968	discard	fixed built-in dispatch combined with raw span fast path; slower than isolated raw span path (14.899, 14.968, 15.036)
+a36f2d3	14.912	discard	raw pure-span fast path (14.888, 14.922, 14.926; behavior regression for nested block content)
+a36f2d3	14.976	keep	bypass ordinary pure-span dispatch while preserving newline normalization (14.929, 15.012, 14.985; cv 0.23%; -2.89%)

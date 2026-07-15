@@ -82,14 +82,32 @@ pub(crate) fn walk_node(
             // Visit this element.
             let tag = &*name.local;
             let is_head = tag == "head";
+            let attrs = attrs.borrow();
 
-            let res = handlers.handle(
-                node,
-                tag,
-                &attrs.borrow(),
-                true, // Default to true, handler will update
-                0,
-            );
+            if tag == "span"
+                && handlers.options.translation_mode == TranslationMode::Pure
+                && handlers
+                    .tag_to_handler_indices
+                    .get("span")
+                    .is_some_and(|indices| indices.len() == 1)
+                && !is_math_span(&attrs)
+            {
+                let mut content = String::new();
+                let markdown_translated =
+                    walk_children(node, &mut content, handlers, false, is_pre);
+
+                let start = content.len() - content.trim_start_matches('\n').len();
+                if start > 0 {
+                    content.drain(..start);
+                }
+                let end = content.trim_end_matches('\n').len();
+                content.truncate(end);
+
+                append_normalized_content(output, content, is_pre);
+                return markdown_translated;
+            }
+
+            let res = handlers.handle(node, tag, &attrs, true, 0);
 
             if let Some(res) = res {
                 markdown_translated = res.markdown_translated;
@@ -111,6 +129,15 @@ pub(crate) fn walk_node(
     }
 
     markdown_translated
+}
+
+fn is_math_span(attrs: &[html5ever::Attribute]) -> bool {
+    attrs.len() == 1
+        && attrs[0].name.local.as_ref() == "class"
+        && matches!(
+            attrs[0].value.as_ref(),
+            "math math-inline" | "math math-display"
+        )
 }
 
 fn is_plain_text(text: &str) -> bool {
