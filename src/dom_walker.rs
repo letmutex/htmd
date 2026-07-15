@@ -107,6 +107,16 @@ pub(crate) fn walk_node(
                 return markdown_translated;
             }
 
+            if handlers.options.translation_mode == TranslationMode::Pure
+                && !handlers.tag_to_handler_indices.contains_key(tag)
+            {
+                let mut content = String::new();
+                let markdown_translated =
+                    walk_children(node, &mut content, handlers, is_block_element(tag), is_pre);
+                append_normalized_content(output, content, is_pre);
+                return markdown_translated;
+            }
+
             let res = handlers.handle(node, tag, &attrs, true, 0);
 
             if let Some(res) = res {
