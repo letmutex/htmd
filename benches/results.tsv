@@ -42,3 +42,4 @@ a36f2d3	14.968	discard	fixed built-in dispatch combined with raw span fast path;
 a36f2d3	14.912	discard	raw pure-span fast path (14.888, 14.922, 14.926; behavior regression for nested block content)
 a36f2d3	14.976	keep	bypass ordinary pure-span dispatch while preserving newline normalization (14.929, 15.012, 14.985; cv 0.23%; -2.89%)
 20cae17	14.842	keep	reuse owned href allocation when no destination escaping is needed (14.809, 14.837, 14.879; cv 0.19%; -0.89%)
+6cf71f0	14.793	keep	trim owned list-item content in place (14.762, 14.821, 14.797; cv 0.17%; -0.33%)
