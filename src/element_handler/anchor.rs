@@ -60,7 +60,7 @@ impl ElementHandler for AnchorElementHandler {
         // Handle new lines in title
         let title = title.map(|text| process_title(&text));
 
-        let link = escape_link_destination(&link);
+        let link = escape_link_destination(link);
 
         let content = handlers.walk_children(element.node).content;
         let md = match handlers.options().link_style {
@@ -167,9 +167,9 @@ impl AnchorElementHandler {
     }
 }
 
-fn escape_link_destination(link: &str) -> String {
+fn escape_link_destination(link: String) -> String {
     if !link.contains(['(', ')']) {
-        return link.to_string();
+        return link;
     }
 
     let mut escaped = String::with_capacity(link.len());
