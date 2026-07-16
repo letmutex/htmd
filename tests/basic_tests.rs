@@ -1,15 +1,29 @@
-use std::{sync::Arc, thread::JoinHandle};
+use std::{rc::Rc, sync::Arc, thread::JoinHandle};
 
 use indoc::indoc;
+use markup5ever_rcdom::NodeData;
 use pretty_assertions::assert_eq;
 
 use htmd::{
-    Element, HtmlToMarkdown,
+    Element, HtmlToMarkdown, Node,
     element_handler::Handlers,
     options::{BrStyle, LinkStyle, Options, TranslationMode},
 };
 mod common;
 use common::convert;
+
+fn find_element(node: &Rc<Node>, tag: &str) -> Option<Rc<Node>> {
+    if let NodeData::Element { name, .. } = &node.data
+        && name.local.as_ref() == tag
+    {
+        return Some(node.clone());
+    }
+
+    node.children
+        .borrow()
+        .iter()
+        .find_map(|child| find_element(child, tag))
+}
 
 #[test]
 fn links_with_spaces() {
@@ -137,6 +151,37 @@ fn code_blocks_with_lang_class_on_pre_tag() {
     assert_eq!(
         "```rust\nprintln!(\"Hello\");\n```",
         htmd::convert(html).unwrap()
+    );
+}
+
+#[test]
+fn span_subtree_conversion_preserves_ancestor_preformatted_context() {
+    let converter = HtmlToMarkdown::new();
+    let tree = converter
+        .html_to_tree("<pre><span>  *literal*  \nsecond</span></pre>")
+        .unwrap();
+    let span = find_element(&tree, "span").unwrap();
+
+    assert_eq!("  *literal*  \nsecond", converter.tree_to_markdown(&span));
+}
+
+#[test]
+fn delegated_unhandled_subtree_preserves_ancestor_preformatted_context() {
+    let converter = HtmlToMarkdown::builder()
+        .add_handler(
+            vec!["delegate"],
+            |handlers: &dyn Handlers, element: Element| {
+                let child = element.node.children.borrow().first()?.clone();
+                handlers.handle(&child)
+            },
+        )
+        .build();
+
+    assert_eq!(
+        "  *literal*  \nsecond",
+        converter
+            .convert("<pre><delegate><mark>  *literal*  \nsecond</mark></delegate></pre>")
+            .unwrap()
     );
 }
 

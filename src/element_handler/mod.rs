@@ -355,7 +355,7 @@ impl Handlers for ElementHandlers {
     }
 }
 
-fn is_inside_pre(node: &Rc<Node>) -> bool {
+pub(crate) fn is_inside_pre(node: &Rc<Node>) -> bool {
     let mut current = crate::node_util::get_parent_node(node);
     while let Some(parent) = current {
         if let Some(tag) = crate::node_util::get_node_tag_name(&parent)

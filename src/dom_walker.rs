@@ -93,6 +93,8 @@ pub(crate) fn walk_node(
                 && !is_math_span(&attrs)
             {
                 let mut content = String::new();
+                let is_pre =
+                    is_pre || (parent_tag.is_none() && crate::element_handler::is_inside_pre(node));
                 let markdown_translated =
                     walk_children(node, &mut content, handlers, false, is_pre);
 
@@ -111,6 +113,8 @@ pub(crate) fn walk_node(
                 && !handlers.tag_to_handler_indices.contains_key(tag)
             {
                 let mut content = String::new();
+                let is_pre =
+                    is_pre || (parent_tag.is_none() && crate::element_handler::is_inside_pre(node));
                 let markdown_translated =
                     walk_children(node, &mut content, handlers, is_block_element(tag), is_pre);
                 append_normalized_content(output, content, is_pre);
