@@ -12,11 +12,11 @@ pub(super) fn list_item_handler(
     element: Element,
 ) -> Option<HandlerResult> {
     serialize_if_faithful!(handlers, element, 0);
-    let content = handlers
-        .walk_children(element.node)
-        .content
-        .trim_start_document_whitespace()
-        .to_string();
+    let mut content = handlers.walk_children(element.node).content;
+    let start = content.len() - content.trim_start_document_whitespace().len();
+    if start > 0 {
+        content.drain(..start);
+    }
 
     let ul_li = || {
         let marker = if handlers.options().bullet_list_marker == BulletListMarker::Asterisk {
