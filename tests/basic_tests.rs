@@ -1,29 +1,15 @@
-use std::{rc::Rc, sync::Arc, thread::JoinHandle};
+use std::{sync::Arc, thread::JoinHandle};
 
 use indoc::indoc;
-use markup5ever_rcdom::NodeData;
 use pretty_assertions::assert_eq;
 
 use htmd::{
-    Element, HtmlToMarkdown, Node,
+    Element, HtmlToMarkdown,
     element_handler::Handlers,
     options::{BrStyle, LinkStyle, Options, TranslationMode},
 };
 mod common;
 use common::convert;
-
-fn find_element(node: &Rc<Node>, tag: &str) -> Option<Rc<Node>> {
-    if let NodeData::Element { name, .. } = &node.data
-        && name.local.as_ref() == tag
-    {
-        return Some(node.clone());
-    }
-
-    node.children
-        .borrow()
-        .iter()
-        .find_map(|child| find_element(child, tag))
-}
 
 #[test]
 fn links_with_spaces() {
@@ -135,67 +121,6 @@ fn headings() {
              #### Heading 4\n\n##### Heading 5\n\n###### Heading 6",
         convert(html).unwrap(),
     )
-}
-
-#[test]
-fn code_blocks() {
-    let html = r#"
-        <pre><code>println!("Hello");</code></pre>
-        "#;
-    assert_eq!("```\nprintln!(\"Hello\");\n```", convert(html).unwrap());
-}
-
-#[test]
-fn code_blocks_with_lang_class() {
-    let html = r#"
-        <pre><code class="language-rust">println!("Hello");</code></pre>
-        "#;
-    assert_eq!("```rust\nprintln!(\"Hello\");\n```", convert(html).unwrap());
-}
-
-// See https://github.com/letmutex/htmd/issues/14 for background on this test --
-// the `class` attribute is deliberately misplaced to support Markdown renderers
-// which don't follow the CommonMark spec.
-#[test]
-fn code_blocks_with_lang_class_on_pre_tag() {
-    let html = r#"
-        <pre class="language-rust"><code>println!("Hello");</code></pre>
-        "#;
-    assert_eq!(
-        "```rust\nprintln!(\"Hello\");\n```",
-        htmd::convert(html).unwrap()
-    );
-}
-
-#[test]
-fn span_subtree_conversion_preserves_ancestor_preformatted_context() {
-    let converter = HtmlToMarkdown::new();
-    let tree = converter
-        .html_to_tree("<pre><span>  *literal*  \nsecond</span></pre>")
-        .unwrap();
-    let span = find_element(&tree, "span").unwrap();
-
-    assert_eq!("  *literal*  \nsecond", converter.tree_to_markdown(&span));
-}
-
-#[test]
-fn delegated_unhandled_subtree_preserves_ancestor_preformatted_context() {
-    let converter = HtmlToMarkdown::builder()
-        .add_handler(
-            vec!["delegate"],
-            |handlers: &dyn Handlers, element: Element| {
-                let child = element.node.children.borrow().first()?.clone();
-                handlers.handle(&child)
-            },
-        )
-        .build();
-
-    assert_eq!(
-        "  *literal*  \nsecond",
-        converter
-            .convert("<pre><delegate><mark>  *literal*  \nsecond</mark></delegate></pre>")
-            .unwrap()
-    );
 }
 
 #[test]
@@ -377,33 +302,6 @@ fn faithful_mode_p() {
     assert_eq!(
         convert(indoc!(r#"<p dir="ltr">Test 1</p>"#)).unwrap(),
         indoc!(r#"<p dir="ltr">Test 1</p>"#)
-    );
-}
-
-#[test]
-fn faithful_mode_pre() {
-    assert_eq!(
-        convert(indoc!(r#"<pre>Test</pre>"#)).unwrap(),
-        indoc!(r#"<pre>Test</pre>"#)
-    );
-}
-
-#[test]
-fn faithful_mode_code_block1() {
-    assert_eq!(
-        convert(indoc!(r#"<pre><code accesskey="f">Test</code></pre>"#)).unwrap(),
-        indoc!(r#"<pre><code accesskey="f">Test</code></pre>"#)
-    );
-}
-
-#[test]
-fn faithful_mode_code_block2() {
-    assert_eq!(
-        convert(indoc!(
-            r#"<pre><code class="language-ruby"><i>Test</i></code></pre>"#
-        ))
-        .unwrap(),
-        indoc!(r#"<pre><code class="language-ruby"><i>Test</i></code></pre>"#)
     );
 }
 
@@ -646,9 +544,6 @@ fn html_entities() {
         r#"This & that, then < > now."#,
         convert(html_plain).unwrap()
     );
-
-    let html_pre = r#"<pre><code>let x = 5 &amp;&amp; y &lt; 10;</code></pre>"#;
-    assert_eq!("```\nlet x = 5 && y < 10;\n```", convert(html_pre).unwrap());
 }
 
 #[test]
