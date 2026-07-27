@@ -148,11 +148,9 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: Element) -> Option
     }
 
     // Determine the number of columns by finding the max column count
-    let num_columns = if headers.is_empty() {
-        rows.iter().map(|row| row.len()).max().unwrap_or(0)
-    } else {
-        headers.len()
-    };
+    let num_columns = headers
+        .len()
+        .max(rows.iter().map(|row| row.len()).max().unwrap_or(0));
 
     if num_columns == 0 {
         let content = handlers.walk_children(element.node).content;
