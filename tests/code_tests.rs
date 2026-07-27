@@ -19,6 +19,20 @@ fn inline_code_ending_in_a_backtick_keeps_the_backtick_inside_the_span() {
 }
 
 #[test]
+fn preformatted_inline_code_preserves_boundary_spaces() {
+    let converter = HtmlToMarkdown::builder()
+        .options(Options {
+            preformatted_code: true,
+            ..Default::default()
+        })
+        .build();
+
+    let markdown = converter.convert("<code> foo </code>").unwrap();
+
+    assert_eq!("`  foo  `", markdown);
+}
+
+#[test]
 fn fenced_code_uses_a_fence_longer_than_any_run_in_its_content() {
     let markdown =
         htmd::convert("<pre><code>`````\nlet parsed = true;\n`````</code></pre>").unwrap();

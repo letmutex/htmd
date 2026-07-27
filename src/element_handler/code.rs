@@ -118,6 +118,10 @@ fn find_language_from_attrs(attrs: &[Attribute]) -> Option<String> {
 fn handle_inline_code(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
     serialize_if_faithful!(handlers, element, 0);
     let content = handlers.walk_children(element.node).content;
+    let preserve_boundary_spaces = handlers.options().preformatted_code
+        && content.starts_with(' ')
+        && content.ends_with(' ')
+        && !content.trim_matches(' ').is_empty();
     let content = if handlers.options().preformatted_code {
         handle_preformatted_code(&content)
     } else {
@@ -125,7 +129,9 @@ fn handle_inline_code(handlers: &dyn Handlers, element: Element) -> Option<Handl
     };
 
     let delimiter = get_inline_code_delimiter(&content);
-    if content.starts_with('`') || content.ends_with('`') {
+    let needs_padding =
+        content.starts_with('`') || content.ends_with('`') || preserve_boundary_spaces;
+    if needs_padding {
         Some(concat_strings!(delimiter, " ", content, " ", delimiter).into())
     } else {
         Some(concat_strings!(delimiter, content, delimiter).into())
