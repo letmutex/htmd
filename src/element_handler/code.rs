@@ -83,17 +83,23 @@ fn handle_code_block(
 }
 
 fn get_code_fence_marker(symbol: &str, content: &str) -> String {
-    let three_chars = symbol.repeat(3);
-    if content.contains(&three_chars) {
-        let four_chars = symbol.repeat(4);
-        if content.contains(&four_chars) {
-            symbol.repeat(5)
+    let symbol = symbol
+        .chars()
+        .next()
+        .expect("code fence symbol cannot be empty");
+    let mut longest_run = 0;
+    let mut current_run = 0;
+
+    for ch in content.chars() {
+        if ch == symbol {
+            current_run += 1;
+            longest_run = longest_run.max(current_run);
         } else {
-            four_chars
+            current_run = 0;
         }
-    } else {
-        three_chars
     }
+
+    symbol.to_string().repeat(3.max(longest_run + 1))
 }
 
 fn find_language_from_attrs(attrs: &[Attribute]) -> Option<String> {
@@ -111,41 +117,46 @@ fn find_language_from_attrs(attrs: &[Attribute]) -> Option<String> {
 
 fn handle_inline_code(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
     serialize_if_faithful!(handlers, element, 0);
-    // Case: <code>There is a literal backtick (`) here</code>
-    //   to: ``There is a literal backtick (`) here``
-    let mut use_double_backticks = false;
-    // Case: <code>`starting with a backtick</code>
-    //   to: `` `starting with a backtick ``
-    let mut surround_with_spaces = false;
     let content = handlers.walk_children(element.node).content;
-    // Scan for an isolated backtick without allocating a `Vec<char>`.
-    let bytes = content.as_bytes();
-    for (i, &b) in bytes.iter().enumerate() {
-        if b != b'`' {
-            continue;
-        }
-        let prev = if i > 0 { bytes[i - 1] } else { 0 };
-        let next = bytes.get(i + 1).copied().unwrap_or(0);
-        if prev != b'`' && next != b'`' {
-            use_double_backticks = true;
-            surround_with_spaces = i == 0;
-            break;
-        }
-    }
     let content = if handlers.options().preformatted_code {
         handle_preformatted_code(&content)
     } else {
         content.trim_document_whitespace().to_string()
     };
-    if use_double_backticks {
-        if surround_with_spaces {
-            Some(concat_strings!("`` ", content, " ``").into())
-        } else {
-            Some(concat_strings!("``", content, "``").into())
-        }
+
+    let delimiter = get_inline_code_delimiter(&content);
+    if content.starts_with('`') || content.ends_with('`') {
+        Some(concat_strings!(delimiter, " ", content, " ", delimiter).into())
     } else {
-        Some(concat_strings!("`", content, "`").into())
+        Some(concat_strings!(delimiter, content, delimiter).into())
     }
+}
+
+fn get_inline_code_delimiter(content: &str) -> String {
+    let mut run_lengths = Vec::new();
+    let mut current_run = 0;
+    let mut longest_run = 0;
+
+    for byte in content.bytes() {
+        if byte == b'`' {
+            current_run += 1;
+            longest_run = longest_run.max(current_run);
+        } else if current_run > 0 {
+            run_lengths.push(current_run);
+            current_run = 0;
+        }
+    }
+    if current_run > 0 {
+        run_lengths.push(current_run);
+    }
+
+    let delimiter_len = if content.starts_with('`') || content.ends_with('`') {
+        longest_run + 1
+    } else {
+        (1..).find(|length| !run_lengths.contains(length)).unwrap()
+    };
+
+    "`".repeat(delimiter_len)
 }
 
 /// Newlines become spaces (+ an extra space if not in the middle of the code)

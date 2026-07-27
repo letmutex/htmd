@@ -108,6 +108,19 @@ fn images_with_spaces_in_url() {
 }
 
 #[test]
+fn image_title_stays_outside_an_angle_bracket_destination() {
+    let markdown = htmd::convert(
+        r#"<img src="https://example.com/image name.png" alt="diagram" title="A title">"#,
+    )
+    .unwrap();
+
+    assert_eq!(
+        r#"![diagram](<https://example.com/image name.png> "A title")"#,
+        markdown
+    );
+}
+
+#[test]
 fn headings() {
     let html = r#"
         <h1>Heading 1</h1>
@@ -696,6 +709,13 @@ fn multithreading() {
 fn unterminated_html() {
     // The `<i>` tag isn't terminated. Make sure the conversion still works.
     assert_eq!("# *A*", convert("<h1><i>A</h1>").unwrap());
+}
+
+#[test]
+fn misnested_formatting_does_not_duplicate_or_lose_text() {
+    let markdown = htmd::convert("<p><b>one<i>two</b>three</i>four").unwrap();
+
+    assert_eq!("**one*two****three*four", markdown);
 }
 
 #[test]

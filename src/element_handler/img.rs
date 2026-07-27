@@ -49,10 +49,10 @@ pub(super) fn img_handler(handlers: &dyn Handlers, element: Element) -> Option<H
         "](",
         if has_spaces_in_link { "<" } else { "" },
         link.as_ref().unwrap_or(&String::new()),
+        if has_spaces_in_link { ">" } else { "" },
         title
             .as_ref()
             .map_or(String::new(), |t| concat_strings!(" \"", t, "\"")),
-        if has_spaces_in_link { ">" } else { "" },
         ")"
     );
     Some(md.into())

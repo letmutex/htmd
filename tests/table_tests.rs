@@ -56,6 +56,54 @@ mod table_tests_1 {
     }
 
     #[test]
+    fn table_rows_do_not_drop_cells_beyond_the_header_width() {
+        let markdown = htmd::convert(
+            r#"
+            <table>
+                <thead>
+                    <tr><th>First</th><th>Second</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>Alpha</td><td>Beta</td><td>Must survive</td></tr>
+                </tbody>
+            </table>
+            "#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            indoc!(
+                r#"
+                | First | Second |              |
+                | ----- | ------ | ------------ |
+                | Alpha | Beta   | Must survive |
+                "#
+            )
+            .trim(),
+            markdown
+        );
+    }
+
+    #[test]
+    fn malformed_table_foster_parenting_does_not_lose_visible_text() {
+        let markdown =
+            htmd::convert("<table>before<tr><th>heading</th></tr>after</table>").unwrap();
+
+        assert_eq!(
+            indoc!(
+                r#"
+                beforeafter
+
+                | heading |
+                | ------- |
+                "#
+            )
+            .trim(),
+            markdown
+        );
+    }
+
+    #[test]
     fn test_table_with_thead_tbody() {
         let html = r#"
         <table>
