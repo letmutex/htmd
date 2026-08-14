@@ -61,6 +61,9 @@ use indoc::indoc;
 use pretty_assertions::assert_eq;
 use scraper::{Html, Node};
 
+mod common;
+use common::render;
+
 /// A one-column, one-row table whose body cell holds `cell`.
 fn table(cell: &str) -> String {
     format!(
@@ -2152,15 +2155,6 @@ fn shape(html: &str) -> Vec<Piece> {
             tag => Some(tag),
         })
         .collect()
-}
-
-/// `md` read as CommonMark and written back out as HTML.
-fn render(md: &str) -> String {
-    let mut options = pulldown_cmark::Options::empty();
-    options.insert(pulldown_cmark::Options::ENABLE_TABLES);
-    let mut html = String::new();
-    pulldown_cmark::html::push_html(&mut html, pulldown_cmark::Parser::new_ext(md, options));
-    html
 }
 
 /// What faithful mode undertakes: its output, read back as CommonMark, is the

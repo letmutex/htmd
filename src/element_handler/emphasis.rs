@@ -131,7 +131,7 @@ fn trailing_hoist(content: &str, is_pure: bool) -> usize {
 /// Getting this wrong is not cosmetic: hoisting one backslash out of an escaped
 /// pair leaves the other against the closing marker, where it escapes it and the
 /// emphasis is lost entirely.
-fn ends_in_break_marker(text: &str) -> bool {
+pub(super) fn ends_in_break_marker(text: &str) -> bool {
     // Backslash is ASCII, so counting bytes cannot split a character.
     text.bytes().rev().take_while(|&byte| byte == b'\\').count() % 2 == 1
 }
@@ -327,5 +327,24 @@ mod tests {
         // The same `\` before a real `\n` is a break, and is taken.
         assert_eq!(2, leading_hoist("\\\na", true));
         assert_eq!(2, trailing_hoist("a\\\n", true));
+    }
+
+    /// The backslash against a newline is a break's own marker only when the run
+    /// it ends is odd; an even run is escaped literal backslashes, and hoisting
+    /// one out of a pair would leave the other escaping the closing marker.
+    /// `trailing_backslash_is_not_a_hard_break` in `basic_tests.rs` pins the
+    /// consequence end to end, but only these pin the boundary itself.
+    #[test]
+    fn an_escaped_backslash_is_not_a_break_marker() {
+        // Even runs: the newline alone moves out, leaving every backslash of
+        // the pair inside the markers.
+        assert_eq!(1, trailing_hoist(concat!(r"a\\", "\n"), true));
+        assert_eq!(1, trailing_hoist(concat!(r"a\\\\", "\n"), true));
+
+        // Odd runs: the one backslash the pairs do not account for is the
+        // break's marker, and it moves out with the newline — just the one,
+        // however long the run, since the rest is a whole number of pairs.
+        assert_eq!(2, trailing_hoist(concat!(r"a\", "\n"), true));
+        assert_eq!(2, trailing_hoist(concat!(r"a\\\", "\n"), true));
     }
 }

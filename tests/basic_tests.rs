@@ -9,7 +9,7 @@ use htmd::{
     options::{BrStyle, HeadingStyle, LinkStyle, Options, TranslationMode},
 };
 mod common;
-use common::convert;
+use common::{convert, render};
 
 #[test]
 fn links_with_spaces() {
@@ -218,16 +218,6 @@ fn trailing_backslash_is_not_a_hard_break() {
     }
 }
 
-/// `md` read as CommonMark and written back out as HTML, for the tests that
-/// care whether their output *means* what it looks like.
-fn render(md: &str) -> String {
-    let mut options = pulldown_cmark::Options::empty();
-    options.insert(pulldown_cmark::Options::ENABLE_TABLES);
-    let mut html = String::new();
-    pulldown_cmark::html::push_html(&mut html, pulldown_cmark::Parser::new_ext(md, options));
-    html
-}
-
 fn convert_in(html: &str, translation_mode: TranslationMode) -> String {
     HtmlToMarkdown::builder()
         .options(Options {
@@ -433,6 +423,18 @@ fn setext_falls_back_to_atx_only_for_a_blank_line() {
             .unwrap()
     }
 
+    fn setext_pure(html: &str) -> String {
+        HtmlToMarkdown::builder()
+            .options(Options {
+                translation_mode: TranslationMode::Pure,
+                heading_style: HeadingStyle::Setex,
+                ..Default::default()
+            })
+            .build()
+            .convert(html)
+            .unwrap()
+    }
+
     // A block child writes a blank line, so the underline could not reach the
     // heading's own text. ATX at least keeps that text in a heading.
     assert_eq!(
@@ -445,6 +447,10 @@ fn setext_falls_back_to_atx_only_for_a_blank_line() {
         "# \u{a0}\n\n<div>x</div>",
         setext("<h1>&nbsp;<div>x</div></h1>")
     );
+    // A line of nothing but spaces is blank too, and a `<pre>` is where one
+    // reaches a heading: its whitespace is kept rather than compressed. Setext
+    // here would underline `y` alone and leave `x` outside the heading.
+    assert_eq!("# x\n \ny", setext_pure("<h1><pre>x\n \ny</pre></h1>"));
 
     // No blank line: Setext holds, however little the first line carries. Each
     // of these reads back as a single heading.
@@ -468,6 +474,93 @@ fn setext_falls_back_to_atx_only_for_a_blank_line() {
             setext(html)
         );
     }
+}
+
+/// `br_handler` decides how to write a `<br>` from the heading's level and the
+/// requested style alone, since the content `can_use_setext` judges does not
+/// exist until the walk it is part of returns. So it can write a hard break into
+/// a heading that then falls back to ATX, where the break ends the heading and
+/// leaves the rest to a paragraph — and under `BrStyle::Backslash` leaves a
+/// stray `\` in the heading's text as well. `fold_hard_breaks` writes those
+/// breaks back the way ATX needs them.
+///
+/// The invariant is that asking for Setext is never worse than not asking: where
+/// Setext cannot be used, the output is the one ATX gives for the same input.
+#[test]
+fn setext_falling_back_to_atx_rewrites_hard_breaks() {
+    fn convert_with(html: &str, heading_style: HeadingStyle, mode: TranslationMode) -> String {
+        HtmlToMarkdown::builder()
+            .options(Options {
+                translation_mode: mode,
+                heading_style,
+                br_style: BrStyle::Backslash,
+                ..Default::default()
+            })
+            .build()
+            .convert(html)
+            .unwrap()
+    }
+
+    // A block child puts a blank line in the content, which rules Setext out in
+    // either mode — after the `<br>` ahead of it has already been written.
+    for html in [
+        "<h1>a<br>b<div>c</div></h1>",
+        "<h2>a<br>b<div>c</div></h2>",
+        "<h1>a<br>b<hr></h1>",
+        // A break *after* the blank line, which a repair that stopped at the
+        // first one would leave behind.
+        "<h1>a<div>c</div>d<br>e</h1>",
+    ] {
+        for mode in [TranslationMode::Pure, TranslationMode::Faithful] {
+            assert_eq!(
+                convert_with(html, HeadingStyle::Atx, mode),
+                convert_with(html, HeadingStyle::Setex, mode),
+                "{html:?} ({mode:?}) came out worse under Setex than under Atx"
+            );
+        }
+    }
+
+    // A raw `<br>` opening the first line rules Setext out as well, but only
+    // faithful mode writes one: pure mode drops a `<br>` it cannot spell, which
+    // leaves the content opening with the `a` after it and Setext usable — so
+    // these are only the faithful half of the pair.
+    for html in ["<h1><br>a<br>b</h1>", "<h1><a><br></a>a<br>b</h1>"] {
+        assert_eq!(
+            convert_with(html, HeadingStyle::Atx, TranslationMode::Faithful),
+            convert_with(html, HeadingStyle::Setex, TranslationMode::Faithful),
+            "{html:?} came out worse under Setex than under Atx"
+        );
+        // Pure mode keeps the break as a break, which is the better answer of
+        // the two and must not be folded away with it.
+        assert_eq!(
+            "a\\\nb\n====",
+            convert_with(html, HeadingStyle::Setex, TranslationMode::Pure),
+            "{html:?}"
+        );
+    }
+
+    // The one shape ATX can hold outright also has to read back as the heading
+    // it came from, which is what the stray `\` used to cost.
+    for mode in [TranslationMode::Pure, TranslationMode::Faithful] {
+        let md = convert_with("<h1><br>a<br>b</h1>", HeadingStyle::Setex, mode);
+        let rendered = render(&md);
+        assert!(
+            rendered.starts_with("<h1>") && rendered.matches("<h1>").count() == 1,
+            "({mode:?}) became {md:?}, which reads back as {rendered:?}"
+        );
+    }
+
+    // An escaped literal backslash is not a break marker, so the newline after
+    // it is the block's own and the pair must survive whole.
+    let md = convert_with(
+        r"<h1>path C:\<div>c</div></h1>",
+        HeadingStyle::Setex,
+        TranslationMode::Faithful,
+    );
+    assert!(
+        md.contains(r"C:\\"),
+        "{md:?} split the escaped backslash pair"
+    );
 }
 
 #[test]

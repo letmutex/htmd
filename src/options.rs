@@ -42,9 +42,17 @@ pub enum HeadingStyle {
     /// `# Heading`
     Atx,
     /// Setex where possible: h1 and h2 are underlined with `===` / `---`, while
-    /// everything a Setex heading cannot express — h3 through h6, and any h1 or
-    /// h2 whose content starts with a line break, which leaves no line for the
-    /// underline to attach to — falls back to [`HeadingStyle::Atx`].
+    /// everything a Setex heading cannot express falls back to
+    /// [`HeadingStyle::Atx`]. That is h3 through h6, which have no underline of
+    /// their own, and an h1 or h2 whose content either holds a blank line, which
+    /// ends the paragraph the underline would attach to, or opens with a raw
+    /// `<br>`, which starts an [HTML
+    /// block](https://spec.commonmark.org/0.31.2/#html-blocks) that takes the
+    /// underline with it.
+    ///
+    /// Content merely *starting* with a hard line break is no obstacle: the
+    /// underline attaches to the whole run of lines above it rather than to the
+    /// last one alone.
     Setex,
 }
 

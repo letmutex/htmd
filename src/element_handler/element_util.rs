@@ -23,11 +23,11 @@ thread_local! {
 /// Whether the element being converted sits inside an element that is being
 /// written as raw HTML.
 ///
-/// [`serialize_element`] enters this for whatever it is serializing, block or
-/// inline — a `<p>` faithful mode cannot express is as much raw HTML as a
-/// `<span>` is — so this reports the general case rather than the inline one
-/// alone. The inline case is the one with a decision in it, and the one the
-/// callers below care about.
+/// Only a serialized *inline* element puts the conversion in this state, since
+/// only there does [`serialize_element`] walk children at all: a block it cannot
+/// express goes to html5ever whole, children and so on with it, and nothing
+/// inside one is ever converted for this to report to. So the state covers
+/// exactly the case that has a decision in it.
 ///
 /// Markdown written inside a serialized *inline* element is still Markdown — a
 /// [raw HTML inline](https://spec.commonmark.org/0.31.2/#raw-html) holds
@@ -39,10 +39,6 @@ thread_local! {
 /// itself keeps the serialized element on one line and makes it independent of
 /// [`BrStyle`](crate::options::BrStyle), which spells *Markdown* breaks and has
 /// nothing to say about the inside of an HTML tag.
-///
-/// Inside a serialized *block* the same answer is right for a simpler reason:
-/// its content is being written as HTML wholesale, so a `<br>` belongs there as
-/// the tag it already is.
 pub(crate) fn in_raw_html() -> bool {
     RAW_HTML_DEPTH.with(|depth| depth.get() > 0)
 }

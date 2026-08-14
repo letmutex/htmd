@@ -25,6 +25,10 @@ pretty_assertions = "1.4.1"
 # Reads the Markdown the tests produce back as CommonMark, so a test can assert
 # that a conversion round-trips rather than that it looks right.
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
+# Parses the `data-options` of a turndown case, so that a key the runner does not
+# know is a test failure rather than a silent fall back to the defaults.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [[bench]]
 name = "convert_bench"
