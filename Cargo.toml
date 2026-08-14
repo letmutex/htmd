@@ -19,8 +19,12 @@ phf = { version = "0.13.1", features = ["macros"] }
 [dev-dependencies]
 indoc = "2.0.6"
 scraper = "0.26"
+ego-tree = "0.11"
 criterion = { version = "0.8", features = ["html_reports"] }
 pretty_assertions = "1.4.1"
+# Reads the Markdown the tests produce back as CommonMark, so a test can assert
+# that a conversion round-trips rather than that it looks right.
+pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
 
 [[bench]]
 name = "convert_bench"

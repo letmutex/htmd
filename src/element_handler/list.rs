@@ -156,6 +156,7 @@ fn add_ol_li_marker(
     let spacing =
         " ".repeat(options.ol_number_spacing as usize + digits(highest_index) - index_str.len());
     let content = content.trim_start_matches('\n');
+    // As in the `<ul>` case, the trim this asks for spares a hard line break.
     let content = indent_text_except_first_line(content, index_str.len() + 1 + spacing.len(), true);
     concat_strings!("\n", index_str, ".", spacing, content)
 }

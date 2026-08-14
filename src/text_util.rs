@@ -31,31 +31,17 @@ pub(crate) trait StripWhitespace {
     ///
     /// A tuple of (striped_text, Option<leading_whitespace>) will be returned.
     fn strip_leading_document_whitespace(&self) -> (&str, Option<&str>);
-    fn strip_leading_whitespace(&self) -> (&str, Option<&str>);
 
     /// Strip trailing whitespace.
     ///
     /// A tuple of (striped_text, Option<trailing_whitespace>) will be returned.
     fn strip_trailing_document_whitespace(&self) -> (&str, Option<&str>);
-    fn strip_trailing_whitespace(&self) -> (&str, Option<&str>);
 }
 
 impl<S> StripWhitespace for S
 where
     S: AsRef<str>,
 {
-    fn strip_leading_whitespace(&self) -> (&str, Option<&str>) {
-        let text = self.as_ref();
-        let trimmed_text = text.trim_start();
-        let stripped_len = text.len() - trimmed_text.len();
-        if stripped_len == 0 {
-            (text, None)
-        } else {
-            let start_index = stripped_len;
-            (&text[start_index..], Some(&text[..start_index]))
-        }
-    }
-
     fn strip_leading_document_whitespace(&self) -> (&str, Option<&str>) {
         let text = self.as_ref();
         let trimmed_text = text.trim_start_document_whitespace();
@@ -65,18 +51,6 @@ where
         } else {
             let start_index = stripped_len;
             (&text[start_index..], Some(&text[..start_index]))
-        }
-    }
-
-    fn strip_trailing_whitespace(&self) -> (&str, Option<&str>) {
-        let text = self.as_ref();
-        let trimmed_text = text.trim_end();
-        let stripped_len = text.len() - trimmed_text.len();
-        if stripped_len == 0 {
-            (text, None)
-        } else {
-            let end_index = trimmed_text.len();
-            (&text[..end_index], Some(&text[end_index..]))
         }
     }
 
@@ -216,6 +190,14 @@ fn is_document_whitespace(c: char) -> bool {
     matches!(c, '\t' | '\n' | '\r' | ' ')
 }
 
+/// Indents every line of `text` but the first by `indent` spaces.
+///
+/// With `trim_line_end`, each line's trailing whitespace goes as well — except
+/// for the two spaces of a hard line break, which are not stray whitespace but
+/// the break itself. Trimming those would rejoin the two lines the `<br>` they
+/// came from split, silently losing the break. They are kept only where they
+/// still read as one: on a line that holds something to break from, with a line
+/// after it holding something to break onto. See [`is_hard_line_break`].
 pub(crate) fn indent_text_except_first_line(
     text: &str,
     indent: usize,
@@ -228,11 +210,12 @@ pub(crate) fn indent_text_except_first_line(
     let estimated_capacity = text.len() + (line_count.saturating_sub(1)) * indent;
     let mut result = String::with_capacity(estimated_capacity);
     let indent_text = " ".repeat(indent);
-    for (idx, line) in text.lines().enumerate() {
+    let mut lines = text.lines().enumerate().peekable();
+    while let Some((idx, raw_line)) = lines.next() {
         let line = if trim_line_end {
-            line.trim_end_matches(is_document_whitespace)
+            raw_line.trim_end_matches(is_document_whitespace)
         } else {
-            line
+            raw_line
         };
         if idx > 0 {
             result.push('\n');
@@ -242,8 +225,28 @@ pub(crate) fn indent_text_except_first_line(
         } else {
             result.push_str(&concat_strings!(indent_text, line));
         }
+        if trim_line_end && is_hard_line_break(raw_line, lines.peek().map(|(_, next)| *next)) {
+            // Put the break back as the two spaces it needs, whatever wider run
+            // of whitespace the source ended the line with.
+            result.push_str("  ");
+        }
     }
     result
+}
+
+/// Whether `line` ends in a hard line break that `next_line` — the line after
+/// it, if any — has something to break onto.
+///
+/// A break is two or more spaces at the end of a line, which is why only spaces
+/// count here: a line ending in a tab is not a break, however much whitespace
+/// runs ahead of it. The line has to hold something besides that whitespace,
+/// since a whitespace-only line is blank and ends the block rather than breaking
+/// it, and the next line has to hold something too, since a break with nothing
+/// to break onto is not a break at all.
+fn is_hard_line_break(line: &str, next_line: Option<&str>) -> bool {
+    line.ends_with("  ")
+        && !line.trim_matches(is_document_whitespace).is_empty()
+        && next_line.is_some_and(|next| !next.trim_matches(is_document_whitespace).is_empty())
 }
 
 pub(crate) fn is_markdown_atx_heading(text: &str) -> bool {
@@ -308,7 +311,52 @@ pub(crate) use concat_strings;
 
 #[cfg(test)]
 mod tests {
-    use super::index_of_markdown_ordered_item_dot;
+    use super::{indent_text_except_first_line, index_of_markdown_ordered_item_dot};
+
+    #[test]
+    fn test_indent_trims_line_ends() {
+        assert_eq!("a\n    b", indent_text_except_first_line("a \nb ", 4, true));
+        assert_eq!(
+            "a \n    b ",
+            indent_text_except_first_line("a \nb ", 4, false)
+        );
+        // A blank line stays blank rather than becoming an indented run of
+        // spaces, whatever whitespace it held.
+        assert_eq!(
+            "a\n\n    b",
+            indent_text_except_first_line("a\n   \nb", 4, true)
+        );
+    }
+
+    #[test]
+    fn test_indent_keeps_hard_line_breaks() {
+        assert_eq!(
+            "a  \n    b",
+            indent_text_except_first_line("a  \nb", 4, true)
+        );
+        // Whatever wider run of spaces the source ended the line with comes back
+        // as the two the break needs.
+        assert_eq!(
+            "a  \n    b",
+            indent_text_except_first_line("a     \nb", 4, true)
+        );
+        // A break with nothing to break onto is not a break: the last line has
+        // no line after it, and a blank line ends the block rather than
+        // continuing it.
+        assert_eq!("a\n    b", indent_text_except_first_line("a\nb  ", 4, true));
+        assert_eq!(
+            "a\n\n    b",
+            indent_text_except_first_line("a  \n\nb", 4, true)
+        );
+        // Nor is a whitespace-only line, which is blank however wide it is.
+        assert_eq!("\n    b", indent_text_except_first_line("  \nb", 4, true));
+        // Two spaces are a break only where they end the line; a tab after them
+        // is what ends this one.
+        assert_eq!(
+            "a\n    b",
+            indent_text_except_first_line("a  \t\nb", 4, true)
+        );
+    }
 
     #[test]
     fn test_index_of_markdown_ordered_item_dot() {

@@ -84,33 +84,15 @@ pub(crate) fn walk_node(
             let is_head = tag == "head";
             let attrs = attrs.borrow();
 
-            if tag == "span"
-                && handlers.options.translation_mode == TranslationMode::Pure
-                && handlers
-                    .tag_to_handler_indices
-                    .get("span")
-                    .is_some_and(|indices| indices.len() == 1)
-                && !is_math_span(&attrs)
-            {
-                let mut content = String::new();
-                let is_pre =
-                    is_pre || (parent_tag.is_none() && crate::element_handler::is_inside_pre(node));
-                let markdown_translated =
-                    walk_children(node, &mut content, handlers, false, is_pre);
-
-                let start = content.len() - content.trim_start_matches('\n').len();
-                if start > 0 {
-                    content.drain(..start);
-                }
-                let end = content.trim_end_matches('\n').len();
-                content.truncate(end);
-
-                append_normalized_content(output, content, is_pre);
-                return markdown_translated;
-            }
-
+            // In pure mode an element htmd has no handler for writes nothing of
+            // its own, leaving only its content. A plain `<span>` joins them:
+            // its handler has nothing to add in this mode either, so the content
+            // passes through untouched — trimming it here would decapitate a
+            // hard break the span ends on, leaving the break's two spaces or
+            // backslash behind as literal text mid-line.
             if handlers.options.translation_mode == TranslationMode::Pure
-                && !handlers.tag_to_handler_indices.contains_key(tag)
+                && (!handlers.tag_to_handler_indices.contains_key(tag)
+                    || is_bare_span(handlers, tag, &attrs))
             {
                 let mut content = String::new();
                 let is_pre =
@@ -143,6 +125,18 @@ pub(crate) fn walk_node(
     }
 
     markdown_translated
+}
+
+/// Whether this element is a `<span>` that pure mode may pass straight through:
+/// not a math span, and left to htmd's own handler rather than one a caller
+/// registered alongside it.
+fn is_bare_span(handlers: &ElementHandlers, tag: &str, attrs: &[html5ever::Attribute]) -> bool {
+    tag == "span"
+        && handlers
+            .tag_to_handler_indices
+            .get("span")
+            .is_some_and(|indices| indices.len() == 1)
+        && !is_math_span(attrs)
 }
 
 fn is_math_span(attrs: &[html5ever::Attribute]) -> bool {
@@ -222,14 +216,23 @@ pub(crate) fn walk_children(
     };
     let mut markdown_translated = true;
     for child in node.children.borrow().iter() {
-        let is_block = match &child.data {
-            NodeData::Element { name, .. } => is_block_element(&name.local),
-            _ => false,
+        let child_tag = match &child.data {
+            NodeData::Element { name, .. } => Some(name.local.as_ref()),
+            _ => None,
         };
+        let is_block = child_tag.is_some_and(is_block_element);
 
         if is_block {
             // Trim trailing spaces for the previous element
             trim_output_end_spaces(output);
+        } else if !is_pre && child_tag == Some("br") {
+            // Spaces that are all the current line holds — the collapsed
+            // source whitespace between two `<br>`s — are leading whitespace
+            // on the line this break is about to write itself onto, where the
+            // break syntax should stand alone. They are never part of a
+            // two-space break, which needs text ahead of it on the line to
+            // break anything at all.
+            trim_output_end_blank_line(output);
         }
 
         let output_len = output.len();
@@ -348,6 +351,16 @@ fn trim_output_end(output: &mut String) {
 fn trim_output_end_spaces(output: &mut String) {
     let trimmed_len = output.trim_end_matches(' ').len();
     output.truncate(trimmed_len);
+}
+
+/// Trims trailing spaces from `output`, but only when they are the whole of the
+/// line they sit on. Spaces on a line that already holds something may be a
+/// two-space break and are left alone.
+fn trim_output_end_blank_line(output: &mut String) {
+    let trimmed_len = output.trim_end_matches(' ').len();
+    if trimmed_len == 0 || output.as_bytes()[trimmed_len - 1] == b'\n' {
+        output.truncate(trimmed_len);
+    }
 }
 
 /// Cases:

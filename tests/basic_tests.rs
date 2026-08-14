@@ -6,7 +6,7 @@ use pretty_assertions::assert_eq;
 use htmd::{
     Element, HtmlToMarkdown,
     element_handler::Handlers,
-    options::{BrStyle, LinkStyle, Options, TranslationMode},
+    options::{BrStyle, HeadingStyle, LinkStyle, Options, TranslationMode},
 };
 mod common;
 use common::convert;
@@ -147,7 +147,10 @@ fn quotes() {
 fn br() {
     let html = r#"
         Hi<br>there<br><br>!"#;
-    assert_eq!("Hi  \nthere  \n  \n!", convert(html).unwrap());
+    // The second `<br>` of the pair opens an empty line, where two spaces would
+    // be invisible and leave a blank line that ends the paragraph, so it falls
+    // back to a backslash break.
+    assert_eq!("Hi  \nthere  \n\\\n!", convert(html).unwrap());
 
     let md = HtmlToMarkdown::builder()
         .options(Options {
@@ -180,6 +183,291 @@ fn strong_italic() {
 fn italic_inside_word() {
     let html = r#"It<i>al</i>ic St<b>ro</b>ng"#;
     assert_eq!("It*al*ic St**ro**ng", convert(html).unwrap());
+}
+
+/// A literal backslash at the end of an emphasis element is written `\\`, whose
+/// second backslash sits against the newline that follows — exactly where a
+/// backslash hard break's own marker sits. Pure mode moves such a break outside
+/// the closing marker, and must not mistake this for one: hoisting one backslash
+/// out of the pair leaves the other escaping the closing marker, which loses the
+/// emphasis altogether.
+#[test]
+fn trailing_backslash_is_not_a_hard_break() {
+    for html in [
+        // A block child is what puts a newline after the backslash pair.
+        r"<em>path C:\<div></div></em>",
+        r"<strong>path C:\<div></div></strong>",
+        // Here a real break follows the literal, so the run is odd and the break
+        // does move out — but the pair it sits behind must stay whole.
+        r"<em>path C:\<br>x</em>",
+    ] {
+        for mode in [TranslationMode::Pure, TranslationMode::Faithful] {
+            let md = HtmlToMarkdown::builder()
+                .options(Options {
+                    translation_mode: mode,
+                    ..Default::default()
+                })
+                .build()
+                .convert(html)
+                .unwrap();
+            assert!(
+                md.contains(r"C:\\"),
+                "{html:?} ({mode:?}) became {md:?}, which split the escaped backslash pair"
+            );
+        }
+    }
+}
+
+/// `md` read as CommonMark and written back out as HTML, for the tests that
+/// care whether their output *means* what it looks like.
+fn render(md: &str) -> String {
+    let mut options = pulldown_cmark::Options::empty();
+    options.insert(pulldown_cmark::Options::ENABLE_TABLES);
+    let mut html = String::new();
+    pulldown_cmark::html::push_html(&mut html, pulldown_cmark::Parser::new_ext(md, options));
+    html
+}
+
+fn convert_in(html: &str, translation_mode: TranslationMode) -> String {
+    HtmlToMarkdown::builder()
+        .options(Options {
+            translation_mode,
+            ..Default::default()
+        })
+        .build()
+        .convert(html)
+        .unwrap()
+}
+
+// ---------------------------------------------------------------------------
+// Emphasis wrapping a *block*.
+//
+// `emphasis_handler` checks that its markers would sit against characters that
+// let them open and close emphasis. CommonMark asks something else as well:
+// both markers must land in the same paragraph, since a blank line ends one. A
+// block child writes a blank line, so an `<em>` holding one can satisfy the
+// flanking rule and still fail to be emphasis — nothing looks. The handler's
+// hoists move a blank line at either *edge* outside the markers, which is why a
+// block that is the whole content is fine; only an interior block leaves a
+// blank line with content on both sides, where nothing can hoist it away.
+//
+// Whether that reaches the output turns entirely on what encloses the emphasis,
+// so both tests run the same `<em>a<div>b</div>c</em>` in every context and
+// differ only in what they expect.
+// ---------------------------------------------------------------------------
+
+/// The emphasis carries a block child intact here — each for its own reason,
+/// none of them the flanking check:
+///
+/// * In a `<p>`, the HTML parser gets there first. A `<div>` closes an open
+///   paragraph, so html5ever reconstructs the `<em>` around each piece and htmd
+///   is handed three well-formed elements instead of one.
+/// * In a `<div>` under faithful mode, the `<div>` is serialized whole, so the
+///   `<em>` inside it never has to write markers at all.
+/// * In a table cell, the cell flattens its content onto one line, which puts
+///   both markers back in the same paragraph after the fact.
+#[test]
+fn emphasis_around_a_block_keeps_its_markers() {
+    let cell = "<table><thead><tr><th>h</th></tr></thead><tbody><tr>\
+                <td>x<em>a<div>b</div>c</em></td></tr></tbody></table>";
+    for (html, faithful, pure) in [
+        (
+            "<p><em>a<div>b</div>c</em></p>",
+            "*a*\n\n<div><em>b</em></div>\n\n*c*",
+            "*a*\n\n*b*\n\n*c*",
+        ),
+        (
+            "<div><em>a<div>b</div>c</em></div>",
+            "<div><em>a<div>b</div>c</em></div>",
+            // Pure mode has no HTML to hide behind, so it is the broken case
+            // below; only the faithful half belongs here.
+            "",
+        ),
+        (
+            cell,
+            "| h                     |\n| --------------------- |\n| x*a  <div>b</div>  c* |",
+            "| h          |\n| ---------- |\n| x*a  b  c* |",
+        ),
+    ] {
+        let md = convert_in(html, TranslationMode::Faithful);
+        assert_eq!(faithful, md);
+        // The markers really do pair up: this reads back as emphasis.
+        assert!(
+            render(&md).contains("<em>"),
+            "{html:?} became {md:?}, which reads back with no emphasis"
+        );
+        if !pure.is_empty() {
+            assert_eq!(pure, convert_in(html, TranslationMode::Pure));
+        }
+    }
+}
+
+/// The same emphasis, in the contexts that neither split it nor flatten it. The
+/// markers straddle a blank line, so CommonMark reads them as literal asterisks
+/// and the `<em>` is lost — `*a\n\nb\n\nc*` reads back as three paragraphs, the
+/// first opening with a stray `*` and the last closing with one.
+///
+/// **This pins a known defect, not intended behavior.** The flanking check
+/// should reject these and let faithful mode serialize the element, the way it
+/// already does for the `<br>` shapes in `br_tests`; pure mode, which never
+/// consults that check, needs its own answer. Fixing either will fail these
+/// assertions — that is what they are for. See `emphasis_handler`.
+#[test]
+fn emphasis_around_a_block_loses_its_markers() {
+    for (html, faithful, pure) in [
+        // A `<div>` is serialized whole in faithful mode, so only pure mode
+        // reaches the emphasis here; the faithful half is asserted above.
+        ("<div><em>a<div>b</div>c</em></div>", "", "*a\n\nb\n\nc*"),
+        (
+            "<ul><li><em>a<div>b</div>c</em></li></ul>",
+            "*   *a\n\n    <div>b</div>\n\n    c*",
+            "*   *a\n\n    b\n\n    c*",
+        ),
+        (
+            "<blockquote><em>a<div>b</div>c</em></blockquote>",
+            "> *a\n> \n> <div>b</div>\n> \n> c*",
+            "> *a\n> \n> b\n> \n> c*",
+        ),
+        (
+            "<em>a<div>b</div>c</em>",
+            "*a\n\n<div>b</div>\n\nc*",
+            "*a\n\nb\n\nc*",
+        ),
+    ] {
+        if !faithful.is_empty() {
+            assert_eq!(faithful, convert_in(html, TranslationMode::Faithful));
+        }
+        assert_eq!(pure, convert_in(html, TranslationMode::Pure));
+
+        // The defect itself: no emphasis survives the round trip.
+        for md in [faithful, pure].into_iter().filter(|md| !md.is_empty()) {
+            assert!(
+                !render(md).contains("<em>"),
+                "{html:?} became {md:?}, which now reads back as emphasis — if this was \
+                 fixed on purpose, move the shape into the test above"
+            );
+        }
+    }
+}
+
+/// A carriage return is a character of the document, not a line ending.
+///
+/// html5ever normalizes the source's own CR and CRLF to `\n` before htmd sees
+/// them, and ordinary text is whitespace-collapsed on top of that, so `&#13;`
+/// disappears from a paragraph entirely. Preformatted content is the exception:
+/// a `<pre>` carries one through verbatim, which is the one way a `\r` reaches
+/// the emphasis handler's leading and trailing hoists.
+///
+/// Those hoists look for `\n` alone. Every newline htmd writes is one, so a
+/// `\r` arriving here is always literal text — counting it as a line ending
+/// would cut the hoist short around a run of whitespace that merely contains
+/// one.
+///
+/// What these pin is the output: a carriage return rides through into it and
+/// changes nothing else. They do *not* pin the `\n`-only decision itself, which
+/// no input reaches through this API — adding `\r` back to the searches leaves
+/// every one of these passing. `emphasis::tests::carriage_return_is_not_a_line_ending`
+/// pins that, against the hoists directly.
+#[test]
+fn carriage_return_is_text_not_a_line_ending() {
+    // Collapsed out of ordinary text before any of this can matter.
+    assert_eq!(
+        "x *a*y",
+        convert_in("<p>x<em>&#13;a</em>y</p>", TranslationMode::Pure)
+    );
+
+    for (html, faithful, pure) in [
+        // A `<pre>` keeps the CR, and the emphasis inside it still resolves.
+        (
+            "<pre><em>&#13;a</em>b</pre>",
+            "<pre><em>\ra</em>b</pre>",
+            "\r*a*b",
+        ),
+        (
+            "<pre>x<em>a&#13;</em>y</pre>",
+            "<pre>x<em>a\r</em>y</pre>",
+            "x*a*\ry",
+        ),
+        // A CR the hoist has to step over on its way out of the element.
+        (
+            "<em><pre>&#13;</pre>x</em>",
+            "*<pre>\r</pre>\n\nx*",
+            "\r\n\n*x*",
+        ),
+        // Two CRLFs — the shape a blank-line test spelled `\n\n` would miss if
+        // `\r` counted as a line ending here.
+        (
+            "<em><pre>&#13;&#10;&#13;&#10;</pre>x</em>",
+            "*<pre>\r\n&#13;&#10;</pre>\n\nx*",
+            "\r\n\r\n\n*x*",
+        ),
+    ] {
+        assert_eq!(
+            faithful,
+            convert_in(html, TranslationMode::Faithful),
+            "{html:?}"
+        );
+        assert_eq!(pure, convert_in(html, TranslationMode::Pure), "{html:?}");
+    }
+}
+
+/// A Setext underline attaches to the whole paragraph above it, not just the
+/// last line, so multi-line heading content is fine. Only a blank line — which
+/// ends that paragraph — forces ATX.
+///
+/// ATX is not a safe default to reach for: it is single-line, so content holding
+/// a newline loses everything past the first line to a paragraph of its own.
+/// Falling back where Setext would have worked breaks the heading rather than
+/// protecting it.
+#[test]
+fn setext_falls_back_to_atx_only_for_a_blank_line() {
+    fn setext(html: &str) -> String {
+        HtmlToMarkdown::builder()
+            .options(Options {
+                translation_mode: TranslationMode::Faithful,
+                heading_style: HeadingStyle::Setex,
+                ..Default::default()
+            })
+            .build()
+            .convert(html)
+            .unwrap()
+    }
+
+    // A block child writes a blank line, so the underline could not reach the
+    // heading's own text. ATX at least keeps that text in a heading.
+    assert_eq!(
+        "# a\n\n<div>x</div>\n\nb",
+        setext("<h1>a<div>x</div>b</h1>")
+    );
+    // Non-ASCII whitespace is not document whitespace, so it survives the
+    // heading's trim and opens the content — which changes nothing here.
+    assert_eq!(
+        "# \u{a0}\n\n<div>x</div>",
+        setext("<h1>&nbsp;<div>x</div></h1>")
+    );
+
+    // No blank line: Setext holds, however little the first line carries. Each
+    // of these reads back as a single heading.
+    for (html, expected) in [
+        ("<h1>a<br>b</h1>", "a  \nb\n====="),
+        ("<h1>&nbsp;a</h1>", "\u{a0}a\n=="),
+        // A raw `<br>` that *opens* the line is the one break shape that must
+        // use ATX: it starts an HTML block which eats the underline.
+        ("<h1><br>a</h1>", "# <br>a"),
+        // ...but one with anything ahead of it is an inline tag, so Setext is
+        // still fine.
+        ("<h1>a<br></h1>", "a<br>\n====="),
+    ] {
+        assert_eq!(expected, setext(html), "{html:?}");
+    }
+    for html in ["<h1>a<br>b</h1>", "<h1>&nbsp;a</h1>", "<h1>a<br></h1>"] {
+        let rendered = render(&setext(html));
+        assert!(
+            rendered.starts_with("<h1>") && rendered.matches("<h1>").count() == 1,
+            "{html:?} became {:?}, which reads back as {rendered:?}",
+            setext(html)
+        );
+    }
 }
 
 #[test]

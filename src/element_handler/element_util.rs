@@ -9,7 +9,60 @@ use crate::{
 use html5ever::serialize::{HtmlSerializer, SerializeOpts, Serializer, TraversalScope, serialize};
 
 use markup5ever_rcdom::{NodeData, SerializableHandle};
-use std::io::{self, Write};
+use std::{
+    cell::Cell,
+    io::{self, Write},
+};
+
+thread_local! {
+    /// How many elements are being serialized as HTML around the element
+    /// currently being converted. See [`in_raw_html`].
+    static RAW_HTML_DEPTH: Cell<usize> = const { Cell::new(0) };
+}
+
+/// Whether the element being converted sits inside an element that is being
+/// written as raw HTML.
+///
+/// [`serialize_element`] enters this for whatever it is serializing, block or
+/// inline — a `<p>` faithful mode cannot express is as much raw HTML as a
+/// `<span>` is — so this reports the general case rather than the inline one
+/// alone. The inline case is the one with a decision in it, and the one the
+/// callers below care about.
+///
+/// Markdown written inside a serialized *inline* element is still Markdown — a
+/// [raw HTML inline](https://spec.commonmark.org/0.31.2/#raw-html) holds
+/// Markdown, unlike an HTML block — but a hard line break is a poor way to
+/// spell a `<br>` there. Two trailing spaces are invisible, and any tool that
+/// trims line ends deletes the break without touching the tags around it; both
+/// spellings also split the element across lines, where a line holding nothing
+/// but its closing tag would open an HTML block of its own. Writing the `<br>`
+/// itself keeps the serialized element on one line and makes it independent of
+/// [`BrStyle`](crate::options::BrStyle), which spells *Markdown* breaks and has
+/// nothing to say about the inside of an HTML tag.
+///
+/// Inside a serialized *block* the same answer is right for a simpler reason:
+/// its content is being written as HTML wholesale, so a `<br>` belongs there as
+/// the tag it already is.
+pub(crate) fn in_raw_html() -> bool {
+    RAW_HTML_DEPTH.with(|depth| depth.get() > 0)
+}
+
+/// Marks the content walked during its lifetime as being inside an element
+/// serialized as HTML, for [`in_raw_html`] to report.
+struct RawHtmlGuard;
+
+impl RawHtmlGuard {
+    fn enter() -> Self {
+        RAW_HTML_DEPTH.with(|depth| depth.set(depth.get() + 1));
+        Self
+    }
+}
+
+impl Drop for RawHtmlGuard {
+    fn drop(&mut self) {
+        RAW_HTML_DEPTH.with(|depth| depth.set(depth.get() - 1));
+    }
+}
 
 // A handler for tags whose only criteria (for faithful translation) is the tag
 // name of the parent.
@@ -67,8 +120,11 @@ pub(crate) fn serialize_element(handlers: &dyn Handlers, element: &Element) -> S
                 attrs.borrow().iter().map(|at| (&at.name, &at.value[..])),
             )?;
             // Write out the contents, without escaping them. The standard serialization process escapes the contents, hence this manual approach.
-            ser.writer
-                .write_all(handlers.walk_children(element.node).content.as_bytes())?;
+            let content = {
+                let _guard = RawHtmlGuard::enter();
+                handlers.walk_children(element.node).content
+            };
+            ser.writer.write_all(content.as_bytes())?;
             // Write the end tag, if needed (HtmlSerializer logic will automatically omit this).
             ser.end_elem(name.clone())?;
 

@@ -39,7 +39,12 @@ impl Default for Options {
 
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum HeadingStyle {
+    /// `# Heading`
     Atx,
+    /// Setex where possible: h1 and h2 are underlined with `===` / `---`, while
+    /// everything a Setex heading cannot express — h3 through h6, and any h1 or
+    /// h2 whose content starts with a line break, which leaves no line for the
+    /// underline to attach to — falls back to [`HeadingStyle::Atx`].
     Setex,
 }
 
@@ -55,7 +60,13 @@ pub enum HrStyle {
 
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum BrStyle {
+    /// Use two spaces where possible: two spaces at the end of a line break it
+    /// only when that line already holds text, since on an otherwise empty line
+    /// they are invisible and leave a blank line, which ends the block instead
+    /// of breaking it. A `<br>` that opens a line therefore falls back to
+    /// [`BrStyle::Backslash`].
     TwoSpaces,
+    /// A `\` at the end of the line.
     Backslash,
 }
 
