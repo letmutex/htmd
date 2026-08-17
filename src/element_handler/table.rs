@@ -1,4 +1,3 @@
-use crate::element_handler::anchor::LinkReferenceCheckpoint;
 use crate::element_handler::element_util::serialize_element;
 use crate::element_handler::{Element, HandlerResult, Handlers};
 use crate::node_util::{get_node_tag_name, get_parent_node};
@@ -24,7 +23,6 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: Element) -> Option
         return handlers.fallback(element);
     }
 
-    let reference_checkpoint = LinkReferenceCheckpoint::new();
     let ExtractedTable {
         captions,
         headers,
@@ -46,7 +44,6 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: Element) -> Option
         if content.is_empty() {
             return None;
         }
-        reference_checkpoint.commit();
         return Some(concat_strings!("\n\n", content, "\n\n").into());
     }
 
@@ -71,7 +68,6 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: Element) -> Option
     }
 
     table_md.push('\n');
-    reference_checkpoint.commit();
     Some(table_md.into())
 }
 
