@@ -1,9 +1,9 @@
 mod common;
-use common::convert;
+use common::convert_faithful;
 
 #[cfg(test)]
 mod table_tests_1 {
-    use super::convert;
+    use super::convert_faithful;
     use indoc::indoc;
     use pretty_assertions::assert_eq;
 
@@ -50,7 +50,7 @@ mod table_tests_1 {
 "#
         .trim();
 
-        let markdown = convert(html).unwrap();
+        let markdown = convert_faithful(html).unwrap();
         let result = markdown.trim();
         assert_eq!(expected, result);
     }
@@ -137,7 +137,7 @@ mod table_tests_1 {
 "#
         .trim();
 
-        let markdown = convert(html).unwrap();
+        let markdown = convert_faithful(html).unwrap();
         let result = markdown.trim();
         assert_eq!(expected, result);
     }
@@ -205,7 +205,7 @@ Sample Table
 "#
         .trim();
 
-        let markdown = convert(html).unwrap();
+        let markdown = convert_faithful(html).unwrap();
         let result = markdown.trim();
         assert_eq!(expected, result);
     }
@@ -213,7 +213,7 @@ Sample Table
     #[test]
     fn test_empty_table() {
         let html = "<table></table>";
-        let markdown = convert(html).unwrap();
+        let markdown = convert_faithful(html).unwrap();
         let result = markdown.trim();
         assert_eq!("", result);
     }
@@ -275,7 +275,7 @@ Sample Table
 "#
         .trim();
 
-        let markdown = convert(html).unwrap();
+        let markdown = convert_faithful(html).unwrap();
         let result = markdown.trim();
         assert_eq!(expected, result);
     }
@@ -301,7 +301,7 @@ Sample Table
                 </table>"#
             ),
             // This has a block (a paragraph) in the table headings.
-            convert(indoc!(
+            convert_faithful(indoc!(
                 r#"
                 <table>
                     <thead>
