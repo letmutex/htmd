@@ -3,7 +3,7 @@ use htmd::{
     options::{Options, TranslationMode},
 };
 mod common;
-use common::convert;
+use common::convert_faithful;
 
 #[test]
 fn unordered_lists() {
@@ -14,7 +14,10 @@ fn unordered_lists() {
             <li>Item 3</li>
         </ul>
         "#;
-    assert_eq!("*   Item 1\n*   Item 2\n*   Item 3", convert(html).unwrap())
+    assert_eq!(
+        "*   Item 1\n*   Item 2\n*   Item 3",
+        convert_faithful(html).unwrap()
+    )
 }
 
 #[test]
@@ -48,7 +51,10 @@ fn ordered_lists() {
             <li>Item 3</li>
         </ol>
         "#;
-    assert_eq!("1.  Item 1\n2.  Item 2\n3.  Item 3", convert(html).unwrap())
+    assert_eq!(
+        "1.  Item 1\n2.  Item 2\n3.  Item 3",
+        convert_faithful(html).unwrap()
+    )
 }
 
 #[test]

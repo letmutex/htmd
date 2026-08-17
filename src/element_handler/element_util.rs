@@ -7,7 +7,6 @@ use crate::{
     text_util::concat_strings,
 };
 use html5ever::serialize::{HtmlSerializer, SerializeOpts, Serializer, TraversalScope, serialize};
-
 use markup5ever_rcdom::{NodeData, SerializableHandle};
 use std::{
     cell::Cell,
@@ -57,19 +56,19 @@ impl Drop for RawHtmlGuard {
     }
 }
 
-// A handler for tags whose only criteria (for faithful translation) is the tag
-// name of the parent.
+/// Handles a structural element when it has an allowed parent, or preserves it
+/// as HTML in faithful mode when it appears elsewhere.
+///
+/// Handled child content is framed as a block. When
+/// `propagate_children_translation` is true, the returned translation status
+/// is false if any child required HTML; callers can use that status to fall
+/// back to serializing a larger containing structure.
 pub(super) fn handle_or_serialize_by_parent(
     handlers: &dyn Handlers,
-    // The element to check.
     element: &Element,
-    // A list of allowable tag names for this element's parent.
     tag_names: &[&str],
-    // The value for `markdown_translate` to pass if this tag is markdown translatable.
-    markdown_translated: bool,
+    propagate_children_translation: bool,
 ) -> Option<HandlerResult> {
-    // In faithful mode, fall back to HTML when this element's parent tag is not
-    // in `tag_names` (e.g., `<tbody>` outside `<table>`, `<td>` outside `<tr>`, etc.).
     if handlers.options().translation_mode == TranslationMode::Faithful
         && !parent_tag_name_equals(element.node, tag_names)
     {
@@ -78,166 +77,126 @@ pub(super) fn handle_or_serialize_by_parent(
             markdown_translated: false,
         })
     } else {
-        let content = handlers.walk_children(element.node).content;
-        let content = content.trim_matches('\n');
+        let result = handlers.walk_children(element.node);
+        let content = result.content.trim_matches('\n');
         Some(HandlerResult {
             content: concat_strings!("\n\n", content, "\n\n"),
-            markdown_translated,
+            markdown_translated: !propagate_children_translation || result.markdown_translated,
         })
     }
 }
 
-// Given a node (which must be an element), serialize it (transform it back
-// to HTML).
 pub(crate) fn serialize_element(handlers: &dyn Handlers, element: &Element) -> String {
-    let f = || -> io::Result<String> {
-        let so = SerializeOpts {
-            traversal_scope: TraversalScope::IncludeNode,
-            ..Default::default()
-        };
-        let mut bytes = vec![];
-        // If this is a block element, then serialize it and all its children.
-        // Otherwise, serialize just this element, but use the current contents in
-        // the place of children. This follows the Commonmark spec: [HTML
-        // blocks](https://spec.commonmark.org/0.31.2/#html-blocks) contain only
-        // HTML, not Markdown, while [raw HTML
-        // inlines](https://spec.commonmark.org/0.31.2/#raw-html) contain Markdown.
-        if !is_block_element(element.tag) {
-            // Write this element's start tag.
-            let NodeData::Element { name, attrs, .. } = &element.node.data else {
-                return Err(io::Error::other("Not an element.".to_string()));
-            };
-            let mut ser = HtmlSerializer::new(&mut bytes, so.clone());
-            ser.start_elem(
-                name.clone(),
-                attrs.borrow().iter().map(|at| (&at.name, &at.value[..])),
-            )?;
-            // Write out the contents, without escaping them. The standard serialization process escapes the contents, hence this manual approach.
-            let content = {
-                let _guard = RawHtmlGuard::enter();
-                handlers.walk_children(element.node).content
-            };
-            ser.writer.write_all(content.as_bytes())?;
-            // Write the end tag, if needed (HtmlSerializer logic will automatically omit this).
-            ser.end_elem(name.clone())?;
+    try_serialize_element(handlers, element).unwrap_or_else(|error| error.to_string())
+}
 
-            String::from_utf8(bytes).map_err(io::Error::other)
-        } else {
-            let sh: SerializableHandle = SerializableHandle::from(element.node.clone());
-            serialize(&mut bytes, &sh, so)?;
-            let s = String::from_utf8(bytes).map_err(io::Error::other)?;
-            // We must avoid consecutive newlines in HTML blocks, since this
-            // terminates the block per the CommonMark spec. Therefore, this
-            // code replaces instances of two or more newlines with a single
-            // newline, followed by escaped newlines. This is a hand-coded
-            // version of the following regex:
-            //
-            // ```Rust
-            // Regex::new(r#"(\r?\n\s*)(\r?\n\s*)"#).unwrap())
-            //  .replace_all(&s, |caps: &Captures| {
-            //      caps[1].to_string()
-            //      + &(caps[2].replace("\r", "&#13;").replace("\n", "&#10;"))
-            //  })
-            // ```
-            //
-            // 1.  If the next character is an \\r or \\n, output it.
-            // 2.  If the previous character was a \\r and the next
-            //     character isn't a \\n, restart. Otherwise, output the
-            //     \\n.
-            // 3.  If the next character is whitespace but not \\n or \\r,
-            //     output it then repeat this step.
-            // 4.  If the next character is a \\r and the peeked following
-            //     character isn't an \\n, output the \\r and restart.
-            //     Otherwise, output an encoded \\r.
-            // 5.  If the peeked next character is a \\n, output an encoded
-            //     \\n. Otherwise, restart.
-            // 6.  If the next character is whitespace but not \\n or \\r,
-            //     output it then repeat this step. Otherwise, restart.
-            //
-            // Replace instances of two or more newlines with a newline
-            // followed by escaped newlines
-            let mut result = String::with_capacity(s.len());
-            let mut chars = s.chars().peekable();
-
-            while let Some(c) = chars.next() {
-                // Step 1.
-                if c == '\r' || c == '\n' {
-                    result.push(c);
-
-                    // Step 2.
-                    if c == '\r' {
-                        if chars.peek() == Some(&'\n') {
-                            result.push(chars.next().unwrap());
-                        } else {
-                            continue;
-                        }
-                    }
-
-                    // Step 3: Skip any whitespace after the newline.
-                    while let Some(&next) = chars.peek() {
-                        if next.is_whitespace() && next != '\r' && next != '\n' {
-                            result.push(next);
-                            chars.next();
-                        } else {
-                            break;
-                        }
-                    }
-
-                    // Step 4.
-                    if let Some(c) = chars.next() {
-                        if c == '\r' || c == '\n' {
-                            if c == '\r' {
-                                if chars.peek() == Some(&'\n') {
-                                    chars.next();
-                                    result.push_str("&#13;&#10;");
-                                } else {
-                                    // Step 6.
-                                    result.push('\r');
-                                    continue;
-                                }
-                            } else {
-                                result.push_str("&#10;");
-                            }
-
-                            // Step 6.
-                            while let Some(&next) = chars.peek() {
-                                if next.is_whitespace() && next != '\r' && next != '\n' {
-                                    result.push(next);
-                                    chars.next();
-                                } else {
-                                    break;
-                                }
-                            }
-                        } else {
-                            result.push(c);
-                        }
-                    }
-                } else {
-                    result.push(c);
-                }
-            }
-            Ok(concat_strings!("\n\n", result, "\n\n"))
-        }
+fn try_serialize_element(handlers: &dyn Handlers, element: &Element) -> io::Result<String> {
+    let options = SerializeOpts {
+        traversal_scope: TraversalScope::IncludeNode,
+        ..Default::default()
     };
-    match f() {
-        Ok(s) => s,
-        Err(err) => err.to_string(),
+
+    if is_block_element(element.tag) {
+        serialize_block_element(element, options)
+    } else {
+        serialize_inline_element(handlers, element, options)
     }
 }
 
-// When in faithful translation mode, return an HTML translation if this element
-// has more than the allowed number of attributes.
+fn serialize_inline_element(
+    handlers: &dyn Handlers,
+    element: &Element,
+    options: SerializeOpts,
+) -> io::Result<String> {
+    let NodeData::Element { name, attrs, .. } = &element.node.data else {
+        return Err(io::Error::other("expected an element node"));
+    };
+
+    let mut bytes = Vec::new();
+    let mut serializer = HtmlSerializer::new(&mut bytes, options);
+    serializer.start_elem(
+        name.clone(),
+        attrs
+            .borrow()
+            .iter()
+            .map(|attr| (&attr.name, &attr.value[..])),
+    )?;
+    let content = {
+        let _guard = RawHtmlGuard::enter();
+        handlers.walk_children(element.node).content
+    };
+    serializer.writer.write_all(content.as_bytes())?;
+    serializer.end_elem(name.clone())?;
+    String::from_utf8(bytes).map_err(io::Error::other)
+}
+
+fn serialize_block_element(element: &Element, options: SerializeOpts) -> io::Result<String> {
+    let mut bytes = Vec::new();
+    let handle = SerializableHandle::from(element.node.clone());
+    serialize(&mut bytes, &handle, options)?;
+    let html = String::from_utf8(bytes).map_err(io::Error::other)?;
+    Ok(concat_strings!(
+        "\n\n",
+        escape_html_block_blank_lines(&html),
+        "\n\n"
+    ))
+}
+
+// A blank line terminates a CommonMark HTML block. Encode every line ending
+// after the first so serialized block content remains in one HTML block.
+fn escape_html_block_blank_lines(html: &str) -> String {
+    let mut result = String::with_capacity(html.len());
+    let mut chars = html.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        if ch != '\r' && ch != '\n' {
+            result.push(ch);
+            continue;
+        }
+
+        result.push(ch);
+        if ch == '\r' && chars.peek() == Some(&'\n') {
+            result.push(chars.next().unwrap());
+        }
+
+        copy_horizontal_whitespace(&mut chars, &mut result);
+        let Some(next) = chars.next() else {
+            break;
+        };
+        match next {
+            '\n' => result.push_str("&#10;"),
+            '\r' if chars.peek() == Some(&'\n') => {
+                chars.next();
+                result.push_str("&#13;&#10;");
+            }
+            '\r' => result.push_str("&#13;"),
+            _ => {
+                result.push(next);
+                continue;
+            }
+        }
+        copy_horizontal_whitespace(&mut chars, &mut result);
+    }
+
+    result
+}
+
+fn copy_horizontal_whitespace<I>(chars: &mut std::iter::Peekable<I>, output: &mut String)
+where
+    I: Iterator<Item = char>,
+{
+    while let Some(&next) = chars.peek() {
+        if !next.is_whitespace() || next == '\r' || next == '\n' {
+            break;
+        }
+        output.push(next);
+        chars.next();
+    }
+}
+
 #[macro_export]
 macro_rules! serialize_if_faithful {
-    (
-        // The handlers to use for serialization.
-        $handlers: expr,
-        // The element to translate.
-        $element: expr,
-        // The maximum number of attributes allowed for this element. Supply
-        // -1 to serialize in faithful mode, even with no attributes.
-        $num_attrs_allowed: expr
-    ) => {
+    ($handlers:expr, $element:expr, $num_attrs_allowed:expr) => {
         if $handlers.options().translation_mode == $crate::options::TranslationMode::Faithful
             && $element.attrs.len() as i64 > $num_attrs_allowed
         {
@@ -245,9 +204,23 @@ macro_rules! serialize_if_faithful {
                 content: $crate::element_handler::element_util::serialize_element(
                     $handlers, &$element,
                 ),
-                // This was translated using HTML, not Markdown.
                 markdown_translated: false,
             });
         }
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::escape_html_block_blank_lines;
+
+    #[test]
+    fn escapes_blank_lines_for_each_line_ending_style() {
+        assert_eq!("a\n&#10;b", escape_html_block_blank_lines("a\n\nb"));
+        assert_eq!(
+            "a\r\n&#13;&#10;b",
+            escape_html_block_blank_lines("a\r\n\r\nb")
+        );
+        assert_eq!("a\r&#13;b", escape_html_block_blank_lines("a\r\rb"));
+    }
 }

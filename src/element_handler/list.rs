@@ -6,7 +6,7 @@ use crate::{
     node_util::{get_node_tag_name, get_parent_node},
     options::{Options, TranslationMode},
     serialize_if_faithful,
-    text_util::{concat_strings, indent_text_except_first_line, join_blocks},
+    text_util::{append_block, concat_strings, indent_text_except_first_line},
 };
 
 pub(super) fn list_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
@@ -117,33 +117,32 @@ fn get_ol_content(handlers: &dyn Handlers, element: &Element) -> (String, bool) 
 
     let mut curr_li_idx = start_idx - 1;
 
-    let contents = buffer
-        .into_iter()
-        .map(|content| {
-            if content.is_li {
-                curr_li_idx += 1;
-                add_ol_li_marker(
-                    handlers.options(),
-                    &content.text,
-                    curr_li_idx,
-                    highest_index,
-                )
-            } else {
-                content.text
-            }
-        })
-        .collect::<Vec<String>>();
+    let capacity = buffer.iter().map(|content| content.text.len()).sum();
+    let mut contents = String::with_capacity(capacity);
+    for content in buffer {
+        let rendered = if content.is_li {
+            curr_li_idx += 1;
+            add_ol_li_marker(
+                handlers.options(),
+                &content.text,
+                curr_li_idx,
+                highest_index,
+            )
+        } else {
+            content.text
+        };
+        append_block(&mut contents, &rendered);
+    }
 
-    (join_blocks(&contents), all_translated)
+    (contents, all_translated)
 }
 
-// Add 1 before computing log10, then take the ceiling: it avoids log10(0) =
-// Nan, and changes log10(10) = 1 into 2, log10(100) into 3, etc.
 fn digits(num: usize) -> usize {
     if num == 0 {
-        return 1;
+        1
+    } else {
+        num.ilog10() as usize + 1
     }
-    ((num + 1) as f32).log10().ceil() as usize
 }
 
 fn add_ol_li_marker(

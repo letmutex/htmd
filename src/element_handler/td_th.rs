@@ -23,5 +23,5 @@ pub(super) fn td_th_handler(handlers: &dyn Handlers, element: Element) -> Option
         // block elements.
         if has_block_elements { -1 } else { 0 }
     );
-    handle_or_serialize_by_parent(handlers, &element, &["tr"], true)
+    handle_or_serialize_by_parent(handlers, &element, &["tr"], false)
 }

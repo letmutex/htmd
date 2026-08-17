@@ -12,13 +12,13 @@ categories = ["text-processing", "parsing"]
 readme = "README.md"
 
 [dependencies]
-html5ever = "0.38"
-markup5ever_rcdom = "0.38"
-phf = { version = "0.13.1", features = ["macros"] }
+html5ever = "0.39"
+markup5ever_rcdom = "0.39"
+phf = { version = "0.14", features = ["macros"] }
 
 [dev-dependencies]
 indoc = "2.0.6"
-scraper = "0.26"
+scraper = "0.27"
 ego-tree = "0.11"
 criterion = { version = "0.8", features = ["html_reports"] }
 pretty_assertions = "1.4.1"

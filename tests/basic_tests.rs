@@ -9,7 +9,7 @@ use htmd::{
     options::{BrStyle, HeadingStyle, LinkStyle, Options, TranslationMode},
 };
 mod common;
-use common::{convert, render};
+use common::{convert_faithful, render};
 
 #[test]
 fn links_with_spaces() {
@@ -18,7 +18,7 @@ fn links_with_spaces() {
         "#;
     assert_eq!(
         "[Example](<https://example.com/Some Page.html>)",
-        convert(html).unwrap(),
+        convert_faithful(html).unwrap(),
     )
 }
 
@@ -78,7 +78,7 @@ fn images() {
     assert_eq!(
         "![](https://example.com) ![Image 1](https://example.com) \
             ![Image 2](https://example.com \"Hello\")",
-        convert(html).unwrap(),
+        convert_faithful(html).unwrap(),
     )
 }
 
@@ -89,7 +89,7 @@ fn images_with_spaces_in_url() {
         "#;
     assert_eq!(
         "![](<https://example.com/Some Image.jpg>)",
-        convert(html).unwrap(),
+        convert_faithful(html).unwrap(),
     )
 }
 
@@ -119,7 +119,7 @@ fn headings() {
     assert_eq!(
         "# Heading 1\n\n## Heading 2\n\n### Heading 3\n\n\
              #### Heading 4\n\n##### Heading 5\n\n###### Heading 6",
-        convert(html).unwrap(),
+        convert_faithful(html).unwrap(),
     )
 }
 
@@ -131,7 +131,7 @@ fn paragraphs() {
         "#;
     assert_eq!(
         "The first.\n\nThe <span>second.</span>",
-        convert(html).unwrap()
+        convert_faithful(html).unwrap()
     );
 }
 
@@ -140,7 +140,7 @@ fn quotes() {
     let html = r#"
         <blockquote>Once upon a time</blockquote>
         "#;
-    assert_eq!("> Once upon a time", convert(html).unwrap());
+    assert_eq!("> Once upon a time", convert_faithful(html).unwrap());
 }
 
 #[test]
@@ -150,7 +150,7 @@ fn br() {
     // The second `<br>` of the pair opens an empty line, where two spaces would
     // be invisible and leave a blank line that ends the paragraph, so it falls
     // back to a backslash break.
-    assert_eq!("Hi  \nthere  \n\\\n!", convert(html).unwrap());
+    assert_eq!("Hi  \nthere  \n\\\n!", convert_faithful(html).unwrap());
 
     let md = HtmlToMarkdown::builder()
         .options(Options {
@@ -167,7 +167,7 @@ fn br() {
 #[test]
 fn hr() {
     let html = r#"Hi <hr/> there"#;
-    assert_eq!("Hi\n\n* * *\n\nthere", convert(html).unwrap());
+    assert_eq!("Hi\n\n* * *\n\nthere", convert_faithful(html).unwrap());
 }
 
 #[test]
@@ -175,14 +175,14 @@ fn strong_italic() {
     let html = r#"<i>Italic</i><em>Also italic</em><strong>Strong</strong><b>Stronger</b>"#;
     assert_eq!(
         "*ItalicAlso italic***StrongStronger**",
-        convert(html).unwrap()
+        convert_faithful(html).unwrap()
     );
 }
 
 #[test]
 fn italic_inside_word() {
     let html = r#"It<i>al</i>ic St<b>ro</b>ng"#;
-    assert_eq!("It*al*ic St**ro**ng", convert(html).unwrap());
+    assert_eq!("It*al*ic St**ro**ng", convert_faithful(html).unwrap());
 }
 
 /// A literal backslash ending an emphasis element is written `\\`, whose second
@@ -552,7 +552,7 @@ fn inline_raw_html_escaping() {
     let html = r#"Test &lt;code&gt;tags&lt;/code&gt;, &lt;!-- comments --&gt;, &lt;?processing instructions?&gt;, &lt;!A declaration&gt;, and &lt;![CDATA[character data]]&gt;."#;
     assert_eq!(
         r#"Test \<code>tags\</code>, \<!-- comments -->, \<?processing instructions?>, \<!A declaration>, and <!\[CDATA\[character data\]\]>."#,
-        convert(html).unwrap()
+        convert_faithful(html).unwrap()
     );
 }
 
@@ -572,7 +572,7 @@ fn multiline_raw_html_escaping() {
         indoc!(
             r#"Test \<code>multi-line tags\</code>, \<!-- multi-line comments -->, \<?multi-line processing instructions?>, \<!A multi-line declaration>, and <!\[CDATA\[multi-line character data\]\]>."#
         ),
-        convert(html).unwrap()
+        convert_faithful(html).unwrap()
     );
 }
 
@@ -602,14 +602,14 @@ fn html_escaping() {
 
             \<ul"#
         ),
-        convert(html).unwrap()
+        convert_faithful(html).unwrap()
     );
 }
 
 #[test]
 fn faithful_mode_inline() {
     assert_eq!(
-        convert(indoc!(
+        convert_faithful(indoc!(
             r#"<p>
                 <img src="one.png" alt="yyy" title="zzz" scale="50%">
                 <em bar>Testing</em>
@@ -629,7 +629,7 @@ fn faithful_mode_inline() {
 #[test]
 fn faithful_mode_hr() {
     assert_eq!(
-        convert(indoc!(r#"<hr bar>"#)).unwrap(),
+        convert_faithful(indoc!(r#"<hr bar>"#)).unwrap(),
         indoc!(r#"<hr bar="">"#)
     );
 }
@@ -637,7 +637,7 @@ fn faithful_mode_hr() {
 #[test]
 fn faithful_mode_blockquote() {
     assert_eq!(
-        convert(indoc!(
+        convert_faithful(indoc!(
             r#"<blockquote style="foo">
             <em>Testing</em>
 
@@ -657,7 +657,7 @@ fn faithful_mode_blockquote() {
 #[test]
 fn faithful_mode_h1() {
     assert_eq!(
-        convert(indoc!(r#"<h1 class="foo">Heading</h1>"#)).unwrap(),
+        convert_faithful(indoc!(r#"<h1 class="foo">Heading</h1>"#)).unwrap(),
         indoc!(r#"<h1 class="foo">Heading</h1>"#)
     );
 }
@@ -665,7 +665,7 @@ fn faithful_mode_h1() {
 #[test]
 fn faithful_mode_p() {
     assert_eq!(
-        convert(indoc!(r#"<p dir="ltr">Test 1</p>"#)).unwrap(),
+        convert_faithful(indoc!(r#"<p dir="ltr">Test 1</p>"#)).unwrap(),
         indoc!(r#"<p dir="ltr">Test 1</p>"#)
     );
 }
@@ -673,7 +673,7 @@ fn faithful_mode_p() {
 #[test]
 fn faithful_mode_ol1() {
     assert_eq!(
-        convert(indoc!(
+        convert_faithful(indoc!(
             r#"<ol>
             <li>Test 1</li>
             <li foo>Test 2</li>
@@ -694,7 +694,7 @@ fn faithful_mode_ol1() {
 #[test]
 fn faithful_mode_ol2() {
     assert_eq!(
-        convert(indoc!(
+        convert_faithful(indoc!(
             r#"<ol foo>
             <li>Test</li>
         </ol>"#
@@ -711,7 +711,7 @@ fn faithful_mode_ol2() {
 #[test]
 fn faithful_mode_comment() {
     assert_eq!(
-        convert(indoc!(r#"<!-- Test -->"#)).unwrap(),
+        convert_faithful(indoc!(r#"<!-- Test -->"#)).unwrap(),
         indoc!(r#"<!-- Test -->"#)
     );
 }
@@ -726,7 +726,7 @@ fn faithful_mode_html() {
             Test 2
         </details>"#
     );
-    let md = convert(html).unwrap();
+    let md = convert_faithful(html).unwrap();
     assert_eq!(
         indoc!(
             r#"<details>
@@ -742,7 +742,7 @@ fn faithful_mode_html() {
 #[test]
 fn faithful_mode_table() {
     assert_eq!(
-        convert(indoc!(
+        convert_faithful(indoc!(
             r#"<table>
             <tr>
                 <th>Header 1</th>
@@ -780,9 +780,23 @@ fn faithful_mode_table() {
 }
 
 #[test]
+fn faithful_mode_serializes_a_table_when_its_caption_requires_html() {
+    let html = concat!(
+        r#"<table><caption><span class="label">Caption</span></caption>"#,
+        "<tr><th>Header</th></tr><tr><td>Cell</td></tr></table>"
+    );
+    let expected = concat!(
+        r#"<table><caption><span class="label">Caption</span></caption>"#,
+        "<tbody><tr><th>Header</th></tr><tr><td>Cell</td></tr></tbody></table>"
+    );
+
+    assert_eq!(expected, convert_faithful(html).unwrap());
+}
+
+#[test]
 fn faithful_mode_nested_inline_html() {
     assert_eq!(
-        convert("<p>Nested <foo><bar><em>content</em></bar></foo></p>").unwrap(),
+        convert_faithful("<p>Nested <foo><bar><em>content</em></bar></foo></p>").unwrap(),
         "Nested <foo><bar>*content*</bar></foo>"
     );
 }
@@ -792,7 +806,7 @@ fn spaces_check() {
     let html = r#"<i>Italic</i> <em>Also italic</em>  <strong>Strong</strong> <b>Stronger </b>"#;
     assert_eq!(
         "*Italic* *Also italic* **Strong** **Stronger**",
-        convert(html).unwrap()
+        convert_faithful(html).unwrap()
     );
 }
 
@@ -806,14 +820,14 @@ fn consecutive_blocks() {
 
         Two"
         ),
-        convert(html).unwrap()
+        convert_faithful(html).unwrap()
     );
 }
 
 #[test]
 fn raw_text() {
     let html = r#"Hello world!"#;
-    assert_eq!("Hello world!", convert(html).unwrap());
+    assert_eq!("Hello world!", convert_faithful(html).unwrap());
 }
 
 #[test]
@@ -893,7 +907,7 @@ fn with_custom_rules_and_fallback() {
 #[test]
 fn upper_case_tags() {
     let html = r#"<H1>Hello</H1> <P>World</P>"#;
-    assert_eq!("# Hello\n\nWorld", convert(html).unwrap());
+    assert_eq!("# Hello\n\nWorld", convert_faithful(html).unwrap());
 }
 
 #[test]
@@ -901,13 +915,13 @@ fn html_entities() {
     let html = r#"<p><a href="/my%20&amp;uri" title="my%20&amp;title">my%20&amp;link</a></p>"#;
     assert_eq!(
         r#"[my%20&link](/my%20&uri "my%20&title")"#,
-        convert(html).unwrap()
+        convert_faithful(html).unwrap()
     );
 
     let html_plain = r#"<p>This &amp; that, then &lt; &gt; now.</p>"#;
     assert_eq!(
         r#"This & that, then < > now."#,
-        convert(html_plain).unwrap()
+        convert_faithful(html_plain).unwrap()
     );
 }
 
@@ -968,7 +982,7 @@ fn multithreading() {
 #[test]
 fn unterminated_html() {
     // The `<i>` tag isn't terminated. Make sure the conversion still works.
-    assert_eq!("# *A*", convert("<h1><i>A</h1>").unwrap());
+    assert_eq!("# *A*", convert_faithful("<h1><i>A</h1>").unwrap());
 }
 
 #[test]
@@ -982,18 +996,18 @@ fn misnested_formatting_does_not_duplicate_or_lose_text() {
 fn math() {
     assert_eq!(
         "$x^2$",
-        convert(r#"<p><span class="math math-inline">x^2</span></p>"#).unwrap()
+        convert_faithful(r#"<p><span class="math math-inline">x^2</span></p>"#).unwrap()
     );
 
     assert_eq!(
         "$$x^2$$",
-        convert(r#"<p><span class="math math-display">x^2</span></p>"#).unwrap()
+        convert_faithful(r#"<p><span class="math math-display">x^2</span></p>"#).unwrap()
     );
 
     // Test escaping -- values inside math should not be escaped.
     assert_eq!(
         "$${a}_1, b_{2}, a*1, b*2, [a](b), 3 <a> b, a \\; b$$",
-        convert(r#"<p><span class="math math-display">{a}_1, b_{2}, a*1, b*2, [a](b), 3 &lt;a&gt; b, a \; b</span></p>"#).unwrap()
+        convert_faithful(r#"<p><span class="math math-display">{a}_1, b_{2}, a*1, b*2, [a](b), 3 &lt;a&gt; b, a \; b</span></p>"#).unwrap()
     );
 }
 
@@ -1002,7 +1016,7 @@ fn math() {
 fn document_whitespace() {
     assert_eq!(
         "bar\u{a0}\n\n*   foo\u{a0}",
-        convert(indoc!(
+        convert_faithful(indoc!(
             "
             <p>bar&nbsp;</p>
             <ul>
@@ -1019,52 +1033,52 @@ fn document_whitespace() {
 #[test]
 fn multibyte_ordered_list_escape_half() {
     // U+00BD (½) is 2 bytes in UTF-8
-    let md = convert("<p>2½. Long shot</p>").unwrap();
+    let md = convert_faithful("<p>2½. Long shot</p>").unwrap();
     assert_eq!(r"2½\. Long shot", md);
 }
 
 #[test]
 fn multibyte_ordered_list_escape_accented() {
     // e-acute before dot -- not numeric, so the dot is not an ordered list marker
-    let md = convert("<p>1é. text</p>").unwrap();
+    let md = convert_faithful("<p>1é. text</p>").unwrap();
     assert_eq!(r"1é. text", md);
 }
 
 #[test]
 fn multibyte_ordered_list_escape_trademark() {
     // trademark symbol is not numeric
-    let md = convert("<p>3™. text</p>").unwrap();
+    let md = convert_faithful("<p>3™. text</p>").unwrap();
     assert_eq!(r"3™. text", md);
 }
 
 #[test]
 fn ascii_ordered_list_escape() {
-    let md = convert("<p>10. normal</p>").unwrap();
+    let md = convert_faithful("<p>10. normal</p>").unwrap();
     assert_eq!(r"10\. normal", md);
 }
 
 #[test]
 fn multibyte_no_dot() {
     // No dot, should not be affected
-    let md = convert("<p>2½</p>").unwrap();
+    let md = convert_faithful("<p>2½</p>").unwrap();
     assert_eq!("2½", md);
 }
 
 #[test]
 fn cjk_before_ordered_list() {
     // CJK chars are not numeric in Rust's is_numeric(), so this is not an ordered list pattern
-    let md = convert("<p>日本語1. test</p>").unwrap();
+    let md = convert_faithful("<p>日本語1. test</p>").unwrap();
     assert_eq!(r"日本語1. test", md);
 }
 
 #[test]
 fn multibyte_atx_heading_escape() {
-    let md = convert("<p># héading</p>").unwrap();
+    let md = convert_faithful("<p># héading</p>").unwrap();
     assert_eq!(r"\# héading", md);
 }
 
 #[test]
 fn multibyte_atx_heading_escape_umlaut() {
-    let md = convert("<p>## über</p>").unwrap();
+    let md = convert_faithful("<p>## über</p>").unwrap();
     assert_eq!(r"\## über", md);
 }

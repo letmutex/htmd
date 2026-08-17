@@ -8,7 +8,7 @@ pub(crate) mod text_util;
 use std::rc::Rc;
 
 use dom_walker::walk_node;
-use element_handler::{ElementHandler, ElementHandlers};
+use element_handler::{ElementHandler, ElementHandlers, is_inside_pre};
 use html5ever::tendril::TendrilSink;
 use html5ever::tree_builder::TreeBuilderOpts;
 use html5ever::{Attribute, ParseOpts, parse_document};
@@ -130,7 +130,14 @@ impl HtmlToMarkdown {
     pub fn tree_to_markdown(&self, tree: &Rc<Node>) -> String {
         let mut content = String::new();
 
-        walk_node(tree, &mut content, &self.handlers, None, true, false);
+        walk_node(
+            tree,
+            &mut content,
+            &self.handlers,
+            None,
+            true,
+            is_inside_pre(tree),
+        );
 
         // Trim leading/trailing newlines in place instead of allocating a copy.
         let start = content.len() - content.trim_start_matches('\n').len();
@@ -140,15 +147,13 @@ impl HtmlToMarkdown {
         let end = content.trim_end_matches('\n').len();
         content.truncate(end);
 
-        let mut append = String::new();
         for handler in &self.handlers.handlers {
             let Some(append_content) = handler.append() else {
                 continue;
             };
-            append.push_str(&append_content);
+            content.push_str(&append_content);
         }
-
-        content.push_str(append.trim_end_matches('\n'));
+        content.truncate(content.trim_end_matches('\n').len());
 
         content
     }

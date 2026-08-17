@@ -9,5 +9,5 @@ pub(super) fn thead_handler(handlers: &dyn Handlers, element: Element) -> Option
     serialize_if_faithful!(handlers, element, 0);
     // This tag's ability to translate to markdown requires its children to be
     // markdown translatable as well.
-    handle_or_serialize_by_parent(handlers, &element, &["table"], element.markdown_translated)
+    handle_or_serialize_by_parent(handlers, &element, &["table"], true)
 }

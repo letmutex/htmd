@@ -3,7 +3,7 @@ use htmd::{
     options::{LinkStyle, Options, TranslationMode},
 };
 mod common;
-use common::convert;
+use common::convert_faithful;
 
 #[test]
 fn links() {
@@ -13,7 +13,7 @@ fn links() {
         "#;
     assert_eq!(
         "[Link 1](https://example.com) [Link 2](https://example.com \"Hello\")",
-        convert(html).unwrap(),
+        convert_faithful(html).unwrap(),
     );
 }
 
@@ -21,16 +21,20 @@ fn links() {
 fn links_with_spaces_in_destination_and_title() {
     assert_eq!(
         r#"[Link](<https://example.com/hello world> "Hello")"#,
-        convert(r#"<a href="https://example.com/hello world" title="Hello">Link</a>"#).unwrap(),
+        convert_faithful(r#"<a href="https://example.com/hello world" title="Hello">Link</a>"#)
+            .unwrap(),
     );
 }
 
 #[test]
 fn links_with_spaces_around_text() {
-    assert_eq!("[bla](/)", convert(r#"<a href="/"> bla </a>"#).unwrap());
+    assert_eq!(
+        "[bla](/)",
+        convert_faithful(r#"<a href="/"> bla </a>"#).unwrap()
+    );
     assert_eq!(
         "Some [random](/) text",
-        convert(r#"Some <a href="/"> random </a> text"#).unwrap()
+        convert_faithful(r#"Some <a href="/"> random </a> text"#).unwrap()
     )
 }
 

@@ -180,56 +180,12 @@ impl ElementHandlers {
 
         handlers.add_handler(vec!["span"], span_handler);
 
-        // Other block elements. This is taken from the [CommonMark
-        // spec](https://spec.commonmark.org/0.31.2/#html-blocks).
-        handlers.add_handler(
-            vec![
-                "address",
-                "article",
-                "aside",
-                "base",
-                "basefont",
-                "center",
-                "col",
-                "colgroup",
-                "dd",
-                "details",
-                "dialog",
-                "dir",
-                "div",
-                "dl",
-                "dt",
-                "fieldset",
-                "figcaption",
-                "figure",
-                "footer",
-                "form",
-                "frame",
-                "frameset",
-                "header",
-                "iframe",
-                "legend",
-                "link",
-                "main",
-                "menu",
-                "menuitem",
-                "nav",
-                "noframes",
-                "optgroup",
-                "option",
-                "param",
-                "script",
-                "search",
-                "section",
-                "style",
-                "summary",
-                "textarea",
-                "tfoot",
-                "title",
-                "track",
-            ],
-            block_handler,
-        );
+        let unhandled_block_elements = crate::dom_walker::BLOCK_ELEMENTS
+            .iter()
+            .filter(|tag| !handlers.tag_to_handler_indices.contains_key(**tag))
+            .copied()
+            .collect();
+        handlers.add_handler(unhandled_block_elements, block_handler);
 
         handlers
     }
@@ -330,7 +286,8 @@ impl Handlers for ElementHandlers {
 
     fn handle(&self, node: &Rc<Node>) -> Option<HandlerResult> {
         let mut output = String::new();
-        let markdown_translated = walk_node(node, &mut output, self, None, true, false);
+        let markdown_translated =
+            walk_node(node, &mut output, self, None, true, is_inside_pre(node));
         Some(HandlerResult {
             content: output,
             markdown_translated,

@@ -8,21 +8,45 @@ use crate::{
     text_util::{StripWhitespace, TrimDocumentWhitespace, concat_strings},
 };
 
+/// Handler for HTML `<a>` (anchor) elements.
+///
+/// Converts anchor tags to Markdown links (inlined, autolinks, or reference-style links).
+///
+/// # State & Limitations
+///
+/// When using [`LinkStyle::Referenced`], link reference definitions (e.g. `[1]: https://...`)
+/// are collected in a thread-local buffer during DOM traversal and drained when [`append`](ElementHandler::append)
+/// is called at the end of the document conversion.
+///
+/// **Limitations:**
+/// - **Thread-local buffering:** State is isolated per-thread, making sharing [`HtmlToMarkdown`](crate::HtmlToMarkdown)
+///   across threads safe. However, nested or re-entrant conversions on the *same* thread (such as invoking
+///   `convert` inside a custom element handler) will share this thread-local buffer if both use
+///   reference-style links.
+/// - **Speculative conversion:** If a container handler (such as a table) converts children speculatively
+///   and then discards the result in faithful mode, any reference-style links inside those children
+///   will remain in the buffer for document-level append unless handled.
 pub(super) struct AnchorElementHandler {}
 
 impl AnchorElementHandler {
     thread_local! {
-        static LINKS: RefCell<Vec<String>> = const { RefCell::new(vec![]) };
+        static LINK_REFERENCES: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+    }
+
+    pub(super) fn new() -> Self {
+        Self {}
     }
 }
 
 impl ElementHandler for AnchorElementHandler {
     fn append(&self) -> Option<String> {
-        AnchorElementHandler::LINKS.with(|links| {
+        AnchorElementHandler::LINK_REFERENCES.with(|links| {
             let mut links = links.borrow_mut();
             if links.is_empty() {
                 return None;
             }
+
+            let links = std::mem::take(&mut *links);
             let content_len: usize = links.iter().map(String::len).sum();
             let mut result = String::with_capacity(content_len + links.len().saturating_add(1));
             result.push_str("\n\n");
@@ -33,7 +57,6 @@ impl ElementHandler for AnchorElementHandler {
                 result.push_str(link);
             }
             result.push_str("\n\n");
-            links.clear();
             Some(result)
         })
     }
@@ -83,10 +106,6 @@ impl ElementHandler for AnchorElementHandler {
 }
 
 impl AnchorElementHandler {
-    pub(super) fn new() -> Self {
-        Self {}
-    }
-
     fn build_inlined_anchor(
         &self,
         content: &str,
@@ -140,18 +159,17 @@ impl AnchorElementHandler {
         title: Option<String>,
         style: &LinkReferenceStyle,
     ) -> String {
-        AnchorElementHandler::LINKS.with(|links| {
+        AnchorElementHandler::LINK_REFERENCES.with(|links| {
+            let mut links = links.borrow_mut();
+            let index = links.len() + 1;
             let title = title
                 .as_deref()
                 .map_or(String::new(), |t| format!(" \"{t}\""));
             let (current, append) = match style {
-                LinkReferenceStyle::Full => {
-                    let index = links.borrow().len() + 1;
-                    (
-                        concat_strings!("[", content, "][", index.to_string(), "]"),
-                        concat_strings!("[", index.to_string(), "]: ", link, title),
-                    )
-                }
+                LinkReferenceStyle::Full => (
+                    concat_strings!("[", content, "][", index.to_string(), "]"),
+                    concat_strings!("[", index.to_string(), "]: ", link, title),
+                ),
                 LinkReferenceStyle::Collapsed => (
                     concat_strings!("[", content, "][]"),
                     concat_strings!("[", content, "]: ", link, title),
@@ -161,7 +179,7 @@ impl AnchorElementHandler {
                     concat_strings!("[", content, "]: ", link, title),
                 ),
             };
-            links.borrow_mut().push(append);
+            links.push(append);
             current
         })
     }

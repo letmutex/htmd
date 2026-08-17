@@ -10,7 +10,7 @@ use markup5ever_rcdom::NodeData;
 use pretty_assertions::assert_eq;
 
 mod common;
-use common::convert;
+use common::convert_faithful;
 
 fn find_element(node: &Rc<Node>, tag: &str) -> Option<Rc<Node>> {
     if let NodeData::Element { name, .. } = &node.data
@@ -30,7 +30,10 @@ fn code_blocks() {
     let html = r#"
         <pre><code>println!("Hello");</code></pre>
         "#;
-    assert_eq!("```\nprintln!(\"Hello\");\n```", convert(html).unwrap());
+    assert_eq!(
+        "```\nprintln!(\"Hello\");\n```",
+        convert_faithful(html).unwrap()
+    );
 }
 
 #[test]
@@ -38,14 +41,27 @@ fn code_blocks_with_lang_class() {
     let html = r#"
         <pre><code class="language-rust">println!("Hello");</code></pre>
         "#;
-    assert_eq!("```rust\nprintln!(\"Hello\");\n```", convert(html).unwrap());
+    assert_eq!(
+        "```rust\nprintln!(\"Hello\");\n```",
+        convert_faithful(html).unwrap()
+    );
+}
+
+#[test]
+fn faithful_mode_preserves_an_empty_language_class() {
+    let html = r#"<pre><code class="language-">Test</code></pre>"#;
+
+    assert_eq!(html, convert_faithful(html).unwrap());
 }
 
 #[test]
 fn code_blocks_decode_html_entities() {
     let html = r#"<pre><code>let x = 5 &amp;&amp; y &lt; 10;</code></pre>"#;
 
-    assert_eq!("```\nlet x = 5 && y < 10;\n```", convert(html).unwrap());
+    assert_eq!(
+        "```\nlet x = 5 && y < 10;\n```",
+        convert_faithful(html).unwrap()
+    );
 }
 
 // See https://github.com/letmutex/htmd/issues/14 for background on this test --
@@ -96,7 +112,7 @@ fn delegated_unhandled_subtree_preserves_ancestor_preformatted_context() {
 #[test]
 fn faithful_mode_pre() {
     assert_eq!(
-        convert(indoc!(r#"<pre>Test</pre>"#)).unwrap(),
+        convert_faithful(indoc!(r#"<pre>Test</pre>"#)).unwrap(),
         indoc!(r#"<pre>Test</pre>"#)
     );
 }
@@ -104,7 +120,7 @@ fn faithful_mode_pre() {
 #[test]
 fn faithful_mode_code_block1() {
     assert_eq!(
-        convert(indoc!(r#"<pre><code accesskey="f">Test</code></pre>"#)).unwrap(),
+        convert_faithful(indoc!(r#"<pre><code accesskey="f">Test</code></pre>"#)).unwrap(),
         indoc!(r#"<pre><code accesskey="f">Test</code></pre>"#)
     );
 }
@@ -112,7 +128,7 @@ fn faithful_mode_code_block1() {
 #[test]
 fn faithful_mode_code_block2() {
     assert_eq!(
-        convert(indoc!(
+        convert_faithful(indoc!(
             r#"<pre><code class="language-ruby"><i>Test</i></code></pre>"#
         ))
         .unwrap(),
@@ -170,4 +186,14 @@ fn tilde_fenced_code_uses_a_fence_longer_than_any_run_in_its_content() {
         .unwrap();
 
     assert_eq!("~~~~~~\n~~~~~\nlet parsed = true;\n~~~~~\n~~~~~~", markdown);
+}
+
+#[test]
+fn processing_instruction_nodes_are_ignored() {
+    let node = Node::new(NodeData::ProcessingInstruction {
+        target: "xml".into(),
+        contents: "version=\"1.0\"".into(),
+    });
+
+    assert_eq!("", HtmlToMarkdown::new().tree_to_markdown(&node));
 }
