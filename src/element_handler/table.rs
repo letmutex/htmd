@@ -1,6 +1,6 @@
 use crate::element_handler::element_util::serialize_element;
 use crate::element_handler::{Element, HandlerResult, Handlers};
-use crate::node_util::{get_node_children, get_node_tag_name, get_parent_node};
+use crate::node_util::{get_node_tag_name, get_parent_node};
 use crate::options::TranslationMode;
 use crate::serialize_if_faithful;
 use crate::text_util::{TrimDocumentWhitespace, concat_strings};
@@ -23,111 +23,12 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: Element) -> Option
         return handlers.fallback(element);
     }
 
-    // All child table elements must be markdown translated to markdown
-    // translate the table in faithful mode.
-    // We track markdown translation status manually because we iterate children
-    let mut all_children_translated = true;
-
-    // We only need content if we fail to parse the table structure
-    // But for now, let's just grab it lazily if needed?
-    // Actually, the original code used content.trim().is_empty() check.
-    // Let's try to parse first.
-
-    // Extract table rows
-    let mut captions: Vec<String> = Vec::new();
-    let mut headers: Vec<String> = Vec::new();
-    let mut rows: Vec<Vec<String>> = Vec::new();
-    let mut has_thead = false;
-
-    // Extract rows and headers from the table structure
-    if let NodeData::Element { .. } = &element.node.data {
-        for child in get_node_children(element.node) {
-            if let NodeData::Element { name, .. } = &child.data {
-                let tag_name = name.local.as_ref();
-
-                match tag_name {
-                    "caption" => {
-                        if let Some(res) = handlers.handle(&child) {
-                            captions.push(res.content.trim_document_whitespace().to_string());
-                        }
-                    }
-                    "thead" => {
-                        let tr = child
-                            .children
-                            .borrow()
-                            .iter()
-                            .find(|it| get_node_tag_name(it).is_some_and(|tag| tag == "tr"))
-                            .cloned();
-
-                        let row_node = match tr {
-                            Some(tr) => tr,
-                            None => child,
-                        };
-
-                        has_thead = true;
-                        let (cells, translated) = extract_row_cells(handlers, &row_node, "th");
-                        headers = cells;
-                        all_children_translated &= translated;
-                        if headers.is_empty() {
-                            let (cells, translated) = extract_row_cells(handlers, &row_node, "td");
-                            headers = cells;
-                            all_children_translated &= translated;
-                        }
-                    }
-                    "tbody" | "tfoot" => {
-                        for row_node in get_node_children(&child) {
-                            if let NodeData::Element { name, .. } = &row_node.data
-                                && name.local.as_ref() == "tr"
-                            {
-                                // If no thead is found, use the first th row as header
-                                if !has_thead && headers.is_empty() {
-                                    let (cells, translated) =
-                                        extract_row_cells(handlers, &row_node, "th");
-                                    headers = cells;
-                                    all_children_translated &= translated;
-                                    has_thead = !headers.is_empty();
-
-                                    if has_thead {
-                                        continue;
-                                    }
-                                }
-
-                                let (row_cells, translated) =
-                                    extract_row_cells(handlers, &row_node, "td");
-                                all_children_translated &= translated;
-                                if !row_cells.is_empty() {
-                                    rows.push(row_cells);
-                                }
-                            }
-                        }
-                    }
-                    "tr" => {
-                        // If no thead is found, use the first row as headers
-                        if !has_thead && headers.is_empty() {
-                            let (cells, translated) = extract_row_cells(handlers, &child, "th");
-                            headers = cells;
-                            all_children_translated &= translated;
-                            if headers.is_empty() {
-                                let (cells, translated) = extract_row_cells(handlers, &child, "td");
-                                if !cells.is_empty() {
-                                    headers = cells;
-                                    all_children_translated &= translated;
-                                }
-                            }
-                            has_thead = !headers.is_empty();
-                        } else {
-                            let (row_cells, translated) = extract_row_cells(handlers, &child, "td");
-                            all_children_translated &= translated;
-                            if !row_cells.is_empty() {
-                                rows.push(row_cells);
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-    }
+    let ExtractedTable {
+        captions,
+        headers,
+        rows,
+        all_children_translated,
+    } = extract_table_content(handlers, element.node);
 
     if handlers.options().translation_mode == TranslationMode::Faithful && !all_children_translated
     {
@@ -137,7 +38,6 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: Element) -> Option
         });
     }
 
-    // If we didn't find any rows or cells, just return the content as-is
     if rows.is_empty() && headers.is_empty() {
         let content = handlers.walk_children(element.node).content;
         let content = content.trim_matches('\n');
@@ -147,21 +47,10 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: Element) -> Option
         return Some(concat_strings!("\n\n", content, "\n\n").into());
     }
 
-    // Determine the number of columns by finding the max column count
     let num_columns = headers
         .len()
         .max(rows.iter().map(|row| row.len()).max().unwrap_or(0));
 
-    if num_columns == 0 {
-        let content = handlers.walk_children(element.node).content;
-        let content = content.trim_matches('\n');
-        if content.is_empty() {
-            return None;
-        }
-        return Some(concat_strings!("\n\n", content, "\n\n").into());
-    }
-
-    // Build the Markdown table
     let mut table_md = String::from("\n\n");
 
     for caption in captions {
@@ -182,9 +71,129 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: Element) -> Option
     Some(table_md.into())
 }
 
+struct ExtractedTable {
+    captions: Vec<String>,
+    headers: Vec<String>,
+    rows: Vec<Vec<String>>,
+    all_children_translated: bool,
+}
+
+fn extract_table_content(
+    handlers: &dyn Handlers,
+    table_node: &Rc<markup5ever_rcdom::Node>,
+) -> ExtractedTable {
+    let mut table = ExtractedTable {
+        captions: Vec::new(),
+        headers: Vec::new(),
+        rows: Vec::new(),
+        all_children_translated: true,
+    };
+    let mut has_thead = false;
+
+    for child in table_node.children.borrow().iter() {
+        let NodeData::Element { name, .. } = &child.data else {
+            continue;
+        };
+
+        match name.local.as_ref() {
+            "caption" => {
+                if let Some(result) = handlers.handle(child) {
+                    table
+                        .captions
+                        .push(result.content.trim_document_whitespace().to_string());
+                }
+            }
+            "thead" => {
+                has_thead = true;
+                extract_thead(handlers, child, &mut table);
+            }
+            "tbody" | "tfoot" => extract_section_rows(handlers, child, &mut table, &mut has_thead),
+            "tr" => extract_direct_row(handlers, child, &mut table, &mut has_thead),
+            _ => {}
+        }
+    }
+
+    table
+}
+
+fn extract_thead(
+    handlers: &dyn Handlers,
+    thead_node: &Rc<markup5ever_rcdom::Node>,
+    table: &mut ExtractedTable,
+) {
+    let children = thead_node.children.borrow();
+    let row_node = children
+        .iter()
+        .find(|node| get_node_tag_name(node).is_some_and(|tag| tag == "tr"))
+        .unwrap_or(thead_node);
+
+    let (headers, translated) = extract_row_cells(handlers, row_node, "th");
+    table.headers = headers;
+    table.all_children_translated &= translated;
+    if table.headers.is_empty() {
+        let (headers, translated) = extract_row_cells(handlers, row_node, "td");
+        table.headers = headers;
+        table.all_children_translated &= translated;
+    }
+}
+
+fn extract_section_rows(
+    handlers: &dyn Handlers,
+    section_node: &Rc<markup5ever_rcdom::Node>,
+    table: &mut ExtractedTable,
+    has_thead: &mut bool,
+) {
+    for row_node in section_node.children.borrow().iter() {
+        if get_node_tag_name(row_node) != Some("tr") {
+            continue;
+        }
+
+        if !*has_thead && table.headers.is_empty() {
+            let (headers, translated) = extract_row_cells(handlers, row_node, "th");
+            table.headers = headers;
+            table.all_children_translated &= translated;
+            *has_thead = !table.headers.is_empty();
+            if *has_thead {
+                continue;
+            }
+        }
+
+        let (cells, translated) = extract_row_cells(handlers, row_node, "td");
+        table.all_children_translated &= translated;
+        if !cells.is_empty() {
+            table.rows.push(cells);
+        }
+    }
+}
+
+fn extract_direct_row(
+    handlers: &dyn Handlers,
+    row_node: &Rc<markup5ever_rcdom::Node>,
+    table: &mut ExtractedTable,
+    has_thead: &mut bool,
+) {
+    if !*has_thead && table.headers.is_empty() {
+        let (headers, translated) = extract_row_cells(handlers, row_node, "th");
+        table.headers = headers;
+        table.all_children_translated &= translated;
+        if table.headers.is_empty() {
+            let (headers, translated) = extract_row_cells(handlers, row_node, "td");
+            table.headers = headers;
+            table.all_children_translated &= translated;
+        }
+        *has_thead = !table.headers.is_empty();
+    } else {
+        let (cells, translated) = extract_row_cells(handlers, row_node, "td");
+        table.all_children_translated &= translated;
+        if !cells.is_empty() {
+            table.rows.push(cells);
+        }
+    }
+}
+
 fn has_explicit_headers(node: &Rc<markup5ever_rcdom::Node>) -> bool {
     fn visit(node: &Rc<markup5ever_rcdom::Node>, is_root: bool) -> bool {
-        for child in get_node_children(node) {
+        for child in node.children.borrow().iter() {
             if let NodeData::Element { name, .. } = &child.data {
                 let tag_name = name.local.as_ref();
                 if !is_root && tag_name == "table" {
@@ -195,7 +204,7 @@ fn has_explicit_headers(node: &Rc<markup5ever_rcdom::Node>) -> bool {
                 }
             }
 
-            if visit(&child, false) {
+            if visit(child, false) {
                 return true;
             }
         }
@@ -228,17 +237,17 @@ fn extract_row_cells(
     let mut cells = Vec::new();
     let mut all_translated = true;
 
-    for cell_node in get_node_children(row_node) {
+    for cell_node in row_node.children.borrow().iter() {
         if let NodeData::Element { name, .. } = &cell_node.data
             && name.local.as_ref() == cell_tag
         {
-            let Some(res) = handlers.handle(&cell_node) else {
+            let Some(res) = handlers.handle(cell_node) else {
                 continue;
             };
             if !res.markdown_translated {
                 all_translated = false;
             }
-            let cell_content = res.content.trim_document_whitespace().to_string();
+            let cell_content = normalize_cell_content(res.content.trim_document_whitespace());
             cells.push(cell_content);
         }
     }
@@ -258,10 +267,7 @@ fn normalize_cell_content(content: &str) -> String {
 fn format_row_padded(row: &[String], num_columns: usize, col_widths: &[usize]) -> String {
     let mut line = String::from("|");
     for (i, col_width) in col_widths.iter().enumerate().take(num_columns) {
-        let cell = row
-            .get(i)
-            .map(|s| normalize_cell_content(s))
-            .unwrap_or_default();
+        let cell = row.get(i).map(String::as_str).unwrap_or_default();
         let pad = col_width.saturating_sub(cell.chars().count());
         line.push_str(&concat_strings!(" ", cell, " ".repeat(pad), " |"));
     }

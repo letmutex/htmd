@@ -12,14 +12,34 @@ pub(super) struct AnchorElementHandler {}
 
 impl AnchorElementHandler {
     thread_local! {
-        static LINKS: RefCell<Vec<String>> = const { RefCell::new(vec![]) };
+        static LINK_SCOPES: RefCell<Vec<Vec<String>>> = const { RefCell::new(Vec::new()) };
+    }
+}
+
+pub(crate) struct LinkReferenceScope;
+
+impl LinkReferenceScope {
+    pub(crate) fn enter() -> Self {
+        AnchorElementHandler::LINK_SCOPES.with(|scopes| scopes.borrow_mut().push(Vec::new()));
+        Self
+    }
+}
+
+impl Drop for LinkReferenceScope {
+    fn drop(&mut self) {
+        AnchorElementHandler::LINK_SCOPES.with(|scopes| {
+            scopes.borrow_mut().pop();
+        });
     }
 }
 
 impl ElementHandler for AnchorElementHandler {
     fn append(&self) -> Option<String> {
-        AnchorElementHandler::LINKS.with(|links| {
-            let mut links = links.borrow_mut();
+        AnchorElementHandler::LINK_SCOPES.with(|scopes| {
+            let mut scopes = scopes.borrow_mut();
+            let links = scopes
+                .last_mut()
+                .expect("link references require an active conversion scope");
             if links.is_empty() {
                 return None;
             }
@@ -140,13 +160,17 @@ impl AnchorElementHandler {
         title: Option<String>,
         style: &LinkReferenceStyle,
     ) -> String {
-        AnchorElementHandler::LINKS.with(|links| {
+        AnchorElementHandler::LINK_SCOPES.with(|scopes| {
+            let mut scopes = scopes.borrow_mut();
+            let links = scopes
+                .last_mut()
+                .expect("link references require an active conversion scope");
             let title = title
                 .as_deref()
                 .map_or(String::new(), |t| format!(" \"{t}\""));
             let (current, append) = match style {
                 LinkReferenceStyle::Full => {
-                    let index = links.borrow().len() + 1;
+                    let index = links.len() + 1;
                     (
                         concat_strings!("[", content, "][", index.to_string(), "]"),
                         concat_strings!("[", index.to_string(), "]: ", link, title),
@@ -161,7 +185,7 @@ impl AnchorElementHandler {
                     concat_strings!("[", content, "]: ", link, title),
                 ),
             };
-            links.borrow_mut().push(append);
+            links.push(append);
             current
         })
     }

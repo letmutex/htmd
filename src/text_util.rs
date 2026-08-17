@@ -116,41 +116,22 @@ where
     }
 }
 
-/// Join text clips, inspired by:
-/// https://github.com/mixmark-io/turndown/blob/cc73387fb707e5fb5e1083e94078d08f38f3abc8/src/turndown.js#L221
-pub(crate) fn join_blocks(contents: &[String]) -> String {
-    // Pre-allocate capacity to avoid multiple re-allocations.
-    let capacity = contents.iter().map(String::len).sum();
-    let mut result = String::with_capacity(capacity);
-
-    for content in contents {
-        let content_len = content.len();
-        if content_len == 0 {
-            continue;
-        }
-
-        let result_len = result.len();
-        let left = result.trim_end_matches('\n');
-        let right = content.trim_start_matches('\n');
-
-        let max_trimmed_new_lines =
-            std::cmp::max(result_len - left.len(), content_len - right.len());
-        let separator_new_lines = std::cmp::min(max_trimmed_new_lines, 2);
-
-        // Remove trailing newlines.
-        result.truncate(left.len());
-
-        // Add the calculated separator
-        if separator_new_lines == 1 {
-            result.push('\n');
-        } else if separator_new_lines == 2 {
-            result.push_str("\n\n");
-        }
-
-        // Append the new, trimmed content
-        result.push_str(right);
+pub(crate) fn append_block(output: &mut String, content: &str) {
+    if content.is_empty() {
+        return;
     }
-    result
+
+    let output_without_newlines = output.trim_end_matches('\n').len();
+    let content_without_newlines = content.trim_start_matches('\n');
+    let boundary_newlines = (output.len() - output_without_newlines)
+        .max(content.len() - content_without_newlines.len())
+        .min(2);
+
+    output.truncate(output_without_newlines);
+    for _ in 0..boundary_newlines {
+        output.push('\n');
+    }
+    output.push_str(content_without_newlines);
 }
 
 pub(crate) fn compress_whitespace(input: &str) -> Cow<'_, str> {

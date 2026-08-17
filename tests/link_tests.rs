@@ -1,9 +1,22 @@
 use htmd::{
-    HtmlToMarkdown,
+    Element, HtmlToMarkdown,
+    element_handler::{HandlerResult, Handlers},
     options::{LinkStyle, Options, TranslationMode},
 };
 mod common;
 use common::convert;
+
+fn convert_nested_reference(_handlers: &dyn Handlers, _element: Element) -> Option<HandlerResult> {
+    HtmlToMarkdown::builder()
+        .options(Options {
+            link_style: LinkStyle::Referenced,
+            ..Default::default()
+        })
+        .build()
+        .convert(r#"<a href="/inner">Inner</a>"#)
+        .ok()
+        .map(Into::into)
+}
 
 #[test]
 fn links() {
@@ -57,5 +70,25 @@ fn links_inlined_prefer_autolinks() {
     assert_eq!(
         r#"[Link](https://example.com "https://example.com")"#,
         converter.convert(html).unwrap()
+    );
+}
+
+#[test]
+fn referenced_links_are_scoped_to_reentrant_conversions() {
+    let converter = HtmlToMarkdown::builder()
+        .options(Options {
+            link_style: LinkStyle::Referenced,
+            ..Default::default()
+        })
+        .add_handler(vec!["nested"], convert_nested_reference)
+        .build();
+
+    let markdown = converter
+        .convert(r#"<a href="/one">One</a><nested></nested><a href="/two">Two</a>"#)
+        .unwrap();
+
+    assert_eq!(
+        "[One][1][Inner][1]\n\n[1]: /inner[Two][2]\n\n[1]: /one\n[2]: /two",
+        markdown
     );
 }
