@@ -185,12 +185,11 @@ fn italic_inside_word() {
     assert_eq!("It*al*ic St**ro**ng", convert(html).unwrap());
 }
 
-/// A literal backslash at the end of an emphasis element is written `\\`, whose
-/// second backslash sits against the newline that follows — exactly where a
-/// backslash hard break's own marker sits. Pure mode moves such a break outside
-/// the closing marker, and must not mistake this for one: hoisting one backslash
-/// out of the pair leaves the other escaping the closing marker, which loses the
-/// emphasis altogether.
+/// A literal backslash ending an emphasis element is written `\\`, whose second
+/// backslash sits against the following newline — exactly where a backslash hard
+/// break's marker sits. Pure mode, which moves such a break outside the closing
+/// marker, must not mistake this for one: hoisting one backslash out of the pair
+/// leaves the other escaping the marker and loses the emphasis.
 #[test]
 fn trailing_backslash_is_not_a_hard_break() {
     for html in [
@@ -232,18 +231,16 @@ fn convert_in(html: &str, translation_mode: TranslationMode) -> String {
 // ---------------------------------------------------------------------------
 // Emphasis wrapping a *block*.
 //
-// `emphasis_handler` checks that its markers would sit against characters that
-// let them open and close emphasis. CommonMark asks something else as well:
-// both markers must land in the same paragraph, since a blank line ends one. A
-// block child writes a blank line, so an `<em>` holding one can satisfy the
-// flanking rule and still fail to be emphasis — nothing looks. The handler's
-// hoists move a blank line at either *edge* outside the markers, which is why a
-// block that is the whole content is fine; only an interior block leaves a
-// blank line with content on both sides, where nothing can hoist it away.
+// `emphasis_handler` checks only that its markers flank. CommonMark asks
+// something else as well: both markers must land in the same paragraph, since a
+// blank line ends one — and a block child writes a blank line. The handler's
+// hoists move a blank line at either *edge* outside the markers, so only an
+// interior block leaves one with content on both sides, where nothing can hoist
+// it away.
 //
-// Whether that reaches the output turns entirely on what encloses the emphasis,
-// so both tests run the same `<em>a<div>b</div>c</em>` in every context and
-// differ only in what they expect.
+// Whether that reaches the output turns on what encloses the emphasis, so both
+// tests run the same `<em>a<div>b</div>c</em>` in every context and differ only
+// in what they expect.
 // ---------------------------------------------------------------------------
 
 /// The emphasis carries a block child intact here — each for its own reason,
@@ -342,22 +339,16 @@ fn emphasis_around_a_block_loses_its_markers() {
 
 /// A carriage return is a character of the document, not a line ending.
 ///
-/// html5ever normalizes the source's own CR and CRLF to `\n` before htmd sees
-/// them, and ordinary text is whitespace-collapsed on top of that, so `&#13;`
-/// disappears from a paragraph entirely. Preformatted content is the exception:
-/// a `<pre>` carries one through verbatim, which is the one way a `\r` reaches
-/// the emphasis handler's leading and trailing hoists.
+/// html5ever normalizes the source's own CR and CRLF to `\n`, and ordinary text
+/// is whitespace-collapsed on top of that, so `&#13;` disappears from a
+/// paragraph entirely. A `<pre>` is the exception, carrying one through verbatim
+/// — the one way a `\r` reaches the emphasis handler's hoists, which look for
+/// `\n` alone.
 ///
-/// Those hoists look for `\n` alone. Every newline htmd writes is one, so a
-/// `\r` arriving here is always literal text — counting it as a line ending
-/// would cut the hoist short around a run of whitespace that merely contains
-/// one.
-///
-/// What these pin is the output: a carriage return rides through into it and
-/// changes nothing else. They do *not* pin the `\n`-only decision itself, which
-/// no input reaches through this API — adding `\r` back to the searches leaves
-/// every one of these passing. `emphasis::tests::carriage_return_is_not_a_line_ending`
-/// pins that, against the hoists directly.
+/// These pin the output only: a carriage return rides through and changes
+/// nothing. Adding `\r` back to the hoists' searches leaves every one of them
+/// passing, so `emphasis::tests::carriage_return_is_not_a_line_ending` pins that
+/// decision against the hoists directly.
 #[test]
 fn carriage_return_is_text_not_a_line_ending() {
     // Collapsed out of ordinary text before any of this can matter.
@@ -401,14 +392,10 @@ fn carriage_return_is_text_not_a_line_ending() {
     }
 }
 
-/// A Setext underline attaches to the whole paragraph above it, not just the
-/// last line, so multi-line heading content is fine. Only a blank line — which
-/// ends that paragraph — forces ATX.
-///
-/// ATX is not a safe default to reach for: it is single-line, so content holding
-/// a newline loses everything past the first line to a paragraph of its own.
-/// Falling back where Setext would have worked breaks the heading rather than
-/// protecting it.
+/// A Setext underline attaches to the whole paragraph above it, so multi-line
+/// heading content is fine; only a blank line, which ends that paragraph, forces
+/// ATX. ATX is not a safe default to reach for — being single-line, it loses
+/// everything past the first line to a paragraph of its own.
 #[test]
 fn setext_falls_back_to_atx_only_for_a_blank_line() {
     fn setext(html: &str) -> String {
@@ -476,16 +463,14 @@ fn setext_falls_back_to_atx_only_for_a_blank_line() {
     }
 }
 
-/// `br_handler` decides how to write a `<br>` from the heading's level and the
-/// requested style alone, since the content `can_use_setext` judges does not
-/// exist until the walk it is part of returns. So it can write a hard break into
-/// a heading that then falls back to ATX, where the break ends the heading and
-/// leaves the rest to a paragraph — and under `BrStyle::Backslash` leaves a
-/// stray `\` in the heading's text as well. `fold_hard_breaks` writes those
-/// breaks back the way ATX needs them.
+/// `br_handler` decides how to write a `<br>` from the heading's level and style
+/// alone, since the content `can_use_setext` judges does not exist until the
+/// walk it is part of returns. So it can write a hard break into a heading that
+/// then falls back to ATX, where the break ends the heading; `fold_hard_breaks`
+/// rewrites those.
 ///
-/// The invariant is that asking for Setext is never worse than not asking: where
-/// Setext cannot be used, the output is the one ATX gives for the same input.
+/// The invariant: asking for Setext is never worse than not asking, so where
+/// Setext cannot be used the output is the one ATX gives for the same input.
 #[test]
 fn setext_falling_back_to_atx_rewrites_hard_breaks() {
     fn convert_with(html: &str, heading_style: HeadingStyle, mode: TranslationMode) -> String {
@@ -521,9 +506,8 @@ fn setext_falling_back_to_atx_rewrites_hard_breaks() {
     }
 
     // A raw `<br>` opening the first line rules Setext out as well, but only
-    // faithful mode writes one: pure mode drops a `<br>` it cannot spell, which
-    // leaves the content opening with the `a` after it and Setext usable — so
-    // these are only the faithful half of the pair.
+    // faithful mode writes one: pure mode drops it, leaving the content to open
+    // with the `a` after it and Setext usable.
     for html in ["<h1><br>a<br>b</h1>", "<h1><a><br></a>a<br>b</h1>"] {
         assert_eq!(
             convert_with(html, HeadingStyle::Atx, TranslationMode::Faithful),

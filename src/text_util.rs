@@ -193,11 +193,9 @@ fn is_document_whitespace(c: char) -> bool {
 /// Indents every line of `text` but the first by `indent` spaces.
 ///
 /// With `trim_line_end`, each line's trailing whitespace goes as well — except
-/// for the two spaces of a hard line break, which are not stray whitespace but
-/// the break itself. Trimming those would rejoin the two lines the `<br>` they
-/// came from split, silently losing the break. They are kept only where they
-/// still read as one: on a line that holds something to break from, with a line
-/// after it holding something to break onto. See [`is_hard_line_break`].
+/// for the two spaces of a hard line break, since trimming those would rejoin
+/// the lines the `<br>` split and silently lose the break. See
+/// [`is_hard_line_break`].
 pub(crate) fn indent_text_except_first_line(
     text: &str,
     indent: usize,
@@ -237,13 +235,11 @@ pub(crate) fn indent_text_except_first_line(
 /// Whether `line` ends in a hard line break that `next_line` — the line after
 /// it, if any — has something to break onto.
 ///
-/// A break is two or more spaces at the end of a line, which is why only spaces
-/// count here: a line ending in a tab is not a break, however much whitespace
-/// runs ahead of it. The line has to hold something besides that whitespace,
-/// since a whitespace-only line is blank and ends the block rather than breaking
-/// it, and the next line has to hold something too, since a break with nothing
-/// to break onto is not a break at all.
 fn is_hard_line_break(line: &str, next_line: Option<&str>) -> bool {
+    // A break is two or more *spaces* at a line's end, so a line ending in a tab is
+    // not one however much whitespace runs ahead of it. Both lines have to hold
+    // something besides whitespace: a whitespace-only line is blank and ends the
+    // block, and a break with nothing to break onto is not a break.
     line.ends_with("  ")
         && !line.trim_matches(is_document_whitespace).is_empty()
         && next_line.is_some_and(|next| !next.trim_matches(is_document_whitespace).is_empty())
@@ -321,7 +317,7 @@ mod tests {
             indent_text_except_first_line("a \nb ", 4, false)
         );
         // A blank line stays blank rather than becoming an indented run of
-        // spaces, whatever whitespace it held.
+        // spaces.
         assert_eq!(
             "a\n\n    b",
             indent_text_except_first_line("a\n   \nb", 4, true)
@@ -334,24 +330,21 @@ mod tests {
             "a  \n    b",
             indent_text_except_first_line("a  \nb", 4, true)
         );
-        // Whatever wider run of spaces the source ended the line with comes back
-        // as the two the break needs.
+        // A wider run of spaces comes back as the two the break needs.
         assert_eq!(
             "a  \n    b",
             indent_text_except_first_line("a     \nb", 4, true)
         );
-        // A break with nothing to break onto is not a break: the last line has
-        // no line after it, and a blank line ends the block rather than
-        // continuing it.
+        // A break with nothing to break onto is not a break: no line follows the
+        // last one, and a blank line ends the block.
         assert_eq!("a\n    b", indent_text_except_first_line("a\nb  ", 4, true));
         assert_eq!(
             "a\n\n    b",
             indent_text_except_first_line("a  \n\nb", 4, true)
         );
-        // Nor is a whitespace-only line, which is blank however wide it is.
+        // Nor is a whitespace-only line, which is blank however wide.
         assert_eq!("\n    b", indent_text_except_first_line("  \nb", 4, true));
-        // Two spaces are a break only where they end the line; a tab after them
-        // is what ends this one.
+        // Two spaces are a break only where they end the line; here a tab does.
         assert_eq!(
             "a\n    b",
             indent_text_except_first_line("a  \t\nb", 4, true)

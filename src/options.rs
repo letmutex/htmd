@@ -41,18 +41,8 @@ impl Default for Options {
 pub enum HeadingStyle {
     /// `# Heading`
     Atx,
-    /// Setex where possible: h1 and h2 are underlined with `===` / `---`, while
-    /// everything a Setex heading cannot express falls back to
-    /// [`HeadingStyle::Atx`]. That is h3 through h6, which have no underline of
-    /// their own, and an h1 or h2 whose content either holds a blank line, which
-    /// ends the paragraph the underline would attach to, or opens with a raw
-    /// `<br>`, which starts an [HTML
-    /// block](https://spec.commonmark.org/0.31.2/#html-blocks) that takes the
-    /// underline with it.
-    ///
-    /// Content merely *starting* with a hard line break is no obstacle: the
-    /// underline attaches to the whole run of lines above it rather than to the
-    /// last one alone.
+    /// Setex where possible; for example, a leading `<br>` can only be encoded
+    /// using ATX-style headings.
     Setex,
 }
 
@@ -68,11 +58,8 @@ pub enum HrStyle {
 
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum BrStyle {
-    /// Use two spaces where possible: two spaces at the end of a line break it
-    /// only when that line already holds text, since on an otherwise empty line
-    /// they are invisible and leave a blank line, which ends the block instead
-    /// of breaking it. A `<br>` that opens a line therefore falls back to
-    /// [`BrStyle::Backslash`].
+    /// Two spaces at the end of a line, where possible: a leading `<br>` can only
+    ///  be encoded using a `\`.
     TwoSpaces,
     /// A `\` at the end of the line.
     Backslash,

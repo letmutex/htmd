@@ -14,22 +14,14 @@ pub(super) fn blockquote_handler(
     element: Element,
 ) -> Option<HandlerResult> {
     serialize_if_faithful!(handlers, element, 0);
-    // A quote holding a `<br>` that Markdown cannot write — one with nothing
-    // ahead of it on the line and nothing after it in the quote, as in
-    // `<blockquote><br></blockquote>` — survives only as HTML.
+    // A quote holding a `<br>` that Markdown cannot write, as in
+    // `<blockquote><br></blockquote>`, survives only as HTML: `br_handler`
+    // writes nothing for such a break, so the quote would convert to the empty
+    // string and vanish along with it.
     //
-    // Nothing is written for such a break at all (see `br_handler`), so the
-    // quote would be left with no content: `<blockquote><br></blockquote>`
-    // converts to the empty string, taking the quote down with the break.
-    // Serializing keeps both.
-    //
-    // It has to be the *whole* quote rather than a `> <br>` line holding the
-    // serialized break, because that line's content still has to be Markdown
-    // htmd is willing to stand behind, and a raw `<br>` opening the quote's
-    // first line opens an HTML block inside the quote — which reads every line
-    // up to the next blank one as raw HTML. The `<blockquote>` itself is not at
-    // risk: the `>` marker is stripped before the line's content is looked at,
-    // so the quote survives whatever its content turns out to be.
+    // Serializing the *whole* quote rather than writing a `> <br>` line, because
+    // that line's raw `<br>` would open an HTML block inside the quote, reading
+    // every line up to the next blank one as raw HTML.
     if handlers.options().translation_mode == TranslationMode::Faithful
         && blockquote_holds_unwritable_br(element.node)
     {

@@ -10,9 +10,8 @@ use crate::{
 
 pub(super) fn p_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
     serialize_if_faithful!(handlers, element, 0);
-    // A paragraph holding a `<br>` that Markdown cannot write — one with nothing
-    // ahead of it on the line and nothing after it in the paragraph, as in
-    // `<p><br></p>` — survives only as HTML. The whole paragraph has to be
+    // A paragraph holding a `<br>` that Markdown cannot write, as in
+    // `<p><br></p>`, survives only as HTML. The whole paragraph has to be
     // serialized: a bare `<br>` line would parse back as a top-level `<br>`,
     // losing the `<p>` around it.
     if handlers.options().translation_mode == TranslationMode::Faithful

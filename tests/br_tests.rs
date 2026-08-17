@@ -5,49 +5,38 @@
 //! inline element's only content. Three CommonMark rules drive all of them:
 //!
 //! 1.  A hard line break must be followed by content in the same block, so
-//!     neither `  \n` nor `\\\n` can render a `<br>` that ends a block. A line
+//!     neither `  \n` nor `\\\n` can render a `<br>` that ends a block: a line
 //!     holding only two spaces is blank, and a trailing `\` is a literal
 //!     backslash.
-//! 2.  `br` is not in CommonMark's list of block-level tag names, so a raw
-//!     `<br>` at the start of a line opens an HTML block of type 7, which runs
-//!     to the next blank line and swallows whatever follows it. Raw `<br>` is
-//!     therefore safe only when something else already started the line, as in
-//!     an ATX heading.
+//! 2.  `br` is not a block-level tag name, so a raw `<br>` at the start of a
+//!     line opens an HTML block of type 7, which runs to the next blank line and
+//!     swallows whatever follows. Raw `<br>` is safe only where something else
+//!     already started the line, as in an ATX heading.
 //! 3.  An emphasis delimiter run opens emphasis only if it is *left-flanking*:
 //!     not followed by whitespace, and either not followed by punctuation or
-//!     else itself preceded by whitespace or punctuation — and mirror-image for
-//!     closing. Every spelling of a `<br>` starts and ends in punctuation: `<`
-//!     and `>` for the raw tag, `\` for the backslash break. So a marker
-//!     written straight up against one dies whenever the character on the far
-//!     side is alphanumeric: `a*<br>*b` is the literal text `a*`, a break, and
-//!     `*b` — not emphasis. Only `*<br>*` standing alone between whitespace or
-//!     block boundaries survives, which is why `# *<br>*` works and
-//!     `# *<br>*a` does not.
+//!     else itself preceded by whitespace or punctuation — mirror-image for
+//!     closing. Every spelling of a `<br>` starts and ends in punctuation, so a
+//!     marker against one dies whenever the character on its far side is
+//!     alphanumeric: `a*<br>*b` is the literal text `a*`, a break, and `*b`.
+//!     Only `*<br>*` alone between whitespace or block boundaries survives,
+//!     which is why `# *<br>*` works and `# *<br>*a` does not.
 //!
-//! Rule 1 still leaves a backslash break usable wherever the `<br>` is followed
-//! by content in the same block, which is plain Markdown and so behaves
-//! identically in both translation modes. Where even that fails, the two modes
-//! diverge: `Faithful` keeps the `<br>` as HTML, while `Pure` drops it, leaving
-//! exactly what the same HTML without it produces — nothing takes the `<br>`'s
-//! place, so text on either side of it joins.
+//! Where a backslash break still works the output is plain Markdown and both
+//! translation modes agree. Where nothing works they diverge: `Faithful` keeps
+//! the `<br>` as HTML, while `Pure` drops it, joining the text on either side.
 //!
-//! Headings and table cells are always in that group. An ATX heading is a single
-//! line, so any break syntax ends it and turns what follows into a paragraph;
-//! a Setext heading does span lines, but its underline attaches to the line
-//! above, which a break at the heading's start would leave empty. A cell cannot
-//! contain a newline at all, so no break syntax reaches inside one.
+//! Headings and table cells are always in that group: an ATX heading is a single
+//! line, a Setext heading's underline needs a non-empty line above it, and a
+//! cell cannot contain a newline at all.
 //!
-//! An inline element htmd writes with *markers* — `*` for `<em>`, `**` for
-//! `<strong>` — answers to rule 3 as well, and can be unwritable in a block that
-//! carries the break itself perfectly well. Where its markers would land against
-//! a break the two modes part company once more. `Faithful` serializes the
-//! element as HTML, and writes the `<br>` inside it as a raw `<br>` too: break
-//! syntax inside an HTML tag is invisible, at the mercy of any tool that trims
-//! line ends, and would split the element across lines, where a line holding
-//! only its closing tag opens an HTML block of its own. `Pure` instead moves the
-//! break outside the markers, which renders identically — a break just inside an
-//! `<em>` and one just before it are the same break — and lets the element
-//! vanish where the break was all it held.
+//! Elements htmd writes with *markers* — `*` for `<em>`, `**` for `<strong>` —
+//! answer to rule 3 as well, and can be unwritable in a block that carries the
+//! break perfectly well. There `Faithful` serializes the element, writing the
+//! `<br>` inside it as HTML too: break syntax inside a tag is invisible and
+//! would split the element across lines, where a lone closing tag opens an HTML
+//! block of its own. `Pure` instead moves the break outside the markers, which
+//! renders identically and lets the element vanish where the break was all it
+//! held.
 //!
 //! The file has two layers. Most tests pin exact output, one shape at a time.
 //! Under them, four tests sweep `CORPUS` — every shape the file exercises — for
@@ -113,17 +102,10 @@ fn pure_setext(html: &str, br_style: BrStyle) -> String {
 /// Both spellings a Markdown hard break can take.
 const STYLES: [BrStyle; 2] = [BrStyle::TwoSpaces, BrStyle::Backslash];
 
-// Most of the shapes in this file come out the same under either `BrStyle`,
-// since the break is written as a raw `<br>` or not written at all and the
-// style only ever spells a Markdown break. The helpers below say so by
-// checking both, which keeps that fact in the assertion rather than in a loop
-// the reader has to notice asserts the same string twice. The tests that *are*
-// style-dependent call `faithful` and `pure` directly.
-//
-// The four are one assertion over a 2×2 of modes and heading styles. They keep
-// their own names because that is what the call sites read as — a test says
-// which mode it is pinning, not which corner of a matrix — but the assertion
-// itself lives in one place.
+// Most shapes in this file come out the same under either `BrStyle`, since the
+// break is written as a raw `<br>` or not written at all. The four helpers below
+// say so by checking both styles; the style-dependent tests call `faithful` and
+// `pure` directly.
 
 fn assert_both_styles(
     expected: &str,
@@ -184,26 +166,18 @@ fn br_at_block_start_uses_a_backslash_break() {
 
 // ---------------------------------------------------------------------------
 // Unrepresentable in Markdown: faithful mode keeps the `<br>` as HTML, while
-// pure mode drops it, leaving exactly what the same HTML without it produces.
-// Nothing takes its place — the text on either side simply joins — so the only
-// space that survives is one the source already had around the `<br>`, which
-// HTML collapses to a single space just as it would anywhere else.
-//
-// Where the raw `<br>` would start a line it takes its enclosing block with it,
-// since a bare `<br>` line opens an HTML block that both drops the enclosing
-// element and swallows what follows.
+// pure mode drops it, joining the text on either side. Where the raw `<br>`
+// would start a line it takes its enclosing block with it, since a bare `<br>`
+// line opens an HTML block that drops the enclosing element and swallows what
+// follows.
 // ---------------------------------------------------------------------------
 
-/// A `<br>` alone in a heading, at every level: `#` alone is an empty heading
-/// and `# \` is a heading holding a literal backslash, but the `#` markers have
-/// already started the line, so a raw `<br>` stays inline and round-trips
-/// exactly.
+/// A `<br>` alone in a heading, at every level. The `#` markers have already
+/// started the line, so a raw `<br>` stays inline and round-trips exactly.
 ///
-/// Under `HeadingStyle::Setex` an h1 or h2 cannot be written at all: the raw
-/// `<br>` would start the line and swallow the `===` / `---` underline, so the
-/// heading falls back to ATX, the only lossless option. Levels past 2 have no
-/// Setext spelling to fall back from, so the raw `<br>` after the `#` markers is
-/// all they ever need.
+/// Under `HeadingStyle::Setex` an h1 or h2 falls back to ATX, the only lossless
+/// option: the raw `<br>` would start the line and swallow the `===` / `---`
+/// underline. Levels past 2 have no Setext spelling to fall back from.
 #[test]
 fn br_only_heading_faithful() {
     for level in 1..=6usize {
@@ -230,14 +204,11 @@ fn br_only_heading_pure() {
 }
 
 /// A `<br>` between two runs of text in a heading. An ATX heading is a single
-/// line, so a break of either syntax ends the heading and turns the remainder
-/// into a paragraph: faithful mode falls back to the raw `<br>`, which the `#`
-/// markers leave inline, and pure mode drops it, joining the two runs exactly as
-/// `<h1>ab</h1>` would.
+/// line, so either break syntax would end it and turn the remainder into a
+/// paragraph: faithful mode falls back to the raw `<br>` and pure mode drops it.
 ///
-/// A Setext heading spans lines, so an interior break needs no special handling
-/// at all: it is representable, both styles already work, and — being plain
-/// Markdown — it survives pure mode rather than collapsing to a space.
+/// A Setext heading spans lines, so an interior break is representable and needs
+/// no special handling in either mode.
 #[test]
 fn br_inside_heading() {
     assert_faithful("# a<br>b", "<h1>a<br>b</h1>");
@@ -363,7 +334,7 @@ fn br_before_nested_list_faithful() {
 
 /// A newline before the `<br>` collapses into the break. Under
 /// `BrStyle::Backslash` the collapsed space survives ahead of the `\`, which is
-/// harmless: it is trailing whitespace on the line, exactly as in the source.
+/// harmless trailing whitespace, exactly as in the source.
 #[test]
 fn newline_before_br_in_paragraph() {
     assert_eq!(
@@ -381,8 +352,7 @@ fn newline_before_br_in_paragraph() {
 /// A newline *after* the `<br>` leaves exactly one space of indentation on the
 /// continuation line — well under the four-space threshold that would turn it
 /// into an indented code block. Deeper source indentation collapses to that same
-/// single space, which the tab-indented source below shows by giving the same
-/// output as the unindented one.
+/// single space, as the tab-indented case below shows.
 #[test]
 fn newline_after_br_indents_the_continuation_line_by_one_space() {
     for input in ["<p>a\n<br>\nb</p>", "<p>\n\t\ta\n\t\t<br>\n\t\tb\n</p>"] {
@@ -401,11 +371,9 @@ fn newline_after_br_indents_the_continuation_line_by_one_space() {
 
 /// A list item indents its content and trims each line's end as it goes, which
 /// used to erase the two-space break and join the two lines. The indent now
-/// spares a hard break — two spaces on a line that has both something to break
-/// from and a line to break onto — so the break reaches the output intact.
-///
-/// The indent runs once per item the break sits in, so a break nested inside a
-/// `<p>`, a `<blockquote>` or a deeper list has to survive every pass.
+/// spares a hard break, and runs once per item the break sits in, so a break
+/// nested inside a `<p>`, a `<blockquote>` or a deeper list has to survive every
+/// pass.
 #[test]
 fn br_inside_list_item() {
     assert_eq!(
@@ -448,8 +416,7 @@ fn br_inside_list_item() {
         )
     );
     // An inline element around the break does not cost the two spaces either,
-    // so long as its markers stay clear of the break and the item is written as
-    // Markdown at all.
+    // so long as its markers stay clear of the break.
     assert_eq!(
         "*   a*b  \n    c*",
         faithful("<ul><li>a<em>b<br>c</em></li></ul>", BrStyle::TwoSpaces)
@@ -492,20 +459,14 @@ fn list_item_line_ends_are_still_trimmed() {
 }
 
 /// Consecutive `<br>`s would put a whitespace-only line between the two breaks,
-/// and a whitespace-only line is blank — it would end the paragraph instead of
-/// breaking it, landing `a` and `b` in separate paragraphs. Only the second
-/// break needs the backslash fallback; the first still has text ahead of it.
+/// which is blank and so would end the paragraph instead of breaking it, landing
+/// `a` and `b` in separate paragraphs. Every break but the first has nothing
+/// ahead of it, so all of them take the backslash fallback.
 ///
-/// Each further `<br>` in the run is one more break with nothing ahead of it, so
-/// it takes the same fallback: the two-space break stays on the one line that
-/// can carry it and every line after it holds a lone `\`.
-///
-/// Source whitespace between the `<br>`s collapses to a space, which would
-/// otherwise land on the break's own line ahead of the `\`. That is harmless —
-/// CommonMark strips a line's leading whitespace — but the break line is written
-/// clean anyway. Whitespace before the run's *first* break stays: it is trailing
-/// whitespace on a line that holds text, exactly as in the source, and
-/// `newline_before_br_in_paragraph` pins it.
+/// Source whitespace between the `<br>`s is dropped rather than landing ahead of
+/// the `\`. Whitespace before the run's *first* break stays, being trailing
+/// whitespace on a line that holds text; `newline_before_br_in_paragraph` pins
+/// it.
 #[test]
 fn consecutive_br_two_spaces() {
     assert_eq!(
@@ -551,26 +512,21 @@ fn consecutive_br_backslash() {
 // it, and each block has to ask for that itself: `<p>`, `<li>` and
 // `<blockquote>` consult `block_holds_unwritable_br`, `<div>` and its kind are
 // serialized wholesale in faithful mode regardless, and headings and cells
-// always put a marker on the line ahead of the break, so a raw `<br>` stays
-// inline there.
+// always put a marker on the line ahead of the break.
 //
-// `<blockquote>` asks one question more than the others. The check stops at a
-// nested block, since a block writes its own content and so answers for its own
-// breaks — but a nested `<blockquote>` answers by serializing itself, and the
-// `> ` markers the outer quote would then write around that HTML are Markdown
-// wrapping an HTML block. So a quote also serializes itself when a quote nested
-// inside it has to.
+// `<blockquote>` asks one question more: the check otherwise stops at a nested
+// block, but a nested `<blockquote>` answers by serializing itself, and the
+// outer quote's `> ` markers would then wrap an HTML block. So a quote
+// serializes itself when a quote nested inside it has to.
 // ---------------------------------------------------------------------------
 
 /// A `<div>` holding nothing but a `<br>`, for contrast with the blockquote
-/// cases below: faithful mode serializes every `<div>` whether or not it holds a
-/// `<br>`, so this one round-trips without the `<br>` handler being involved at
-/// all.
+/// cases below: faithful mode serializes every `<div>` regardless, so this
+/// round-trips without the `<br>` handler being involved at all.
 #[test]
 fn br_only_div_faithful() {
     assert_faithful("<div><br></div>", "<div><br></div>");
-    // The same holds where the `<br>` is followed by a block rather than by
-    // inline content, which is the `<li>` case of
+    // The same where the `<br>` is followed by a block: the `<li>` case of
     // `br_before_nested_list_faithful` one element over.
     let html = "<div><br><ul><li>x</li></ul></div>";
     assert_faithful(html, html);
@@ -668,11 +624,10 @@ fn dropped_br_in_blockquote_pure() {
 }
 
 // ---------------------------------------------------------------------------
-// A `<br>` with no block around it at all, directly at the document root. There
-// is nothing to serialize, but nothing needs serializing: a raw `<br>` on a line
-// of its own is an HTML block that parses back as exactly that `<br>`. This is
-// the one place a line-opening raw `<br>` is safe, since the block it opens ends
-// at the blank line that separates it from whatever follows.
+// A `<br>` directly at the document root. Nothing needs serializing here: a raw
+// `<br>` on a line of its own is an HTML block that parses back as exactly that
+// `<br>`. This is the one place a line-opening raw `<br>` is safe, since the
+// block it opens ends at the blank line separating it from what follows.
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -706,30 +661,25 @@ fn br_at_document_root_before_text() {
 // ---------------------------------------------------------------------------
 // An inline element whose *only* content is a `<br>`. Two separate things go
 // wrong, and only elements htmd writes with *markers* — `<em>`/`<i>` as `*`,
-// `<strong>`/`<b>` as `**`, `<a>` as `[...](u)` — hit either. An inline element
-// htmd has no handler for is serialized whole in faithful mode, which sidesteps
-// both; see `br_alone_in_untranslated_inline_element_faithful` below.
+// `<strong>`/`<b>` as `**` — hit either; one htmd has no handler for is
+// serialized whole in faithful mode, which sidesteps both (see
+// `br_alone_in_untranslated_inline_element_faithful`).
 //
-// First, neither break syntax reaches inside the markers. Two spaces are
-// whitespace, which a marker cannot open or close emphasis against at all; a
-// backslash leaves `*\*`, a literal `*` and an escaped one.
+// First, neither break syntax reaches inside the markers: two spaces are
+// whitespace, which a marker cannot flank against, and a backslash leaves `*\*`,
+// a literal `*` and an escaped one.
 //
-// Second — and this outlives any fix to the first — writing the raw `<br>`
-// between the markers does not work either, because of the flanking rule in
-// point 3 of the module docs. `a*<br>*b` is not emphasis: the opening `*` is
-// followed by the punctuation `<` and preceded by the alphanumeric `a`, so it
-// is not left-flanking, and the closing `*` fails the mirror test against `>`
-// and `b`. Only `*<br>*` alone between whitespace or block boundaries parses.
+// Second — and this outlives any fix to the first — the raw `<br>` between the
+// markers fails the flanking rule of point 3 in the module docs. In `a*<br>*b`
+// the opening `*` sits between the alphanumeric `a` and the punctuation `<`, so
+// it is not left-flanking, and the closing `*` fails the mirror test. Only
+// `*<br>*` alone between whitespace or block boundaries parses.
 //
-// So the markers are written only where they flank, which is what the two
-// spellings above come down to as well: whichever way the break inside is
-// spelled, a marker may sit against it only when the character on the marker's
-// far side is not alphanumeric. Everywhere else faithful mode serializes the
-// element and pure mode moves the break out from between the markers.
-//
-// Link labels have no flanking rule, so `[<br>](u)` works in every position;
-// see `br_alone_in_link_faithful`. An inline element holding a `<br>` *and*
-// something else is mostly fine; see `br_inside_inline_element` below.
+// So the markers are written only where they flank; everywhere else faithful
+// mode serializes the element and pure mode moves the break out from between the
+// markers. Link labels have no flanking rule, so `[<br>](u)` works in every
+// position (`br_alone_in_link_faithful`), and an element holding a `<br>` *and*
+// something else is mostly fine (`br_inside_inline_element`).
 // ---------------------------------------------------------------------------
 
 /// The inline elements htmd writes with emphasis markers: `*` for the first
@@ -769,11 +719,10 @@ fn br_alone_in_inline_element_faithful() {
 }
 
 /// Pure mode writes the break outside the markers, which leaves the element
-/// holding nothing and so writing nothing. The break itself survives: it is
-/// representable right where it lands, and a break just inside an `<em>` renders
-/// the same as one just before it, so moving it costs nothing that pure mode
-/// undertakes to keep. Only where no syntax can carry the break at all — with
-/// nothing after it in the block, as in the third case — is it dropped.
+/// holding nothing and so writing nothing. The break itself survives, since it
+/// renders the same just inside an `<em>` as just before it. Only where no
+/// syntax can carry it at all — nothing after it in the block, as in the third
+/// case — is it dropped.
 #[test]
 fn br_alone_in_inline_element_pure() {
     for tag in EMPHASIS {
@@ -820,15 +769,10 @@ fn br_alone_in_nested_inline_elements() {
     );
 }
 
-/// Two of them in a row. Faithful mode serializes both elements and keeps both
-/// breaks as HTML, exactly as it does for one.
-///
-/// Pure mode moves both breaks out through the markers, leaving the two elements
-/// with nothing to wrap and nothing written for them. Both breaks survive that,
-/// spelled as they would be with no `<em>`s in the way at all: the second opens
-/// an empty line, where two spaces would be invisible, so it falls back to a
-/// backslash under either style — the same pair `basic_tests::br` pins for a
-/// bare `<br><br>`.
+/// Two of them in a row. Faithful mode serializes both elements as it does for
+/// one; pure mode moves both breaks out, leaving the elements with nothing to
+/// wrap, and spells them as it would with no `<em>`s in the way — the same pair
+/// `basic_tests::br` pins for a bare `<br><br>`.
 #[test]
 fn consecutive_br_alone_in_inline_elements() {
     let html = "<p>a<em><br></em><em><br></em>b</p>";
@@ -837,11 +781,11 @@ fn consecutive_br_alone_in_inline_elements() {
     assert_eq!("a\\\n\\\nb", pure(html, BrStyle::Backslash));
 }
 
-/// The same `<em><br></em>` in every other block. A heading or a table cell
-/// puts a marker on the line first, so the raw `<br>` reaches the output there —
-/// but that only exposes the flanking rule, which does not care what block the
-/// emphasis sits in. `*<br>*` as a heading's or a cell's whole content is the
-/// one case that parses, and `br_inside_inline_element` keeps it.
+/// The same `<em><br></em>` in every other block. A heading or a cell puts a
+/// marker on the line first, so the raw `<br>` reaches the output there — but
+/// the flanking rule does not care what block the emphasis sits in. `*<br>*` as
+/// a heading's or a cell's whole content is the one case that parses;
+/// `br_inside_inline_element` keeps it.
 #[test]
 fn br_alone_in_inline_element_in_other_blocks_faithful() {
     assert_faithful("# a<em><br></em>b", "<h1>a<em><br></em>b</h1>");
@@ -932,12 +876,11 @@ fn br_at_link_start() {
     assert_pure("a[\\\nc](u)b", "<p>a<a href=\"u\"><br>c</a>b</p>");
 }
 
-/// A `<br>` that *ends* a link's content, the mirror of the case above and the
-/// link's answer to `br_at_inline_element_end`. A break the label ends on has
-/// nothing to break onto inside it, so no break syntax reaches there — but the
-/// label has no flanking rule, and its `[` has already opened the line, so the
-/// raw `<br>` simply stays inside the brackets. The `<em>` of the same shape
-/// has to be serialized whole.
+/// A `<br>` that *ends* a link's content, the link's answer to
+/// `br_at_inline_element_end`. No break syntax reaches there, but the label has
+/// no flanking rule and its `[` has already opened the line, so the raw `<br>`
+/// stays inside the brackets — where the `<em>` of the same shape has to be
+/// serialized whole.
 #[test]
 fn br_at_link_end() {
     assert_faithful("a[c<br>](u)b", "<p>a<a href=\"u\">c<br></a>b</p>");
@@ -948,14 +891,12 @@ fn br_at_link_end() {
 
 /// An inline element faithful mode serializes whole rather than writing with
 /// Markdown markers — every inline tag htmd has no handler for, plus `<span>`,
-/// whose handler serializes in faithful mode anyway. No marker ever lands next
-/// to the break, so nothing here turns on the flanking rule: the contrast that
-/// shows the emphasis cases above are the markers' doing, not the `<br>`'s.
+/// whose handler serializes in faithful mode anyway. No marker lands next to the
+/// break, so nothing here turns on the flanking rule: the contrast showing that
+/// the emphasis cases above are the markers' doing, not the `<br>`'s.
 ///
-/// The break is written as a raw `<br>` because the element around it is HTML,
-/// which is the one rule for every serialized inline element. That keeps the
-/// element on a single line and makes the output independent of `BrStyle`,
-/// which spells Markdown breaks and has nothing to say inside a tag.
+/// The break inside is a raw `<br>` because the element around it is HTML, which
+/// keeps the element on one line and the output independent of `BrStyle`.
 #[test]
 fn br_alone_in_untranslated_inline_element_faithful() {
     // `<span>` joins them here: its handler serializes in faithful mode, which
@@ -969,9 +910,8 @@ fn br_alone_in_untranslated_inline_element_faithful() {
 }
 
 /// Pure mode strips those elements and keeps the break, which is representable
-/// here — text on the line ahead of it and text after it in the block. `<span>`
-/// has a handler where the others have none, but in pure mode it writes nothing
-/// of its own around its content, so the break comes through the same way.
+/// here. `<span>` has a handler where the others have none, but in pure mode it
+/// writes nothing of its own, so the break comes through the same way.
 #[test]
 fn br_alone_in_untranslated_inline_element_pure() {
     for tag in UNTRANSLATED_INLINE.into_iter().chain(["span"]) {
@@ -1039,17 +979,17 @@ fn br_inside_inline_element() {
 /// be written immediately after the opening marker.
 ///
 /// Neither spelling survives there. `a*\` puts the `*` between `a` and `\`,
-/// which is not left-flanking, so the emphasis would be literal text; `a*  `
-/// puts it against whitespace, which cannot open emphasis at all. Writing the
-/// break *outside* the markers, as `a  \n*b*`, renders identically but moves the
-/// `<br>` out of the `<em>`, which faithful mode may not do — so the element is
-/// serialized. Pure mode, which may, is in `br_at_inline_element_start_pure`.
+/// which is not left-flanking; `a*  ` puts it against whitespace, which cannot
+/// open emphasis at all. Writing the break *outside* the markers renders
+/// identically but moves the `<br>` out of the `<em>`, which faithful mode may
+/// not do — so the element is serialized. Pure mode, which may, is in
+/// `br_at_inline_element_start_pure`.
 #[test]
 fn br_at_inline_element_start_faithful() {
     assert_faithful("a<em><br>b</em>", "<p>a<em><br>b</em></p>");
-    // The same in a list item, where there is no two-space break left for the
-    // item's indent to spare — the break is inside a tag. Compare the emphasis
-    // *around* a break in `br_inside_list_item`, which keeps its two spaces.
+    // The same in a list item, where the break is inside a tag and so leaves the
+    // item's indent no two-space break to spare. Compare the emphasis *around* a
+    // break in `br_inside_list_item`, which keeps its two spaces.
     assert_faithful("*   a<em><br>b</em>", "<ul><li>a<em><br>b</em></li></ul>");
 }
 
@@ -1068,15 +1008,12 @@ fn br_at_inline_element_start_pure() {
 }
 
 /// A `<br>` that *ends* an inline element which has content after it in the
-/// block — the mirror of `br_at_inline_element_start_faithful`, and the harder
-/// half. A closing marker against a break can never work: whichever way the
-/// break is spelled, the content ends with the newline the break writes, and a
-/// marker preceded by whitespace does not close emphasis. The backslash
-/// spelling is worse than merely inert — `*a\*` escapes the closing marker
-/// outright, leaving the emphasis unterminated.
-///
-/// So faithful mode serializes here too, while pure mode moves the break past
-/// the closing marker.
+/// block — the mirror of `br_at_inline_element_start_faithful`. A closing marker
+/// against a break never works: the content ends with the break's newline, and a
+/// marker preceded by whitespace does not close emphasis. The backslash spelling
+/// is worse than inert — `*a\*` escapes the closing marker outright, leaving the
+/// emphasis unterminated. So faithful mode serializes here too, while pure mode
+/// moves the break past the closing marker.
 #[test]
 fn br_at_inline_element_end() {
     assert_faithful("<em>a<br></em>b", "<p><em>a<br></em>b</p>");
@@ -1112,15 +1049,13 @@ fn br_alone_in_code_faithful() {
 }
 
 /// A code span cannot hold a line break at all — CommonMark turns a newline
-/// inside one into a space — so pure mode owes the same dropped `<br>` a table
-/// cell gets, leaving what the same HTML without the `<br>` produces.
+/// inside one into a space — so pure mode drops the `<br>` as it does in a table
+/// cell.
 ///
-/// Which, for a span the `<br>` was all of, is not much: an empty pair of
-/// backticks is not an empty code span but the two literal characters, so the
-/// break's place is taken by punctuation in the text. The `<br>` is not what
-/// breaks this — the `<br>`-less source gives the same output, as the second
-/// case pins — but it does mean pure mode's only spelling here is one that does
-/// not round-trip.
+/// For a span the `<br>` was all of, that leaves an empty pair of backticks,
+/// which CommonMark reads as two literal characters rather than an empty code
+/// span. The `<br>` is not what breaks this: the second case pins the same
+/// output from `<br>`-less source.
 #[test]
 fn br_alone_in_code_pure() {
     assert_pure("a``b", "<p>a<code><br></code>b</p>");
@@ -1155,11 +1090,8 @@ fn br_in_code_block_faithful() {
 }
 
 /// A code block's lines carry real newlines, so the break is simply one. Break
-/// syntax must not reach here: inside a fence a `\` is a backslash the source
-/// never had and two trailing spaces are whitespace the block preserves, so
-/// either would land in the output as *code* rather than as a break. Nothing
-/// here depends on `BrStyle`, which spells Markdown breaks and has no say in a
-/// code block.
+/// syntax must not reach here: inside a fence it would land in the output as
+/// *code*, not as a break. Nothing here depends on `BrStyle`.
 #[test]
 fn br_in_code_block_pure() {
     assert_pure("```\na\nb\n```", "<pre><code>a<br>b</code></pre>");
@@ -1183,8 +1115,8 @@ fn br_in_code_block_pure() {
         "    a\n    b",
         indented.convert("<pre><code>a<br>b</code></pre>").unwrap()
     );
-    // Which is to say: a `<br>` in a code block is the newline it renders as,
-    // so it gives what that newline in the source gives.
+    // Which is to say: a `<br>` in a code block gives what a source newline in
+    // the same place gives.
     for style in STYLES {
         assert_eq!(
             pure("<pre><code>a\nb</code></pre>", style),
@@ -1212,9 +1144,8 @@ fn br_spellings_are_equivalent() {
 }
 
 /// A `<br>` with attributes. Faithful mode writes them out wherever it falls
-/// back to the raw tag, since dropping them would lose exactly what the mode
-/// exists to keep; pure mode drops them along with everything else Markdown has
-/// no place for, and where it can write the break it writes a plain one.
+/// back to the raw tag; pure mode drops them along with everything else Markdown
+/// has no place for.
 #[test]
 fn br_attributes() {
     assert_faithful("a<br class=\"x\">b", "<p>a<br class=\"x\">b</p>");
@@ -1253,8 +1184,7 @@ fn br_only_list_item_faithful() {
     }
 }
 
-/// Pure mode empties the item instead, leaving a bare list marker — which is a
-/// list item holding nothing, exactly what the source says.
+/// Pure mode empties the item instead, leaving a bare list marker.
 #[test]
 fn br_only_list_item_pure() {
     assert_pure("*", "<ul><li><br></li></ul>");
@@ -1262,8 +1192,8 @@ fn br_only_list_item_pure() {
     assert_pure("*   a\n*", "<ul><li>a</li><li><br></li></ul>");
     assert_pure("*   x", "<ul><li><p>x</p><br></li></ul>");
     // With a block after the list the marker keeps the padding it would have
-    // written content into. That is trailing whitespace on a line CommonMark
-    // reads as an empty item either way.
+    // written content into — trailing whitespace on a line CommonMark reads as
+    // an empty item either way.
     assert_pure("*   \n\nx", "<ul><li><br></li></ul><p>x</p>");
 }
 
@@ -1285,10 +1215,10 @@ fn br_at_list_item_end() {
     );
 }
 
-/// A `<br>` at either *edge* of a Setext heading, the mirror of the Setext half
-/// of `br_only_heading_faithful`. At the end, text already opens the line, so
-/// the raw `<br>` stays inline and the underline still has a line to attach to;
-/// at the start there is no such line, so the heading falls back to ATX.
+/// A `<br>` at either *edge* of a Setext heading. At the end, text already opens
+/// the line, so the raw `<br>` stays inline and the underline still has a line
+/// to attach to; at the start there is no such line, so the heading falls back
+/// to ATX.
 #[test]
 fn br_at_setext_heading_edges_faithful() {
     assert_faithful_setext("a<br>\n=====", "<h1>a<br></h1>");
@@ -1297,9 +1227,8 @@ fn br_at_setext_heading_edges_faithful() {
     assert_faithful_setext("## <br>a", "<h2><br>a</h2>");
 }
 
-/// Pure mode drops the break and the heading is written from what is left, so
-/// the underline is sized to that and the ATX fallback is no longer needed —
-/// which is why both edges give the same answer here.
+/// Pure mode drops the break and writes the heading from what is left, so the
+/// ATX fallback is no longer needed and both edges give the same answer.
 #[test]
 fn br_at_setext_heading_edges_pure() {
     assert_pure_setext("a\n=", "<h1>a<br></h1>");
@@ -1319,14 +1248,14 @@ fn br_in_heading_inside_blockquote() {
 }
 
 // ---------------------------------------------------------------------------
-// A `<br>` in a table cell whose content is wrapped in a block. The block a
-// `<br>` belongs to is the nearest block element around it, so a cell holding a
-// `<p>` hands the break to that `<p>` — which, knowing nothing of the cell,
-// writes an ordinary hard break. The newline is then flattened into the single
-// line the cell must occupy, and the break syntax rides along as literal text.
+// A `<br>` in a table cell whose content is wrapped in a block. A cell answers
+// for every break under it, however deeply nested: were the break left to the
+// enclosing `<p>`, that `<p>` would write an ordinary hard break, whose newline
+// is then flattened into the cell's single line, leaving the break syntax behind
+// as literal text.
 //
-// Faithful mode never reaches this: a cell holding block elements is serialized
-// as HTML. Only pure mode, which has no such escape, shows the leak.
+// Faithful mode never reaches this — a cell holding block elements is serialized
+// as HTML — so only pure mode exercises it.
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -1363,11 +1292,10 @@ fn dropped_br_in_wrapped_table_cell_pure() {
 // path the handlers take a deliberate decision about, so each gets a shape.
 // ---------------------------------------------------------------------------
 
-/// An `<img>` is childless, so the scans that walk a `<br>`'s siblings looking
-/// for content cannot find any by recursing into it — yet it does write a link
-/// to the line. Both scans name it for that reason, and both are exercised
-/// here: an `<img>` before the break makes the raw `<br>` safe, and one after it
-/// gives a hard break something to break onto.
+/// An `<img>` is childless, so the scans cannot find content by recursing into
+/// it — yet it does write a link to the line, which is why both name it. An
+/// `<img>` before the break makes the raw `<br>` safe; one after it gives a hard
+/// break something to break onto.
 #[test]
 fn br_next_to_an_img() {
     // Nothing follows the break, so it falls back to the raw `<br>` — which the
@@ -1432,12 +1360,9 @@ fn br_in_an_anchor_without_href() {
 }
 
 /// A `<code>` answers for every break under it however deeply nested, so the
-/// walk that finds it has to climb through inline elements on the way. Faithful
-/// mode never consults that walk — a `<code>` whose children are not all text is
-/// serialized whole — so only pure mode reaches it.
-///
-/// The empty code span pure mode is left holding is what `<code></code>` gives
-/// with no `<br>` involved at all; it is not this break's doing.
+/// walk that finds it has to climb through inline elements. Faithful mode never
+/// consults that walk — a `<code>` whose children are not all text is serialized
+/// whole — so only pure mode reaches it.
 #[test]
 fn br_in_a_code_span_through_an_inline_element() {
     assert_faithful(
@@ -1447,11 +1372,10 @@ fn br_in_a_code_span_through_an_inline_element() {
     assert_pure("a``b", "<p>a<code><em><br></em></code>b</p>");
 }
 
-/// A list that serializes itself inside a blockquote — the shape the nested
-/// `<blockquote>` rule is built for, arrived at by a different route. The `> `
-/// markers wrap an HTML block, which is exactly what that rule avoids for a
-/// nested quote; here it needs no avoiding, because a `<ul>` written as HTML is
-/// a single line and CommonMark reads a quoted HTML block back into the quote.
+/// A list that serializes itself inside a blockquote, reaching by another route
+/// the shape the nested-`<blockquote>` rule is built for. Here the `> ` markers
+/// may wrap the HTML block after all: a `<ul>` written as HTML is a single line,
+/// and CommonMark reads a quoted HTML block back into the quote.
 #[test]
 fn br_only_list_item_in_blockquote_faithful() {
     assert_faithful(
@@ -1473,12 +1397,9 @@ fn br_only_list_item_in_blockquote_faithful() {
 }
 
 /// A `<pre>` with no `<code>` inside it. The code walk keys on `<code>`, so it
-/// finds nothing here and the break is written as an ordinary one — which is
-/// only safe because faithful mode serializes the `<pre>` whole before any of
-/// that reaches the output.
-///
-/// Pure mode drops the preformatting entirely, as it does for a `<pre>` holding
-/// no `<br>` at all; the break becomes a plain hard break.
+/// finds nothing here and the break is written as an ordinary one — safe only
+/// because faithful mode serializes the `<pre>` whole first. Pure mode drops the
+/// preformatting entirely, as it does for any `<pre>`.
 #[test]
 fn br_in_pre_without_code() {
     assert_faithful("<pre>a<br>b</pre>", "<pre>a<br>b</pre>");
@@ -1489,13 +1410,10 @@ fn br_in_pre_without_code() {
     assert_pure("", "<pre><br></pre>");
 }
 
-/// The break inside a code block is a real newline, and stays one under every
-/// way of writing the block. Faithful mode serializes the `<code>` whole in all
-/// of them, so only pure mode writes a block at all.
-///
-/// The two styles part company on a block that *opens* with a break: a fence
-/// keeps the empty first line, while indenting drops it, since a run of spaces
-/// is not a line an indented block can begin with.
+/// The break inside a code block is a real newline under every way of writing
+/// the block. The two styles part company only on a block that *opens* with a
+/// break: a fence keeps the empty first line, while indenting drops it, since a
+/// run of spaces is not a line an indented block can begin with.
 #[test]
 fn br_in_code_block_under_every_style() {
     let convert_code = |html: &str, mode, style, fence| {
@@ -1543,9 +1461,8 @@ fn br_in_code_block_under_every_style() {
 }
 
 /// A `<caption>` is an ordinary block so far as the break is concerned: it is
-/// not a cell, and nothing stops it carrying one. htmd writes the caption as a
-/// paragraph ahead of the table — which it does with or without a `<br>` — and
-/// the break inside it is spelled the usual way.
+/// not a cell, so the break inside it is spelled the usual way. htmd writes the
+/// caption as a paragraph ahead of the table, `<br>` or no `<br>`.
 #[test]
 fn br_in_table_caption() {
     let html = "<table><caption>a<br>b</caption><thead><tr><th>h</th></tr></thead>\
@@ -1558,9 +1475,8 @@ fn br_in_table_caption() {
 
 /// A `<br>` alone in a Setext heading, but wrapped in emphasis. The bare case
 /// falls back to ATX (`br_only_heading_faithful`) because the raw `<br>` would
-/// open the line and swallow the underline; the `*` here opens it instead, so
-/// Setext works after all — and the markers flank because the whole line is the
-/// emphasis, which is what `br_inside_inline_element` turns on.
+/// open the line and swallow the underline; here the `*` opens it instead, and
+/// the markers flank because the whole line is the emphasis.
 #[test]
 fn br_in_emphasis_in_setext_heading() {
     assert_faithful_setext("*<br>*\n======", "<h1><em><br></em></h1>");
@@ -1568,10 +1484,8 @@ fn br_in_emphasis_in_setext_heading() {
 }
 
 /// A backslash break that ends up alone on a Setext heading's first line. The
-/// underline attaches to the whole paragraph above it, so a first line holding
-/// only the `\` is still a line the heading owns — Setext works, and reaching
-/// for ATX instead would split the heading, since ATX is a single line and `x`
-/// would become a paragraph of its own.
+/// underline attaches to the whole paragraph above it, so Setext still works,
+/// and reaching for ATX instead would split the heading.
 ///
 /// It takes an `<img>` with no `src` to get here: `scan_back` counts any `<img>`
 /// as content on the line, so the break is spelled for a line with text ahead of
@@ -1593,24 +1507,22 @@ fn br_after_an_img_that_writes_nothing_in_a_setext_heading() {
 
 // ---------------------------------------------------------------------------
 // Invariants that must hold over *every* shape in this file, whatever spelling
-// the cases above settle on. The tests above pin exact output one shape at a
-// time; these four sweep `CORPUS` instead, so a shape added there is checked by
-// all of them without anyone remembering to copy it into a second list.
+// the cases above settle on. These four sweep `CORPUS`, so a shape added there
+// is checked by all of them.
 //
 // `faithful_output_round_trips` is the property the other three are each a piece
-// of. They stay because they name the failure: the round-trip check reports only
-// that two trees differ, while they say which CommonMark rule the output broke,
-// and they cover pure mode too, where the round-trip check does not apply.
+// of. They stay because they name the failure — the round-trip check reports
+// only that two trees differ — and because they cover pure mode, which the
+// round-trip check does not apply to.
 // ---------------------------------------------------------------------------
 
 /// Every `<br>` shape this file exercises, minus the root-level ones, which
-/// `ROOT_CORPUS` holds: a raw `<br>` alone at the document root *does* open a
-/// line, legitimately, and is the one documented exception to the first
-/// invariant below. See `br_at_document_root_faithful`.
+/// `ROOT_CORPUS` holds: a raw `<br>` alone at the document root legitimately
+/// opens a line, the one exception to the first invariant below.
 ///
 /// The shapes that vary over a list — every heading level, every tag in
 /// `EMPHASIS` and `UNTRANSLATED_INLINE`, and the tables — are appended by
-/// `corpus`, so that extending one of those lists extends the sweeps with it.
+/// `corpus`, so extending one of those lists extends the sweeps with it.
 const CORPUS: &[&str] = &[
     // Paragraphs.
     "<p><br>Text</p>",
@@ -1699,12 +1611,11 @@ const CORPUS: &[&str] = &[
     "<p>a<em>b</em><br><em>c</em>d</p>",
     "<blockquote><ul><li><br></li></ul></blockquote>",
     "<blockquote><ul><li>a<br></li></ul></blockquote>",
-    // Not here, though each is pinned above: the `<img>` shapes, because
+    // Not here, though each is pinned above, since all three would fail the
+    // round trip for reasons unrelated to the `<br>`: the `<img>` shapes, since
     // `shape` compares attributes exactly and `![](i)` reads back as
     // `<img src="i" alt="">`; the hrefless `<a>`, which writes nothing of its
-    // own and so is legitimately absent from the output; and the `<caption>`,
-    // which htmd writes as a paragraph ahead of the table. All three would fail
-    // the round trip for reasons that have nothing to do with the `<br>`.
+    // own; and the `<caption>`, which htmd writes ahead of the table.
     //
     // A `<br>` written some other way, or carrying attributes faithful mode has
     // to keep.
@@ -1717,12 +1628,11 @@ const CORPUS: &[&str] = &[
 /// The shapes that put a `<br>` at the document root, where a raw `<br>` opens
 /// its own line by design.
 ///
-/// `a_raw_br_never_opens_an_output_line` is about lines a raw `<br>` must *not*
-/// open, so these are exactly its counterexamples and it leaves them alone. The
-/// other two sweeps want them: the round-trip check because it is the whole
-/// point that these still parse back, and `a_lone_tag_never_opens_an_output_line`
-/// because a lone `<br>` on a line is the only thing in this file that exercises
-/// its void-element exception.
+/// `a_raw_br_never_opens_an_output_line` skips these, being exactly its
+/// counterexamples. The other two sweeps want them: the round-trip check because
+/// it is the whole point that these still parse back, and
+/// `a_lone_tag_never_opens_an_output_line` because a lone `<br>` on a line is
+/// the only thing in this file exercising its void-element exception.
 const ROOT_CORPUS: &[&str] = &[
     "<br>",
     "<br><br>",
@@ -1817,11 +1727,9 @@ fn conversions(html: &str) -> Vec<(TranslationMode, String, String)> {
     out
 }
 
-/// Runs `check` over every conversion of every shape in `shapes`, so each sweep
-/// below is the check it makes rather than the three nested loops around it.
-///
-/// `check` is handed the input HTML, the mode that produced this conversion, a
-/// label naming the whole option set for the failure message, and the Markdown.
+/// Runs `check` over every conversion of every shape in `shapes`. `check` is
+/// handed the input HTML, the mode that produced this conversion, a label naming
+/// the whole option set for the failure message, and the Markdown.
 fn sweep(shapes: Vec<String>, mut check: impl FnMut(&str, TranslationMode, &str, &str)) {
     for input in shapes {
         for (mode, label, md) in conversions(&input) {
@@ -1831,10 +1739,9 @@ fn sweep(shapes: Vec<String>, mut check: impl FnMut(&str, TranslationMode, &str,
 }
 
 /// A line with the Markdown that opens its block stripped off — a blockquote's
-/// `>` markers, however deep, and a list item's bullet — leaving what CommonMark
-/// reads as the innermost block's content on that line. An HTML block opens on
-/// that content, not on the raw line, so `> <br>` is as much of an HTML block as
-/// a bare `<br>` is.
+/// `>` markers, however deep, and a list item's bullet. An HTML block opens on
+/// that content rather than on the raw line, so `> <br>` is as much of an HTML
+/// block as a bare `<br>` is.
 fn block_content(line: &str) -> &str {
     let mut rest = line.trim_start();
     loop {
@@ -1853,9 +1760,8 @@ fn block_content(line: &str) -> &str {
                     .flatten()
             }
         };
-        // A nested list writes both its markers on the item's first line, so
-        // this keeps going until the line's own content is all that is left. An
-        // item with no content at all leaves its marker with nothing after it.
+        // A nested list writes both its markers on the item's first line, hence
+        // the loop. An empty item leaves its marker with nothing after it.
         match after_marker {
             Some(after) if after.is_empty() || after.starts_with([' ', '\t']) => {
                 rest = after.trim_start();
@@ -1907,14 +1813,12 @@ fn a_raw_br_never_opens_an_output_line() {
 
 /// The companion to the rule above, and the reason a serialized inline element
 /// is written on a single line. A line holding a complete open *or closing* tag
-/// and nothing else is an HTML block of type 7, which runs to the next blank
-/// line: an open tag alone on a line swallows the element's own content, and a
-/// closing tag alone on one swallows whatever follows the element.
+/// and nothing else is an HTML block of type 7: an open tag alone swallows the
+/// element's own content, a closing tag alone swallows what follows the element.
 ///
-/// A void element's tag is the exception, since it is a whole HTML block by
-/// itself with no content to swallow — but only where a blank line ends the
-/// block before any Markdown follows it, which is what makes the root-level
-/// `<br>` of `br_at_document_root_faithful` safe.
+/// A void element's tag is the exception, having no content to swallow — but
+/// only where a blank line ends the block before any Markdown follows, which is
+/// what makes the root-level `<br>` of `br_at_document_root_faithful` safe.
 #[test]
 fn a_lone_tag_never_opens_an_output_line() {
     sweep(corpus_with_root(), |_, _, label, md| {
@@ -1976,9 +1880,8 @@ impl Run {
     }
 }
 
-/// Everything that is neither alphanumeric nor whitespace, which is what
-/// flanking turns on. CommonMark's own list is Unicode punctuation and symbols;
-/// the difference between the two only ever makes this stricter.
+/// Everything that is neither alphanumeric nor whitespace. CommonMark's own list
+/// is Unicode punctuation and symbols; the difference only makes this stricter.
 fn is_punctuation(ch: char) -> bool {
     !ch.is_alphanumeric() && !ch.is_whitespace()
 }
@@ -2042,15 +1945,13 @@ fn emphasis_scopes(md: &str) -> Vec<String> {
 }
 
 /// The rule behind every emphasis failure in this file: emphasis htmd writes has
-/// to be emphasis CommonMark reads. Every `*` run htmd puts down as a marker
-/// must pair with another — one that flanks the way its side needs — or it is
-/// literal text, and the emphasis silently is not emphasis.
+/// to be emphasis CommonMark reads. Every `*` run must pair with another that
+/// flanks the way its side needs, or it is silently literal text.
 ///
-/// Pairing them is what it takes to judge a marker against a break, since the
-/// two sides pull opposite ways and the run alone does not say which it is. In
-/// `*a*\` the run against the `\` is a closer, and closing against the break is
-/// exactly right; in `a*\` it would be an opener, and opening against one is the
-/// bug. The characters around the run are identical in both.
+/// Pairing is what it takes to judge a marker against a break, since the run
+/// alone does not say which side it is. In `*a*\` the run against the `\` is a
+/// closer, which is exactly right; in `a*\` it would be an opener, which is the
+/// bug — and the characters around the run are identical in both.
 #[test]
 fn every_emphasis_marker_pairs() {
     sweep(corpus(), |_, _, label, md| {
@@ -2094,12 +1995,10 @@ enum Piece {
 /// with everything that says nothing about a `<br>` left out.
 ///
 /// Whitespace collapses the way HTML collapses it, and adjacent text merges,
-/// since an element htmd drops leaves the text that was on either side of it
-/// touching. `<p>` is ignored outright: a list item's or a blockquote's implicit
-/// paragraph comes and goes with CommonMark's tight-and-loose rules, which have
-/// nothing to say about breaks. `<i>` and `<b>` read as `<em>` and `<strong>`,
-/// the same elements as far as Markdown is concerned. Everything else, including
-/// every attribute, has to match.
+/// since a dropped element leaves the text on either side of it touching. `<p>`
+/// is ignored outright, coming and going with CommonMark's tight-and-loose list
+/// rules; `<i>` and `<b>` read as `<em>` and `<strong>`. Everything else,
+/// including every attribute, has to match.
 fn shape(html: &str) -> Vec<Piece> {
     fn walk(node: ego_tree::NodeRef<'_, Node>, out: &mut Vec<Piece>) {
         for child in node.children() {
@@ -2158,12 +2057,11 @@ fn shape(html: &str) -> Vec<Piece> {
 }
 
 /// What faithful mode undertakes: its output, read back as CommonMark, is the
-/// HTML it was given. This is the whole of it, checked against a real CommonMark
-/// parser over every shape in the corpus — including the root-level ones, which
-/// the three rules above have to leave out.
+/// HTML it was given. Checked against a real CommonMark parser over every shape
+/// in the corpus, including the root-level ones the three rules above leave out.
 ///
-/// Pure mode is exempt by definition. It drops what Markdown cannot carry, so
-/// there is no round-trip to check; what it drops is pinned case by case above.
+/// Pure mode is exempt by definition, dropping what Markdown cannot carry; what
+/// it drops is pinned case by case above.
 #[test]
 fn faithful_output_round_trips() {
     sweep(corpus_with_root(), |input, mode, label, md| {

@@ -23,22 +23,19 @@ thread_local! {
 /// Whether the element being converted sits inside an element that is being
 /// written as raw HTML.
 ///
-/// Only a serialized *inline* element puts the conversion in this state, since
-/// only there does [`serialize_element`] walk children at all: a block it cannot
-/// express goes to html5ever whole, children and so on with it, and nothing
-/// inside one is ever converted for this to report to. So the state covers
-/// exactly the case that has a decision in it.
+/// Only a serialized *inline* element gets here, since only there does
+/// [`serialize_element`] walk children at all: a block goes to html5ever whole,
+/// and nothing inside one is ever converted.
 ///
-/// Markdown written inside a serialized *inline* element is still Markdown — a
-/// [raw HTML inline](https://spec.commonmark.org/0.31.2/#raw-html) holds
-/// Markdown, unlike an HTML block — but a hard line break is a poor way to
-/// spell a `<br>` there. Two trailing spaces are invisible, and any tool that
-/// trims line ends deletes the break without touching the tags around it; both
-/// spellings also split the element across lines, where a line holding nothing
-/// but its closing tag would open an HTML block of its own. Writing the `<br>`
-/// itself keeps the serialized element on one line and makes it independent of
-/// [`BrStyle`](crate::options::BrStyle), which spells *Markdown* breaks and has
-/// nothing to say about the inside of an HTML tag.
+/// Markdown inside such an element is still Markdown — a [raw HTML
+/// inline](https://spec.commonmark.org/0.31.2/#raw-html) holds Markdown, unlike
+/// an HTML block — but a hard line break is a poor way to spell a `<br>` there.
+/// Two trailing spaces are invisible, and any tool that trims line ends deletes
+/// the break without touching the tags around it; both spellings also split the
+/// element across lines, where a line holding only its closing tag would open an
+/// HTML block. Writing the `<br>` itself keeps the element on one line and
+/// independent of [`BrStyle`](crate::options::BrStyle), which spells *Markdown*
+/// breaks.
 pub(crate) fn in_raw_html() -> bool {
     RAW_HTML_DEPTH.with(|depth| depth.get() > 0)
 }

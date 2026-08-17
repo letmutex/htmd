@@ -48,28 +48,19 @@ pub(super) fn headings_handler(handlers: &dyn Handlers, element: Element) -> Opt
 /// An ATX heading is a single line, so a hard break ends the heading and leaves
 /// the rest of the content to a paragraph of its own — and under
 /// [`BrStyle::Backslash`](crate::options::BrStyle) it leaves a stray `\` in the
-/// heading's text as well. This writes each break the way `br_handler` would
-/// have written it had it known the heading could not use Setext: as the `<br>`
-/// `raw_br_or_drop` falls back to in faithful mode, and as nothing at all in
-/// pure mode, which is what dropping the `<br>` leaves.
-/// The result is the output [`HeadingStyle::Atx`] gives for the same input, so
-/// choosing Setext is never worse than not choosing it.
+/// heading's text as well. Each break is rewritten the way `br_handler` would
+/// have written it had it known Setext was unavailable, so the result matches
+/// what [`HeadingStyle::Atx`] gives for the same input.
 ///
-/// # A `<pre>` is caught along with the breaks
+/// A `<pre>` line ending in two spaces is folded as if it were a break, since
+/// only the spellings tell the two apart. That costs nothing: a `<pre>` is a
+/// block, so its blank line is what sent the heading down this branch in the
+/// first place, and a block inside a heading is already past what either heading
+/// syntax can express.
 ///
-/// Only the two spellings tell a break apart from ordinary text, and a `<pre>`
-/// keeps its own whitespace, so a line of one ending in two spaces reads as a
-/// break here and is folded like one. That costs nothing in practice: a `<pre>`
-/// is a block, so a heading holding one has a blank line in its content, which
-/// is exactly what sent it down this branch — and a block inside a heading is
-/// already past what either heading syntax can express. Narrowing this to the
-/// content ahead of the first blank line would spare the `<pre>` but leave a
-/// real break behind whenever one follows a block, which is the worse half of
-/// the trade.
-///
-/// The `<br>` written back is bare because only a bare one reaches here: the
-/// `serialize_if_faithful!` at the top of `br_handler` has already turned any
-/// `<br>` carrying an attribute into raw HTML, which no break spelling touches.
+/// The `<br>` written back is bare because only a bare one reaches here —
+/// `serialize_if_faithful!` in `br_handler` turns any `<br>` with an attribute
+/// into raw HTML, which no break spelling touches.
 fn fold_hard_breaks(content: &str, handlers: &dyn Handlers) -> String {
     let replacement = if handlers.options().translation_mode == TranslationMode::Faithful {
         "<br>"
@@ -104,29 +95,23 @@ fn fold_hard_breaks(content: &str, handlers: &dyn Handlers) -> String {
 
 /// Whether a heading holding `content` can be written in the Setext style.
 ///
-/// The underline attaches to the *paragraph* above it, and a paragraph may span
-/// several lines — so a first line holding only a hard break's backslash, or
-/// only whitespace, is no obstacle: the underline still attaches to the whole
-/// run. Two things are.
+/// The underline attaches to the whole *paragraph* above it, so multiple lines
+/// are fine. Only two things disqualify Setext:
 ///
-/// A blank line ends the paragraph, so the underline would attach to whatever
-/// came after the blank line rather than to the heading, leaving the rest of the
-/// content outside it. A line of nothing but spaces or tabs is
-/// [blank](https://spec.commonmark.org/0.31.2/#blank-lines) as much as an empty
-/// one is, and one does reach here: whitespace is compressed away everywhere
-/// else, but a `<pre>` keeps its own verbatim. `content` arrives trimmed at both
-/// ends, so every blank line found this way is an interior one.
+/// - A [blank line](https://spec.commonmark.org/0.31.2/#blank-lines) ends that
+///   paragraph, leaving the underline attached to what follows instead. Spaces
+///   and tabs count as blank, and such a line does reach here: whitespace is
+///   compressed away everywhere else, but a `<pre>` keeps its own verbatim.
+///   `content` arrives trimmed, so any blank line found is an interior one.
+/// - A raw `<br>` *opening* the first line starts an [HTML block of type
+///   7](https://spec.commonmark.org/0.31.2/#html-blocks), which runs to the next
+///   blank line and takes the underline with it. A `<br>` with anything ahead of
+///   it is an inline tag, and one on a later line is inside a paragraph an HTML
+///   block cannot interrupt.
 ///
-/// A raw `<br>` opening the first line starts an [HTML block of type
-/// 7](https://spec.commonmark.org/0.31.2/#html-blocks), which runs to the next
-/// blank line and takes the underline with it. It has to *open* the line: a
-/// `<br>` with anything ahead of it is an inline tag, and one on a later line is
-/// inside a paragraph an HTML block cannot interrupt.
-///
-/// Nothing else disqualifies Setext, and ATX is not a free fallback — it is a
-/// single-line syntax, so content holding a newline loses everything past the
-/// first line to a paragraph of its own. Falling back where Setext would have
-/// worked does not play safe; it breaks the heading a different way.
+/// ATX is not a free fallback — being single-line, it loses everything past the
+/// first line to a paragraph — so falling back where Setext would have worked
+/// breaks the heading a different way rather than playing safe.
 fn can_use_setext(content: &str) -> bool {
     if content
         .lines()
@@ -154,15 +139,13 @@ mod tests {
         assert!(!can_use_setext("a\n \t \nb"));
         assert!(!can_use_setext("a\n\nb"));
 
-        // A line with something on it is not blank, whatever surrounds it, and
-        // a no-break space is not whitespace a blank line is made of.
+        // A no-break space is not whitespace a blank line is made of.
         assert!(can_use_setext("a\nb"));
         assert!(can_use_setext("a\n \u{a0} \nb"));
         assert!(can_use_setext(""));
 
-        // A `\r\n` is a line ending like any other, so the empty line it leaves
-        // behind is blank all the same. html5ever normalizes the source's own
-        // carriage returns away, but a `<pre>` carries one through verbatim.
+        // html5ever normalizes the source's own carriage returns away, but a
+        // `<pre>` carries one through verbatim.
         assert!(!can_use_setext("a\n\r\nb"));
     }
 }

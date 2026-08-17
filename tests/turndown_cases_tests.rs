@@ -21,8 +21,7 @@ struct TestCase {
 /// Every key is optional and every unknown one is an error: a misspelling used
 /// to leave the case running under the defaults, passing while testing something
 /// other than what it says. A malformed attribute did worse — html5ever swallows
-/// markup into an unterminated one, which silently cost the file a whole case
-/// until the parse below started failing on it.
+/// markup into an unterminated one, silently costing the file a whole case.
 #[derive(Deserialize, Default)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct CaseOptions {

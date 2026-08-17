@@ -32,11 +32,10 @@ pub(super) fn emphasis_handler(
     let (rest, trailing) = rest.split_at(rest.len() - trailing_len);
 
     if rest.is_empty() {
-        // Nothing is left for the markers to wrap, so none are written. What
-        // moved out still has to be: a hard break here was the element's whole
+        // Nothing is left for the markers to wrap, so none are written. A hard
+        // break that moved out still has to be: it was the element's whole
         // content, and dropping it would lose the `<br>` it came from. Plain
-        // whitespace goes, as it always has — an element holding only spaces
-        // writes nothing at all.
+        // whitespace goes, as it always has.
         return if leading.contains('\n') || trailing.contains('\n') {
             Some(concat_strings!(leading, trailing).into())
         } else {
@@ -60,24 +59,18 @@ pub(super) fn emphasis_handler(
 /// How much of `content`'s start has to be written outside the opening marker.
 ///
 /// Leading whitespace always moves out, since a marker against whitespace does
-/// not open emphasis. A leading hard break moves too, but only in pure mode:
-/// the break renders the same on either side of the markers, while faithful
-/// mode moving it would move the `<br>` it came from out of the element. Left
-/// where it is, the break makes the markers unwritable and the element is
-/// serialized instead.
+/// not open emphasis. A leading hard break moves too, but only in pure mode: the
+/// break renders the same on either side of the markers, while in faithful mode
+/// moving it would move the `<br>` it came from out of the element — there the
+/// break instead makes the markers unwritable and the element is serialized.
 ///
-/// Only the newline a break writes has to stay: whitespace ahead of it moves
-/// out as any other whitespace would, and a blank line is block separation
-/// rather than a break, so it moves out in both modes — an inline element
-/// holding a block was never going to be written with markers around it.
+/// A blank line is block separation rather than a break, so it moves out in both
+/// modes.
 ///
-/// A newline here means `\n` and nothing else. `content` is Markdown htmd has
-/// just written, and every newline it writes is an `\n`; html5ever has already
-/// normalized the source's own CR and CRLF away. A `\r` can still reach this —
-/// preformatted content carries one through verbatim, as `&#13;` inside a
-/// `<pre>` does — but there it is a literal character of the document, not a
-/// line ending, and counting it as one would cut the hoist short around text
-/// that merely contains a carriage return.
+/// A newline here means `\n` and nothing else: html5ever normalizes the source's
+/// CR and CRLF away, so a `\r` reaching this is a literal character carried
+/// through a `<pre>` verbatim, not a line ending, and treating it as one would
+/// cut the hoist short.
 fn leading_hoist(content: &str, is_pure: bool) -> usize {
     let whitespace_len = content.len() - content.trim_start().len();
     if !is_pure {
@@ -122,15 +115,11 @@ fn trailing_hoist(content: &str, is_pure: bool) -> usize {
 /// Whether the backslash `text` ends on is a hard break's own marker rather than
 /// half of an escaped literal backslash.
 ///
-/// Both look alike from the newline that follows: a literal backslash is written
-/// `\\`, whose *second* backslash is what sits against the newline. Only the
-/// length of the run tells them apart. Escaping doubles every literal, so
-/// literals always contribute an even number, and a break's own marker is the
-/// one extra that leaves the run odd.
-///
-/// Getting this wrong is not cosmetic: hoisting one backslash out of an escaped
-/// pair leaves the other against the closing marker, where it escapes it and the
-/// emphasis is lost entirely.
+/// Both look alike from the newline that follows, so only the run's length tells
+/// them apart: escaping doubles every literal, and a break's own marker is the
+/// one extra that leaves the run odd. Getting this wrong is not cosmetic —
+/// hoisting one backslash out of an escaped pair leaves the other escaping the
+/// closing marker, losing the emphasis entirely.
 pub(super) fn ends_in_break_marker(text: &str) -> bool {
     // Backslash is ASCII, so counting bytes cannot split a character.
     text.bytes().rev().take_while(|&byte| byte == b'\\').count() % 2 == 1
@@ -139,12 +128,13 @@ pub(super) fn ends_in_break_marker(text: &str) -> bool {
 /// Whether the markers this element would be written with open and close
 /// emphasis where they land.
 ///
-/// A delimiter run opens emphasis only if it is *left-flanking*: not followed by
-/// whitespace, and either not followed by punctuation or else itself preceded by
-/// whitespace or punctuation — and mirror-image for closing. `rest` is what the
-/// markers would wrap, so its first and last characters are what they sit
-/// against on the inside; `leading` and `trailing` are what moved out, and
-/// anything there is whitespace the markers sit against on the outside.
+/// A delimiter run opens emphasis only if it is
+/// [left-flanking](https://spec.commonmark.org/0.31.2/#left-flanking-delimiter-run):
+/// not followed by whitespace, and either not followed by punctuation or else
+/// itself preceded by whitespace or punctuation — mirror-image for closing.
+/// `rest` is what the markers would wrap, so its edges are what they sit against
+/// on the inside; a non-empty `leading` or `trailing` is whitespace that moved
+/// out, so the markers sit against whitespace on the outside.
 ///
 /// Every spelling of a `<br>` puts punctuation at the content's edge — `<` and
 /// `>` for the raw tag, `\` for the backslash break, whitespace for the
@@ -250,11 +240,10 @@ fn scan_back(nodes: &[Rc<Node>]) -> Adjacent {
                     // Childless, but it still writes a link, which ends in `)`.
                     return Adjacent::Char(')');
                 }
-                // An element that writes markers of its own puts punctuation
-                // here rather than the text this finds, which only ever makes
-                // the answer stricter: a marker reads as alphanumeric where the
-                // output holds punctuation, so the element is serialized where
-                // it need not have been, never written where it cannot be.
+                // An element writing markers of its own puts punctuation here
+                // rather than the text this finds, which only makes the answer
+                // stricter: the element is serialized where it need not have
+                // been, never written where it cannot be.
                 match scan_back(&node.children.borrow()) {
                     Adjacent::Nothing => {}
                     found => return found,
@@ -301,17 +290,14 @@ fn scan_forward(nodes: &[Rc<Node>]) -> Adjacent {
 mod tests {
     use super::{leading_hoist, trailing_hoist};
 
-    /// A `\r` is whitespace, so it moves out with the rest of the run — but it
-    /// is not a *line ending*, so it never marks the break position the hoists
-    /// stop at. Every one of these would give a different answer if `\r` joined
-    /// `\n` in the searches, which is the whole reason they are here: the
-    /// end-to-end behavior is identical either way, so only the hoists' own
-    /// contract can pin the distinction.
+    /// A `\r` is whitespace, so it moves out with the rest of the run, but it is
+    /// not a *line ending*, so it never marks the break position the hoists stop
+    /// at. The end-to-end behavior is identical either way, so only the hoists'
+    /// own contract can pin the distinction.
     #[test]
     fn carriage_return_is_not_a_line_ending() {
         // Faithful mode: the whole whitespace run moves out, as it would for a
-        // run with no line ending in it at all. Treating the `\r` as one would
-        // stop the hoist at it and leave `rest` starting with whitespace.
+        // run holding no line ending at all.
         assert_eq!(1, leading_hoist("\ra", false));
         assert_eq!(1, trailing_hoist("a\r", false));
 
@@ -329,11 +315,8 @@ mod tests {
         assert_eq!(2, trailing_hoist("a\\\n", true));
     }
 
-    /// The backslash against a newline is a break's own marker only when the run
-    /// it ends is odd; an even run is escaped literal backslashes, and hoisting
-    /// one out of a pair would leave the other escaping the closing marker.
     /// `trailing_backslash_is_not_a_hard_break` in `basic_tests.rs` pins the
-    /// consequence end to end, but only these pin the boundary itself.
+    /// consequence end to end; only these pin the odd/even boundary itself.
     #[test]
     fn an_escaped_backslash_is_not_a_break_marker() {
         // Even runs: the newline alone moves out, leaving every backslash of
@@ -341,9 +324,8 @@ mod tests {
         assert_eq!(1, trailing_hoist(concat!(r"a\\", "\n"), true));
         assert_eq!(1, trailing_hoist(concat!(r"a\\\\", "\n"), true));
 
-        // Odd runs: the one backslash the pairs do not account for is the
-        // break's marker, and it moves out with the newline — just the one,
-        // however long the run, since the rest is a whole number of pairs.
+        // Odd runs: the unpaired backslash is the break's marker and moves out
+        // with the newline — just the one, however long the run.
         assert_eq!(2, trailing_hoist(concat!(r"a\", "\n"), true));
         assert_eq!(2, trailing_hoist(concat!(r"a\\\", "\n"), true));
     }

@@ -84,12 +84,11 @@ pub(crate) fn walk_node(
             let is_head = tag == "head";
             let attrs = attrs.borrow();
 
-            // In pure mode an element htmd has no handler for writes nothing of
-            // its own, leaving only its content. A plain `<span>` joins them:
-            // its handler has nothing to add in this mode either, so the content
-            // passes through untouched — trimming it here would decapitate a
-            // hard break the span ends on, leaving the break's two spaces or
-            // backslash behind as literal text mid-line.
+            // In pure mode a plain `<span>` writes nothing of its own, so it
+            // passes its content through like an element with no handler at all.
+            // The content is left untrimmed: trimming would decapitate a hard
+            // break the span ends on, leaving its two spaces or backslash behind
+            // as literal text mid-line.
             if handlers.options.translation_mode == TranslationMode::Pure
                 && (!handlers.tag_to_handler_indices.contains_key(tag)
                     || is_bare_span(handlers, tag, &attrs))
@@ -226,12 +225,10 @@ pub(crate) fn walk_children(
             // Trim trailing spaces for the previous element
             trim_output_end_spaces(output);
         } else if !is_pre && child_tag == Some("br") {
-            // Spaces that are all the current line holds — the collapsed
-            // source whitespace between two `<br>`s — are leading whitespace
-            // on the line this break is about to write itself onto, where the
-            // break syntax should stand alone. They are never part of a
-            // two-space break, which needs text ahead of it on the line to
-            // break anything at all.
+            // Spaces that are all the line holds — the collapsed source
+            // whitespace between two `<br>`s — are leading whitespace on the
+            // line this break writes itself onto. They are never part of a
+            // two-space break, which needs text ahead of it to break anything.
             trim_output_end_blank_line(output);
         }
 
@@ -354,8 +351,8 @@ fn trim_output_end_spaces(output: &mut String) {
 }
 
 /// Trims trailing spaces from `output`, but only when they are the whole of the
-/// line they sit on. Spaces on a line that already holds something may be a
-/// two-space break and are left alone.
+/// line they sit on — spaces on a line holding something else may be a two-space
+/// break.
 fn trim_output_end_blank_line(output: &mut String) {
     let trimmed_len = output.trim_end_matches(' ').len();
     if trimmed_len == 0 || output.as_bytes()[trimmed_len - 1] == b'\n' {

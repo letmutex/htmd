@@ -14,9 +14,8 @@ pub(super) fn list_item_handler(
     element: Element,
 ) -> Option<HandlerResult> {
     serialize_if_faithful!(handlers, element, 0);
-    // An item holding a `<br>` that Markdown cannot write — one with nothing
-    // ahead of it on the line and nothing after it in the item, as in
-    // `<li><br><ul>…</ul></li>` — survives only as HTML. Reporting the item as
+    // An item holding a `<br>` that Markdown cannot write, as in
+    // `<li><br><ul>…</ul></li>`, survives only as HTML. Reporting the item as
     // untranslated hands the decision to the list handler, which serializes the
     // whole list: a lone `<li>` of HTML would leave the surrounding list markers
     // to be read as Markdown around it.

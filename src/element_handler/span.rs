@@ -28,10 +28,8 @@ pub(super) fn span_handler(handlers: &dyn Handlers, element: Element) -> Option<
     // Always serialize as HTML if we're in faithful mode.
     serialize_if_faithful!(handlers, element, -1);
 
-    // Otherwise, just return the contents. A `<span>` writes nothing of its own
-    // around them, so they are passed through exactly as the untranslated inline
-    // elements — `<mark>`, `<u>`, and the rest — pass theirs: trimming here would
-    // decapitate a hard break the span ends on, leaving its two spaces or
-    // backslash behind as literal text mid-line.
+    // Otherwise, just return the contents; trimming could decapitate a hard
+    // break the span ends on, leaving its two spaces or backslash behind as
+    // literal text mid-line.
     Some(handlers.walk_children(element.node).content.into())
 }

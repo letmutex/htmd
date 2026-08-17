@@ -740,13 +740,6 @@ Another div</pre>
   <pre class="expected">Text with no space after the period. *Text in em with leading/trailing spaces* **text in strong with trailing space**</pre>
 </div>
 
-<!-- Two trailing newlines are for the line break. The expectation writes the
-     break after the closing markers, which moves the <br> out of the <strong>
-     it came from: a closing marker cannot sit against a break, since the break
-     ends the content with the newline it writes and a marker preceded by
-     whitespace does not close emphasis. That is the pure-mode answer, faithful
-     mode keeping the <br> where it was by serializing the <strong> instead.
-     See `br_at_inline_element_end` in br_tests.rs. -->
 <div class="case" data-name="newline at the end of a strong element" data-options='{"translationMode": "Pure"}'>
     <div class="input"><strong>Text with a trailing break<br></strong>before continuation</div>
     <pre class="expected">**Text with a trailing break**  
