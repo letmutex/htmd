@@ -30,7 +30,6 @@ use crate::{
 
 use super::Element;
 use anchor::AnchorElementHandler;
-pub(crate) use anchor::LinkReferenceScope;
 use blockquote::blockquote_handler;
 use br::br_handler;
 use caption::caption_handler;

@@ -8,87 +8,45 @@ use crate::{
     text_util::{StripWhitespace, TrimDocumentWhitespace, concat_strings},
 };
 
+/// Handler for HTML `<a>` (anchor) elements.
+///
+/// Converts anchor tags to Markdown links (inlined, autolinks, or reference-style links).
+///
+/// # State & Limitations
+///
+/// When using [`LinkStyle::Referenced`], link reference definitions (e.g. `[1]: https://...`)
+/// are collected in a thread-local buffer during DOM traversal and drained when [`append`](ElementHandler::append)
+/// is called at the end of the document conversion.
+///
+/// **Limitations:**
+/// - **Thread-local buffering:** State is isolated per-thread, making sharing [`HtmlToMarkdown`](crate::HtmlToMarkdown)
+///   across threads safe. However, nested or re-entrant conversions on the *same* thread (such as invoking
+///   `convert` inside a custom element handler) will share this thread-local buffer if both use
+///   reference-style links.
+/// - **Speculative conversion:** If a container handler (such as a table) converts children speculatively
+///   and then discards the result in faithful mode, any reference-style links inside those children
+///   will remain in the buffer for document-level append unless handled.
 pub(super) struct AnchorElementHandler {}
 
 impl AnchorElementHandler {
     thread_local! {
-        static LINK_SCOPES: RefCell<Vec<Vec<String>>> = const { RefCell::new(Vec::new()) };
-    }
-}
-
-pub(crate) struct LinkReferenceScope;
-
-impl LinkReferenceScope {
-    pub(crate) fn enter() -> Self {
-        AnchorElementHandler::LINK_SCOPES.with(|scopes| scopes.borrow_mut().push(Vec::new()));
-        Self
+        static LINK_REFERENCES: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
     }
 
-    fn is_nested() -> bool {
-        AnchorElementHandler::LINK_SCOPES.with(|scopes| scopes.borrow().len() > 1)
-    }
-}
-
-impl Drop for LinkReferenceScope {
-    fn drop(&mut self) {
-        AnchorElementHandler::LINK_SCOPES.with(|scopes| {
-            scopes.borrow_mut().pop();
-        });
-    }
-}
-
-pub(super) struct LinkReferenceCheckpoint {
-    scope_index: usize,
-    links_len: usize,
-    committed: bool,
-}
-
-impl LinkReferenceCheckpoint {
     pub(super) fn new() -> Self {
-        AnchorElementHandler::LINK_SCOPES.with(|scopes| {
-            let scopes = scopes.borrow();
-            let scope_index = scopes
-                .len()
-                .checked_sub(1)
-                .expect("link references require an active conversion scope");
-            Self {
-                scope_index,
-                links_len: scopes[scope_index].len(),
-                committed: false,
-            }
-        })
-    }
-
-    pub(super) fn commit(mut self) {
-        self.committed = true;
-    }
-}
-
-impl Drop for LinkReferenceCheckpoint {
-    fn drop(&mut self) {
-        if self.committed {
-            return;
-        }
-
-        AnchorElementHandler::LINK_SCOPES.with(|scopes| {
-            scopes.borrow_mut()[self.scope_index].truncate(self.links_len);
-        });
+        Self {}
     }
 }
 
 impl ElementHandler for AnchorElementHandler {
     fn append(&self) -> Option<String> {
-        AnchorElementHandler::LINK_SCOPES.with(|scopes| {
-            let mut scopes = scopes.borrow_mut();
-            let links = std::mem::take(
-                scopes
-                    .last_mut()
-                    .expect("link references require an active conversion scope"),
-            );
+        AnchorElementHandler::LINK_REFERENCES.with(|links| {
+            let mut links = links.borrow_mut();
             if links.is_empty() {
                 return None;
             }
 
+            let links = std::mem::take(&mut *links);
             let content_len: usize = links.iter().map(String::len).sum();
             let mut result = String::with_capacity(content_len + links.len().saturating_add(1));
             result.push_str("\n\n");
@@ -135,9 +93,6 @@ impl ElementHandler for AnchorElementHandler {
             LinkStyle::InlinedPreferAutolinks => {
                 self.build_inlined_anchor(&content, &link, title.as_deref(), true)
             }
-            LinkStyle::Referenced if LinkReferenceScope::is_nested() => {
-                self.build_inlined_anchor(&content, &link, title.as_deref(), false)
-            }
             LinkStyle::Referenced => self.build_referenced_anchor(
                 &content,
                 link,
@@ -151,10 +106,6 @@ impl ElementHandler for AnchorElementHandler {
 }
 
 impl AnchorElementHandler {
-    pub(super) fn new() -> Self {
-        Self {}
-    }
-
     fn build_inlined_anchor(
         &self,
         content: &str,
@@ -208,11 +159,8 @@ impl AnchorElementHandler {
         title: Option<String>,
         style: &LinkReferenceStyle,
     ) -> String {
-        AnchorElementHandler::LINK_SCOPES.with(|scopes| {
-            let mut scopes = scopes.borrow_mut();
-            let links = scopes
-                .last_mut()
-                .expect("link references require an active conversion scope");
+        AnchorElementHandler::LINK_REFERENCES.with(|links| {
+            let mut links = links.borrow_mut();
             let index = links.len() + 1;
             let title = title
                 .as_deref()

@@ -8,7 +8,7 @@ pub(crate) mod text_util;
 use std::rc::Rc;
 
 use dom_walker::walk_node;
-use element_handler::{ElementHandler, ElementHandlers, LinkReferenceScope, is_inside_pre};
+use element_handler::{ElementHandler, ElementHandlers, is_inside_pre};
 use html5ever::tendril::TendrilSink;
 use html5ever::tree_builder::TreeBuilderOpts;
 use html5ever::{Attribute, ParseOpts, parse_document};
@@ -128,7 +128,6 @@ impl HtmlToMarkdown {
     /// Convert a DOM tree to Markdown. For convenience, `Node` is re-exported;
     /// simply `use htmd::Node;` to access this type.
     pub fn tree_to_markdown(&self, tree: &Rc<Node>) -> String {
-        let _link_reference_scope = LinkReferenceScope::enter();
         let mut content = String::new();
 
         walk_node(
