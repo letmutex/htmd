@@ -107,9 +107,11 @@ fn find_language_from_attrs(attrs: &[Attribute]) -> Option<String> {
         .iter()
         .find(|attr| &attr.name.local == "class")
         .and_then(|attr| {
-            attr.value
-                .split_ascii_whitespace()
-                .find_map(|class| class.strip_prefix("language-"))
+            attr.value.split_ascii_whitespace().find_map(|class| {
+                class
+                    .strip_prefix("language-")
+                    .filter(|language| !language.is_empty())
+            })
         })
         .map(str::to_owned)
 }

@@ -23,6 +23,10 @@ impl LinkReferenceScope {
         AnchorElementHandler::LINK_SCOPES.with(|scopes| scopes.borrow_mut().push(Vec::new()));
         Self
     }
+
+    fn is_nested() -> bool {
+        AnchorElementHandler::LINK_SCOPES.with(|scopes| scopes.borrow().len() > 1)
+    }
 }
 
 impl Drop for LinkReferenceScope {
@@ -33,16 +37,58 @@ impl Drop for LinkReferenceScope {
     }
 }
 
+pub(super) struct LinkReferenceCheckpoint {
+    scope_index: usize,
+    links_len: usize,
+    committed: bool,
+}
+
+impl LinkReferenceCheckpoint {
+    pub(super) fn new() -> Self {
+        AnchorElementHandler::LINK_SCOPES.with(|scopes| {
+            let scopes = scopes.borrow();
+            let scope_index = scopes
+                .len()
+                .checked_sub(1)
+                .expect("link references require an active conversion scope");
+            Self {
+                scope_index,
+                links_len: scopes[scope_index].len(),
+                committed: false,
+            }
+        })
+    }
+
+    pub(super) fn commit(mut self) {
+        self.committed = true;
+    }
+}
+
+impl Drop for LinkReferenceCheckpoint {
+    fn drop(&mut self) {
+        if self.committed {
+            return;
+        }
+
+        AnchorElementHandler::LINK_SCOPES.with(|scopes| {
+            scopes.borrow_mut()[self.scope_index].truncate(self.links_len);
+        });
+    }
+}
+
 impl ElementHandler for AnchorElementHandler {
     fn append(&self) -> Option<String> {
         AnchorElementHandler::LINK_SCOPES.with(|scopes| {
             let mut scopes = scopes.borrow_mut();
-            let links = scopes
-                .last_mut()
-                .expect("link references require an active conversion scope");
+            let links = std::mem::take(
+                scopes
+                    .last_mut()
+                    .expect("link references require an active conversion scope"),
+            );
             if links.is_empty() {
                 return None;
             }
+
             let content_len: usize = links.iter().map(String::len).sum();
             let mut result = String::with_capacity(content_len + links.len().saturating_add(1));
             result.push_str("\n\n");
@@ -53,7 +99,6 @@ impl ElementHandler for AnchorElementHandler {
                 result.push_str(link);
             }
             result.push_str("\n\n");
-            links.clear();
             Some(result)
         })
     }
@@ -89,6 +134,9 @@ impl ElementHandler for AnchorElementHandler {
             }
             LinkStyle::InlinedPreferAutolinks => {
                 self.build_inlined_anchor(&content, &link, title.as_deref(), true)
+            }
+            LinkStyle::Referenced if LinkReferenceScope::is_nested() => {
+                self.build_inlined_anchor(&content, &link, title.as_deref(), false)
             }
             LinkStyle::Referenced => self.build_referenced_anchor(
                 &content,
@@ -165,17 +213,15 @@ impl AnchorElementHandler {
             let links = scopes
                 .last_mut()
                 .expect("link references require an active conversion scope");
+            let index = links.len() + 1;
             let title = title
                 .as_deref()
                 .map_or(String::new(), |t| format!(" \"{t}\""));
             let (current, append) = match style {
-                LinkReferenceStyle::Full => {
-                    let index = links.len() + 1;
-                    (
-                        concat_strings!("[", content, "][", index.to_string(), "]"),
-                        concat_strings!("[", index.to_string(), "]: ", link, title),
-                    )
-                }
+                LinkReferenceStyle::Full => (
+                    concat_strings!("[", content, "][", index.to_string(), "]"),
+                    concat_strings!("[", index.to_string(), "]: ", link, title),
+                ),
                 LinkReferenceStyle::Collapsed => (
                     concat_strings!("[", content, "][]"),
                     concat_strings!("[", content, "]: ", link, title),

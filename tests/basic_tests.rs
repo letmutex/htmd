@@ -415,6 +415,20 @@ fn faithful_mode_table() {
 }
 
 #[test]
+fn faithful_mode_serializes_a_table_when_its_caption_requires_html() {
+    let html = concat!(
+        r#"<table><caption><span class="label">Caption</span></caption>"#,
+        "<tr><th>Header</th></tr><tr><td>Cell</td></tr></table>"
+    );
+    let expected = concat!(
+        r#"<table><caption><span class="label">Caption</span></caption>"#,
+        "<tbody><tr><th>Header</th></tr><tr><td>Cell</td></tr></tbody></table>"
+    );
+
+    assert_eq!(expected, convert(html).unwrap());
+}
+
+#[test]
 fn faithful_mode_nested_inline_html() {
     assert_eq!(
         convert("<p>Nested <foo><bar><em>content</em></bar></foo></p>").unwrap(),

@@ -9,10 +9,5 @@ pub(super) fn tr_handler(handlers: &dyn Handlers, element: Element) -> Option<Ha
     serialize_if_faithful!(handlers, element, 0);
     // This tag's ability to translate to markdown requires its children to be
     // markdown translatable as well.
-    handle_or_serialize_by_parent(
-        handlers,
-        &element,
-        &["tbody", "thead"],
-        element.markdown_translated,
-    )
+    handle_or_serialize_by_parent(handlers, &element, &["tbody", "thead"], true)
 }

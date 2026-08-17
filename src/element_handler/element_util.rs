@@ -10,11 +10,18 @@ use html5ever::serialize::{HtmlSerializer, SerializeOpts, Serializer, TraversalS
 use markup5ever_rcdom::{NodeData, SerializableHandle};
 use std::io::{self, Write};
 
+/// Handles a structural element when it has an allowed parent, or preserves it
+/// as HTML in faithful mode when it appears elsewhere.
+///
+/// Handled child content is framed as a block. When
+/// `propagate_children_translation` is true, the returned translation status
+/// is false if any child required HTML; callers can use that status to fall
+/// back to serializing a larger containing structure.
 pub(super) fn handle_or_serialize_by_parent(
     handlers: &dyn Handlers,
     element: &Element,
     tag_names: &[&str],
-    markdown_translated: bool,
+    propagate_children_translation: bool,
 ) -> Option<HandlerResult> {
     if handlers.options().translation_mode == TranslationMode::Faithful
         && !parent_tag_name_equals(element.node, tag_names)
@@ -24,11 +31,11 @@ pub(super) fn handle_or_serialize_by_parent(
             markdown_translated: false,
         })
     } else {
-        let content = handlers.walk_children(element.node).content;
-        let content = content.trim_matches('\n');
+        let result = handlers.walk_children(element.node);
+        let content = result.content.trim_matches('\n');
         Some(HandlerResult {
             content: concat_strings!("\n\n", content, "\n\n"),
-            markdown_translated,
+            markdown_translated: !propagate_children_translation || result.markdown_translated,
         })
     }
 }
@@ -100,10 +107,7 @@ fn escape_html_block_blank_lines(html: &str) -> String {
         }
 
         result.push(ch);
-        if ch == '\r' {
-            if chars.peek() != Some(&'\n') {
-                continue;
-            }
+        if ch == '\r' && chars.peek() == Some(&'\n') {
             result.push(chars.next().unwrap());
         }
 
@@ -117,10 +121,7 @@ fn escape_html_block_blank_lines(html: &str) -> String {
                 chars.next();
                 result.push_str("&#13;&#10;");
             }
-            '\r' => {
-                result.push('\r');
-                continue;
-            }
+            '\r' => result.push_str("&#13;"),
             _ => {
                 result.push(next);
                 continue;
@@ -159,4 +160,19 @@ macro_rules! serialize_if_faithful {
             });
         }
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::escape_html_block_blank_lines;
+
+    #[test]
+    fn escapes_blank_lines_for_each_line_ending_style() {
+        assert_eq!("a\n&#10;b", escape_html_block_blank_lines("a\n\nb"));
+        assert_eq!(
+            "a\r\n&#13;&#10;b",
+            escape_html_block_blank_lines("a\r\n\r\nb")
+        );
+        assert_eq!("a\r&#13;b", escape_html_block_blank_lines("a\r\rb"));
+    }
 }

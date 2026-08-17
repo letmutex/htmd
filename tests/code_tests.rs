@@ -42,6 +42,13 @@ fn code_blocks_with_lang_class() {
 }
 
 #[test]
+fn faithful_mode_preserves_an_empty_language_class() {
+    let html = r#"<pre><code class="language-">Test</code></pre>"#;
+
+    assert_eq!(html, convert(html).unwrap());
+}
+
+#[test]
 fn code_blocks_decode_html_entities() {
     let html = r#"<pre><code>let x = 5 &amp;&amp; y &lt; 10;</code></pre>"#;
 
@@ -170,4 +177,14 @@ fn tilde_fenced_code_uses_a_fence_longer_than_any_run_in_its_content() {
         .unwrap();
 
     assert_eq!("~~~~~~\n~~~~~\nlet parsed = true;\n~~~~~\n~~~~~~", markdown);
+}
+
+#[test]
+fn processing_instruction_nodes_are_ignored() {
+    let node = Node::new(NodeData::ProcessingInstruction {
+        target: "xml".into(),
+        contents: "version=\"1.0\"".into(),
+    });
+
+    assert_eq!("", HtmlToMarkdown::new().tree_to_markdown(&node));
 }

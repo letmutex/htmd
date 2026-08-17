@@ -51,7 +51,7 @@ pub(crate) fn walk_node(
             true
         }
         NodeData::Doctype { .. } => true,
-        NodeData::ProcessingInstruction { .. } => unreachable!(),
+        NodeData::ProcessingInstruction { .. } => true,
     }
 }
 
