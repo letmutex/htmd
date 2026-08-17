@@ -21,128 +21,135 @@ pub(crate) fn walk_node(
     trim_leading_spaces: bool,
     is_pre: bool,
 ) -> bool {
-    let mut markdown_translated = true;
-    match node.data {
+    match &node.data {
         NodeData::Document => {
             let _ = walk_children(node, output, handlers, true, false);
             trim_output_end(output);
+            true
         }
-
-        NodeData::Text { ref contents } => {
-            let text = contents.borrow();
-            let text = text.as_ref();
-            if is_pre {
-                // Handle pre and code
-                let text = if parent_tag.is_some_and(|t| t == "pre") {
-                    escape_pre_text_if_needed(Cow::Borrowed(text))
-                } else {
-                    Cow::Borrowed(text)
-                };
-                output.push_str(text.as_ref());
-            } else {
-                let last_ends_with_space = output.ends_with(' ');
-                if is_plain_text(text) {
-                    let text =
-                        if trim_leading_spaces || (text.starts_with(' ') && last_ends_with_space) {
-                            text.trim_start_matches(' ')
-                        } else {
-                            text
-                        };
-                    if !text.is_empty() {
-                        output.push_str(text);
-                    }
-                    return markdown_translated;
-                }
-
-                // Handle other elements or texts
-                let text = escape_if_needed(Cow::Borrowed(text));
-                let text = compress_whitespace(text.as_ref());
-
-                let to_add = if trim_leading_spaces
-                    || (text.chars().next().is_some_and(|ch| ch == ' ') && last_ends_with_space)
-                {
-                    // We can't compress spaces between two text blocks/elements, so we
-                    // compress them here by trimming the leading space of current text
-                    // content.
-                    text.trim_start_matches(' ')
-                } else {
-                    text.as_ref()
-                };
-                if !to_add.is_empty() {
-                    output.push_str(to_add);
-                }
-            }
-        }
-
-        NodeData::Element {
-            ref name,
-            ref attrs,
-            ..
-        } => {
-            // Visit this element.
-            let tag = &*name.local;
-            let is_head = tag == "head";
-            let attrs = attrs.borrow();
-
-            if tag == "span"
-                && handlers.options.translation_mode == TranslationMode::Pure
-                && handlers
-                    .tag_to_handler_indices
-                    .get("span")
-                    .is_some_and(|indices| indices.len() == 1)
-                && !is_math_span(&attrs)
-            {
-                let mut content = String::new();
-                let is_pre =
-                    is_pre || (parent_tag.is_none() && crate::element_handler::is_inside_pre(node));
-                let markdown_translated =
-                    walk_children(node, &mut content, handlers, false, is_pre);
-
-                let start = content.len() - content.trim_start_matches('\n').len();
-                if start > 0 {
-                    content.drain(..start);
-                }
-                let end = content.trim_end_matches('\n').len();
-                content.truncate(end);
-
-                append_normalized_content(output, content, is_pre);
-                return markdown_translated;
-            }
-
-            if handlers.options.translation_mode == TranslationMode::Pure
-                && !handlers.tag_to_handler_indices.contains_key(tag)
-            {
-                let mut content = String::new();
-                let is_pre =
-                    is_pre || (parent_tag.is_none() && crate::element_handler::is_inside_pre(node));
-                let markdown_translated =
-                    walk_children(node, &mut content, handlers, is_block_element(tag), is_pre);
-                append_normalized_content(output, content, is_pre);
-                return markdown_translated;
-            }
-
-            let res = handlers.handle(node, tag, &attrs, true, 0);
-
-            if let Some(res) = res {
-                markdown_translated = res.markdown_translated;
-                if !res.content.is_empty() || !is_head {
-                    append_normalized_content(output, res.content, is_pre);
-                }
-            }
-        }
-
-        NodeData::Comment { ref contents } => {
+        NodeData::Text { contents } => walk_text(
+            contents.borrow().as_ref(),
+            output,
+            parent_tag,
+            trim_leading_spaces,
+            is_pre,
+        ),
+        NodeData::Element { name, attrs, .. } => walk_element(
+            node,
+            name.local.as_ref(),
+            &attrs.borrow(),
+            output,
+            handlers,
+            is_pre,
+        ),
+        NodeData::Comment { contents } => {
             if handlers.options.translation_mode == TranslationMode::Faithful {
                 output.push_str("<!--");
                 output.push_str(contents);
                 output.push_str("-->");
             }
+            true
         }
-        NodeData::Doctype { .. } => {}
-        NodeData::ProcessingInstruction { .. } => unreachable!(),
+        NodeData::Doctype { .. } => true,
+        NodeData::ProcessingInstruction { .. } => true,
+    }
+}
+
+fn walk_text(
+    text: &str,
+    output: &mut String,
+    parent_tag: Option<&str>,
+    trim_leading_spaces: bool,
+    is_pre: bool,
+) -> bool {
+    if is_pre {
+        let text = if parent_tag == Some("pre") {
+            escape_pre_text_if_needed(Cow::Borrowed(text))
+        } else {
+            Cow::Borrowed(text)
+        };
+        output.push_str(text.as_ref());
+        return true;
     }
 
-    markdown_translated
+    let output_ends_with_space = output.ends_with(' ');
+    if is_plain_text(text) {
+        let text = if trim_leading_spaces || (text.starts_with(' ') && output_ends_with_space) {
+            text.trim_start_matches(' ')
+        } else {
+            text
+        };
+        output.push_str(text);
+        return true;
+    }
+
+    let text = escape_if_needed(Cow::Borrowed(text));
+    let text = compress_whitespace(text.as_ref());
+    let text = if trim_leading_spaces || (text.starts_with(' ') && output_ends_with_space) {
+        text.trim_start_matches(' ')
+    } else {
+        text.as_ref()
+    };
+    output.push_str(text);
+    true
+}
+
+fn walk_element(
+    node: &Rc<Node>,
+    tag: &str,
+    attrs: &[html5ever::Attribute],
+    output: &mut String,
+    handlers: &ElementHandlers,
+    is_pre: bool,
+) -> bool {
+    if is_passthrough_span(tag, attrs, handlers) {
+        let mut content = String::new();
+        let markdown_translated = walk_children(node, &mut content, handlers, false, is_pre);
+        trim_newlines(&mut content);
+        append_normalized_content(output, content, is_pre);
+        return markdown_translated;
+    }
+
+    if handlers.options.translation_mode == TranslationMode::Pure
+        && !handlers.tag_to_handler_indices.contains_key(tag)
+    {
+        let mut content = String::new();
+        let markdown_translated =
+            walk_children(node, &mut content, handlers, is_block_element(tag), is_pre);
+        append_normalized_content(output, content, is_pre);
+        return markdown_translated;
+    }
+
+    let Some(result) = handlers.handle(node, tag, attrs, true, 0) else {
+        return true;
+    };
+    if !result.content.is_empty() || tag != "head" {
+        append_normalized_content(output, result.content, is_pre);
+    }
+    result.markdown_translated
+}
+
+fn is_passthrough_span(
+    tag: &str,
+    attrs: &[html5ever::Attribute],
+    handlers: &ElementHandlers,
+) -> bool {
+    tag == "span"
+        && handlers.options.translation_mode == TranslationMode::Pure
+        && handlers
+            .tag_to_handler_indices
+            .get("span")
+            .is_some_and(|indices| indices.len() == 1)
+        && !is_math_span(attrs)
+}
+
+fn trim_newlines(content: &mut String) {
+    let start = content.len() - content.trim_start_matches('\n').len();
+    if start > 0 {
+        content.drain(..start);
+    }
+    let end = content.trim_end_matches('\n').len();
+    content.truncate(end);
 }
 
 fn is_math_span(attrs: &[html5ever::Attribute]) -> bool {
@@ -190,30 +197,6 @@ pub(crate) fn walk_children(
     is_pre: bool,
     // Return value: `markdown_translated`.
 ) -> bool {
-    if node.children.borrow().len() > 1 {
-        // Combine similar adjacent blocks.
-        let mut children = node.children.borrow_mut();
-        let mut index = 1;
-        while index < children.len() {
-            if let Some(text) = can_combine(&children[index - 1], &children[index]) {
-                // Combine the text from `chidren[index]` with `children[index -
-                // 1]`, then remove `children[index]`.
-                children.remove(index);
-                index -= 1;
-                let children_of_index = children.get(index).unwrap().children.borrow();
-                let text_data = &children_of_index.first().unwrap().data;
-                let NodeData::Text { contents } = text_data else {
-                    panic!("")
-                };
-                let mut inner_contents = contents.clone().into_inner();
-                inner_contents.push_tendril(&text.take());
-                contents.replace(inner_contents);
-            }
-            index += 1;
-        }
-    }
-
-    // Trim leading spaces of the first element/text in block elements (except pre/code)
     let mut trim_leading_spaces = !is_pre && is_parent_block_element;
     let tag = match &node.data {
         NodeData::Document => Some("html"),
@@ -221,7 +204,22 @@ pub(crate) fn walk_children(
         _ => None,
     };
     let mut markdown_translated = true;
-    for child in node.children.borrow().iter() {
+    let children = node.children.borrow();
+    let mut index = 0;
+    while index < children.len() {
+        let mut run_end = index + 1;
+        while run_end < children.len() && can_combine(&children[run_end - 1], &children[run_end]) {
+            run_end += 1;
+        }
+
+        let combined;
+        let child = if run_end - index > 1 {
+            combined = combine_nodes(node, &children[index..run_end]);
+            &combined
+        } else {
+            &children[index]
+        };
+
         let is_block = match &child.data {
             NodeData::Element { name, .. } => is_block_element(&name.local),
             _ => false,
@@ -240,6 +238,8 @@ pub(crate) fn walk_children(
             // Something was appended, update the flag
             trim_leading_spaces = is_block;
         }
+
+        index = run_end;
     }
 
     markdown_translated
@@ -247,7 +247,7 @@ pub(crate) fn walk_children(
 
 // Determine if the two nodes are similar, and should therefore be combined. If
 // so, return the text of the second node to simplify the combining process.
-fn can_combine(n1: &Node, n2: &Node) -> Option<RefCell<Tendril<UTF8>>> {
+fn can_combine(n1: &Node, n2: &Node) -> bool {
     // To be combined, both nodes must be elements.
     let NodeData::Element {
         name: name1,
@@ -256,7 +256,7 @@ fn can_combine(n1: &Node, n2: &Node) -> Option<RefCell<Tendril<UTF8>>> {
         mathml_annotation_xml_integration_point: mathml_annotation_xml_integration_point1,
     } = &n1.data
     else {
-        return None;
+        return false;
     };
     let NodeData::Element {
         name: name2,
@@ -265,30 +265,28 @@ fn can_combine(n1: &Node, n2: &Node) -> Option<RefCell<Tendril<UTF8>>> {
         mathml_annotation_xml_integration_point: mathml_annotation_xml_integration_point2,
     } = &n2.data
     else {
-        return None;
+        return false;
     };
 
     // Only combine inline content; block content (for example, one paragraph
     // following another) repetition is expected and should not be combined.
     if is_block_element(&name1.local) {
-        return None;
+        return false;
     }
 
     // Their children must be a single text element.
     let c1 = n1.children.borrow();
     let c2 = n2.children.borrow();
-    if c1.len() == 1
-        && c2.len() == 1
-        && let Some(d1) = c1.first()
-        && let Some(d2) = c2.first()
-        && let NodeData::Text {
-            contents: _contents1,
-        } = &d1.data
-        && let NodeData::Text {
-            contents: contents2,
-        } = &d2.data
-        // Don't combine adjacent hyperlinks.
-        && *name1.local != *"a"
+    if c1.len() != 1
+        || c2.len() != 1
+        || !matches!(c1[0].data, NodeData::Text { .. })
+        || !matches!(c2[0].data, NodeData::Text { .. })
+    {
+        return false;
+    }
+
+    // Don't combine adjacent hyperlinks.
+    *name1.local != *"a"
         && (name1 == name2
             // Treat `i` and `em` tags as the same element; likewise for `b` and
             // `strong`.
@@ -300,11 +298,42 @@ fn can_combine(n1: &Node, n2: &Node) -> Option<RefCell<Tendril<UTF8>>> {
         && template_contents2.borrow().is_none()
         && attrs1 == attrs2
         && mathml_annotation_xml_integration_point1 == mathml_annotation_xml_integration_point2
-    {
-        Some(contents2.clone())
-    } else {
-        None
+}
+
+fn combine_nodes(parent: &Rc<Node>, nodes: &[Rc<Node>]) -> Rc<Node> {
+    let NodeData::Element {
+        name,
+        attrs,
+        template_contents,
+        mathml_annotation_xml_integration_point,
+    } = &nodes[0].data
+    else {
+        unreachable!("only compatible element nodes are combined")
+    };
+
+    let mut text = Tendril::<UTF8>::new();
+    for node in nodes {
+        let children = node.children.borrow();
+        let NodeData::Text { contents } = &children[0].data else {
+            unreachable!("compatible elements have one text child")
+        };
+        text.push_tendril(&contents.borrow());
     }
+
+    let combined = Node::new(NodeData::Element {
+        name: name.clone(),
+        attrs: RefCell::new(attrs.borrow().clone()),
+        template_contents: RefCell::new(template_contents.borrow().clone()),
+        mathml_annotation_xml_integration_point: *mathml_annotation_xml_integration_point,
+    });
+    combined.parent.set(Some(Rc::downgrade(parent)));
+
+    let text_node = Node::new(NodeData::Text {
+        contents: RefCell::new(text),
+    });
+    text_node.parent.set(Some(Rc::downgrade(&combined)));
+    combined.children.borrow_mut().push(text_node);
+    combined
 }
 
 /// Normalizes content before adding to output by:
@@ -328,16 +357,18 @@ fn append_normalized_content(output: &mut String, mut content: String, is_pre: b
     }
 
     // Collapse adjacent spaces between inline elements (not in pre context)
-    if !is_pre
+    let content = if !is_pre
         && last_newlines == 0
         && content_newlines == 0
         && output.ends_with(' ')
         && content.starts_with(' ')
     {
-        content.remove(0);
-    }
+        &content[1..]
+    } else {
+        &content
+    };
 
-    output.push_str(&content);
+    output.push_str(content);
 }
 
 fn trim_output_end(output: &mut String) {
@@ -435,75 +466,14 @@ fn escape_pre_text_if_needed(text: Cow<'_, str>) -> Cow<'_, str> {
     }
 }
 
-// This is taken from the
-// [CommonMark spec](https://spec.commonmark.org/0.31.2/#html-blocks).
-static BLOCK_ELEMENTS: phf::Set<&'static str> = phf_set! {
-    "address",
-    "article",
-    "aside",
-    "base",
-    "basefont",
-    "blockquote",
-    "body",
-    "caption",
-    "center",
-    "col",
-    "colgroup",
-    "dd",
-    "details",
-    "dialog",
-    "dir",
-    "div",
-    "dl",
-    "dt",
-    "fieldset",
-    "figcaption",
-    "figure",
-    "footer",
-    "form",
-    "frame",
-    "frameset",
-    "h1",
-    "h2",
-    "h3",
-    "h4",
-    "h5",
-    "h6",
-    "head",
-    "header",
-    "hr",
-    "html",
-    "iframe",
-    "legend",
-    "li",
-    "link",
-    "main",
-    "menu",
-    "menuitem",
-    "nav",
-    "noframes",
-    "ol",
-    "optgroup",
-    "option",
-    "p",
-    "param",
-    "pre",
-    "script",
-    "search",
-    "section",
-    "style",
-    "summary",
-    "table",
-    "tbody",
-    "td",
-    "textarea",
-    "tfoot",
-    "th",
-    "thead",
-    "title",
-    "tr",
-    "track",
-    "ul",
+pub(crate) static BLOCK_ELEMENTS: phf::Set<&'static str> = phf_set! {
+    "address", "article", "aside", "base", "basefont", "blockquote", "body", "caption",
+    "center", "col", "colgroup", "dd", "details", "dialog", "dir", "div", "dl", "dt",
+    "fieldset", "figcaption", "figure", "footer", "form", "frame", "frameset", "h1", "h2",
+    "h3", "h4", "h5", "h6", "head", "header", "hr", "html", "iframe", "legend", "li",
+    "link", "main", "menu", "menuitem", "nav", "noframes", "ol", "optgroup", "option", "p",
+    "param", "pre", "script", "search", "section", "style", "summary", "table", "tbody", "td",
+    "textarea", "tfoot", "th", "thead", "title", "tr", "track", "ul",
 };
 
 pub(crate) fn is_block_element(tag: &str) -> bool {

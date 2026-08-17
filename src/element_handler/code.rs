@@ -106,13 +106,14 @@ fn find_language_from_attrs(attrs: &[Attribute]) -> Option<String> {
     attrs
         .iter()
         .find(|attr| &attr.name.local == "class")
-        .map(|attr| {
-            attr.value
-                .split(' ')
-                .find(|cls| cls.starts_with("language-"))
-                .map(|lang| lang.split('-').skip(1).join("-"))
+        .and_then(|attr| {
+            attr.value.split_ascii_whitespace().find_map(|class| {
+                class
+                    .strip_prefix("language-")
+                    .filter(|language| !language.is_empty())
+            })
         })
-        .unwrap_or(None)
+        .map(str::to_owned)
 }
 
 fn handle_inline_code(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
@@ -139,7 +140,7 @@ fn handle_inline_code(handlers: &dyn Handlers, element: Element) -> Option<Handl
 }
 
 fn get_inline_code_delimiter(content: &str) -> String {
-    let mut run_lengths = Vec::new();
+    let mut observed_run_lengths = vec![false; 2];
     let mut current_run = 0;
     let mut longest_run = 0;
 
@@ -148,18 +149,25 @@ fn get_inline_code_delimiter(content: &str) -> String {
             current_run += 1;
             longest_run = longest_run.max(current_run);
         } else if current_run > 0 {
-            run_lengths.push(current_run);
+            observed_run_lengths.resize(observed_run_lengths.len().max(current_run + 2), false);
+            observed_run_lengths[current_run] = true;
             current_run = 0;
         }
     }
     if current_run > 0 {
-        run_lengths.push(current_run);
+        observed_run_lengths.resize(observed_run_lengths.len().max(current_run + 2), false);
+        observed_run_lengths[current_run] = true;
     }
 
     let delimiter_len = if content.starts_with('`') || content.ends_with('`') {
         longest_run + 1
     } else {
-        (1..).find(|length| !run_lengths.contains(length)).unwrap()
+        observed_run_lengths
+            .iter()
+            .enumerate()
+            .skip(1)
+            .find_map(|(length, observed)| (!observed).then_some(length))
+            .unwrap_or(longest_run + 1)
     };
 
     "`".repeat(delimiter_len)
@@ -167,7 +175,7 @@ fn get_inline_code_delimiter(content: &str) -> String {
 
 /// Newlines become spaces (+ an extra space if not in the middle of the code)
 fn handle_preformatted_code(code: &str) -> String {
-    let mut result = String::new();
+    let mut result = String::with_capacity(code.len());
     let mut is_prev_ch_new_line = false;
     let mut in_middle = false;
     for ch in code.chars() {

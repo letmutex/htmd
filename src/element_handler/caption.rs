@@ -7,10 +7,5 @@ use crate::{
 
 pub(super) fn caption_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
     serialize_if_faithful!(handlers, element, 0);
-    handle_or_serialize_by_parent(
-        handlers,
-        &element,
-        &["table"],
-        element.markdown_translated,
-    )
+    handle_or_serialize_by_parent(handlers, &element, &["table"], true)
 }
