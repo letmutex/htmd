@@ -146,13 +146,13 @@ sit</pre>
   <pre class="expected">- - -</pre>
 </div>
 
-<div class="case" data-name="br">
+<div class="case" data-name="br" data-options='{"translationMode": "Pure"}'>
   <div class="input">More<br>after the break</div>
   <pre class="expected">More  
 after the break</pre>
 </div>
 
-<div class="case" data-name="br with visible line-ending" data-options='{"br": "\\"}'>
+<div class="case" data-name="br with visible line-ending" data-options='{"br": "\\", "translationMode": "Pure"}'>
   <div class="input">More<br>after the break</div>
   <pre class="expected">More\
 after the break</pre>
@@ -741,7 +741,7 @@ Another div</pre>
 </div>
 
 <!-- Two trailing newlines are for the line break -->
-<div class="case" data-name="newline at the end of a strong element">
+<div class="case" data-name="newline at the end of a strong element" data-options='{"translationMode": "Pure"}'>
     <div class="input"><strong>Text with a trailing break<br></strong>before continuation</div>
     <pre class="expected">**Text with a trailing break**  
 before continuation</pre>
@@ -768,7 +768,7 @@ before continuation</pre>
 text after blank div</pre>
 </div>
 
-<div class="case" data-name="blank inline element with br">
+<div class="case" data-name="blank inline element with br" data-options='{"translationMode": "Pure"}'>
   <div class="input"><strong><br></strong></div>
   <pre class="expected"></pre>
 </div>
@@ -1060,7 +1060,7 @@ Code
   <pre class="expected">Foo &nbsp; Bar</pre>
 </div>
 
-<div class="case" data-name="list-like text with non-breaking spaces">
+<div class="case" data-name="list-like text with non-breaking spaces" data-options='{"translationMode": "Pure"}'>
   <div class="input">&nbsp;1. First<br>&nbsp;2. Second</div>
   <pre class="expected">&nbsp;1. First  <!-- hard break -->
 &nbsp;2. Second</pre>

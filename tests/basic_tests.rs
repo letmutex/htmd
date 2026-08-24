@@ -6,7 +6,7 @@ use pretty_assertions::assert_eq;
 use htmd::{
     Element, HtmlToMarkdown,
     element_handler::Handlers,
-    options::{BrStyle, LinkStyle, Options, TranslationMode},
+    options::{LinkStyle, Options, TranslationMode},
 };
 mod common;
 use common::convert_faithful;
@@ -146,19 +146,8 @@ fn quotes() {
 #[test]
 fn br() {
     let html = r#"
-        Hi<br>there<br><br>!"#;
-    assert_eq!("Hi  \nthere  \n  \n!", convert_faithful(html).unwrap());
-
-    let md = HtmlToMarkdown::builder()
-        .options(Options {
-            br_style: BrStyle::Backslash,
-            translation_mode: TranslationMode::Faithful,
-            ..Default::default()
-        })
-        .build()
-        .convert(html)
-        .unwrap();
-    assert_eq!("Hi\\\nthere\\\n\\\n!", &md);
+        <p>Hi<br>there<br><br>!</p>"#;
+    assert_eq!("Hi<br>there<br><br>!", convert_faithful(html).unwrap());
 }
 
 #[test]
