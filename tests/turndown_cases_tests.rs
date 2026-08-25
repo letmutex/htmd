@@ -7,7 +7,7 @@ use htmd::{
 };
 use pretty_assertions::assert_eq;
 use scraper::{Html, Selector};
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 
 struct TestCase {
     pub name: String,
@@ -25,16 +25,38 @@ struct TestCase {
 #[derive(Deserialize, Default)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct CaseOptions {
+    #[serde(default, deserialize_with = "present_value")]
     heading_style: Option<String>,
+    #[serde(default, deserialize_with = "present_value")]
     hr: Option<String>,
+    #[serde(default, deserialize_with = "present_value")]
     br: Option<String>,
+    #[serde(default, deserialize_with = "present_value")]
     link_style: Option<String>,
+    #[serde(default, deserialize_with = "present_value")]
     link_reference_style: Option<String>,
+    #[serde(default, deserialize_with = "present_value")]
     code_block_style: Option<String>,
+    #[serde(default, deserialize_with = "present_value")]
     fence: Option<String>,
+    #[serde(default, deserialize_with = "present_value")]
     bullet_list_marker: Option<String>,
+    #[serde(default, deserialize_with = "present_value")]
     preformatted_code: Option<bool>,
+    #[serde(default, deserialize_with = "present_value")]
     translation_mode: Option<String>,
+}
+
+/// Reads a key that is present, rejecting an explicit `null`.
+///
+/// An absent key still becomes `None` through `#[serde(default)]`. Without this,
+/// so would `null`: another way to name an option and still get the default.
+fn present_value<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    T::deserialize(deserializer).map(Some)
 }
 
 #[test]
