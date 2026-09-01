@@ -21,8 +21,6 @@ indoc = "2.0.6"
 scraper = "0.27"
 criterion = { version = "0.8", features = ["html_reports"] }
 pretty_assertions = "1.4.1"
-# Parses the `data-options` of a turndown case, so that a key the runner does not
-# know is a test failure rather than a silent fall back to the defaults.
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

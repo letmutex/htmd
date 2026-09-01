@@ -163,8 +163,6 @@ fn run_cases() {
     }
 }
 
-/// A key the runner knows, carrying a value it does not. Like an unknown key,
-/// this used to fall back to the default and test the wrong thing quietly.
 fn unsupported(case: &str, key: &str, value: &str) -> ! {
     panic!("case {case:?}: unsupported value {value:?} for `{key}`");
 }
