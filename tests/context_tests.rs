@@ -230,7 +230,8 @@ fn a_raw_text_element_is_serialized_verbatim() {
         convert_faithful("<script>a*b\nc</script>").unwrap()
     );
     // The escaped line ending survives the trip back: a CommonMark parser
-    // decodes the reference while producing the raw HTML inline.
+    // decodes the reference while producing the raw HTML inline. See
+    // `round_trip_in_an_inline_context` in `basic_tests.rs`.
     assert_eq!(
         "# <script>a&#10;b</script>",
         convert_faithful("<h1><script>a\nb</script></h1>").unwrap()

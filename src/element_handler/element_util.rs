@@ -189,7 +189,8 @@ pub(crate) fn serialize_element_verbatim(element: &Element) -> String {
 /// A line ending does survive this: only the tags of a raw HTML inline are
 /// HTML, so a CommonMark parser reads what sits between them as text and
 /// decodes the `&#13;`/`&#10;` there before any HTML parser sees a `<script>`
-/// element.
+/// element. `round_trip_in_an_inline_context` in `tests/basic_tests.rs` shows
+/// the trip.
 ///
 /// **Limitation:** that same fact costs the content its escaping. Serializing
 /// it leaves any Markdown special it holds bare, and the CommonMark parser
