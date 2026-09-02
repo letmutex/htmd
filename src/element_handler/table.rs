@@ -1,9 +1,9 @@
-use crate::element_handler::element_util::serialize_element;
+use crate::element_handler::element_util::serialize_element_result;
 use crate::element_handler::{Element, HandlerResult, Handlers};
 use crate::node_util::{get_node_tag_name, get_parent_node};
 use crate::options::TranslationMode;
 use crate::serialize_if_faithful;
-use crate::text_util::{TrimDocumentWhitespace, concat_strings};
+use crate::text_util::{TrimDocumentWhitespace, concat_strings, frame_as_block};
 use markup5ever_rcdom::NodeData;
 use std::rc::Rc;
 
@@ -32,10 +32,7 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: Element) -> Option
 
     if handlers.options().translation_mode == TranslationMode::Faithful && !all_children_translated
     {
-        return Some(HandlerResult {
-            content: serialize_element(handlers, &element),
-            markdown_translated: false,
-        });
+        return Some(serialize_element_result(handlers, &element));
     }
 
     if rows.is_empty() && headers.is_empty() {
@@ -44,7 +41,7 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: Element) -> Option
         if content.is_empty() {
             return None;
         }
-        return Some(concat_strings!("\n\n", content, "\n\n").into());
+        return Some(frame_as_block(content).into());
     }
 
     let num_columns = headers
@@ -128,13 +125,23 @@ fn extract_thead(
         .find(|node| get_node_tag_name(node).is_some_and(|tag| tag == "tr"))
         .unwrap_or(thead_node);
 
-    let (headers, translated) = extract_row_cells(handlers, row_node, "th");
-    table.headers = headers;
-    table.all_children_translated &= translated;
-    if table.headers.is_empty() {
-        let (headers, translated) = extract_row_cells(handlers, row_node, "td");
-        table.headers = headers;
+    extract_header_row(handlers, row_node, table);
+}
+
+/// Fills `table.headers` from `row_node`, preferring its `th` cells and falling
+/// back to its `td` cells when it holds no `th`.
+fn extract_header_row(
+    handlers: &dyn Handlers,
+    row_node: &Rc<markup5ever_rcdom::Node>,
+    table: &mut ExtractedTable,
+) {
+    for cell_tag in ["th", "td"] {
+        let (headers, translated) = extract_row_cells(handlers, row_node, cell_tag);
         table.all_children_translated &= translated;
+        table.headers = headers;
+        if !table.headers.is_empty() {
+            break;
+        }
     }
 }
 
@@ -174,14 +181,7 @@ fn extract_direct_row(
     has_thead: &mut bool,
 ) {
     if !*has_thead && table.headers.is_empty() {
-        let (headers, translated) = extract_row_cells(handlers, row_node, "th");
-        table.headers = headers;
-        table.all_children_translated &= translated;
-        if table.headers.is_empty() {
-            let (headers, translated) = extract_row_cells(handlers, row_node, "td");
-            table.headers = headers;
-            table.all_children_translated &= translated;
-        }
+        extract_header_row(handlers, row_node, table);
         *has_thead = !table.headers.is_empty();
     } else {
         let (cells, translated) = extract_row_cells(handlers, row_node, "td");

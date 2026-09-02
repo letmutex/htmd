@@ -161,20 +161,39 @@ fn is_math_span(attrs: &[html5ever::Attribute]) -> bool {
         )
 }
 
+/// The bytes which, at the start of a text node, could open a CommonMark block
+/// — a setext underline, a code fence, a blockquote, a list marker, an ATX
+/// heading, or an ordered list number — and so need a leading backslash. Every
+/// one is ASCII, so testing the first byte of a text node tests its first
+/// character.
+fn is_markdown_block_start(byte: u8) -> bool {
+    matches!(byte, b'=' | b'~' | b'>' | b'-' | b'+' | b'#' | b'0'..=b'9')
+}
+
+/// The bytes which carry CommonMark meaning wherever in a text node they
+/// appear, and so are escaped one by one.
+fn is_markdown_inline_special(byte: u8) -> bool {
+    matches!(byte, b'\\' | b'*' | b'_' | b'`' | b'[' | b']')
+}
+
 fn is_plain_text(text: &str) -> bool {
     let bytes = text.as_bytes();
     let Some(&first) = bytes.first() else {
         return true;
     };
 
-    if matches!(first, b'=' | b'~' | b'>' | b'-' | b'+' | b'#' | b'0'..=b'9') {
+    if is_markdown_block_start(first) {
         return false;
     }
 
     let mut previous_was_space = false;
     for &byte in bytes {
+        // `<` opens HTML rather than Markdown, so `escape_if_needed` leaves it
+        // to the HTML escape rather than listing it as a special of its own.
+        if is_markdown_inline_special(byte) || byte == b'<' {
+            return false;
+        }
         match byte {
-            b'\\' | b'*' | b'_' | b'`' | b'[' | b']' | b'<' => return false,
             b' ' => {
                 if previous_was_space {
                     return false;
@@ -397,13 +416,11 @@ fn escape_if_needed(text: Cow<'_, str>) -> Cow<'_, str> {
         return text;
     };
 
-    let mut need_escape = matches!(first, '=' | '~' | '>' | '-' | '+' | '#' | '0'..='9');
+    let mut need_escape = is_markdown_block_start(text.as_bytes()[0]);
 
     if !need_escape {
         // Markdown specials are all ASCII; byte scan avoids UTF-8 decoding.
-        need_escape = text
-            .bytes()
-            .any(|b| matches!(b, b'\\' | b'*' | b'_' | b'`' | b'[' | b']'));
+        need_escape = text.bytes().any(is_markdown_inline_special);
     }
 
     if !need_escape {

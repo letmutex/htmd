@@ -1,10 +1,13 @@
 use crate::{
     Element,
-    element_handler::{HandlerResult, Handlers, element_util::serialize_element},
+    element_handler::{
+        HandlerResult, Handlers,
+        element_util::{serialize_element, serialize_element_result},
+    },
     node_util::get_node_tag_name,
     options::TranslationMode,
     serialize_if_faithful,
-    text_util::concat_strings,
+    text_util::frame_as_block,
 };
 
 pub(super) fn pre_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
@@ -31,18 +34,11 @@ pub(super) fn pre_handler(handlers: &dyn Handlers, element: Element) -> Option<H
         if handlers.options().translation_mode == TranslationMode::Faithful
             && !result.markdown_translated
         {
-            return Some(HandlerResult {
-                content: serialize_element(handlers, &element),
-                markdown_translated: false,
-            });
+            return Some(HandlerResult::html(serialize_element(handlers, &element)));
         }
 
-        let content = result.content.trim_matches('\n');
-        Some(concat_strings!("\n\n", content, "\n\n").into())
+        Some(frame_as_block(&result.content).into())
     } else {
-        Some(HandlerResult {
-            content: serialize_element(handlers, &element),
-            markdown_translated: false,
-        })
+        Some(serialize_element_result(handlers, &element))
     }
 }

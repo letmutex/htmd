@@ -2,11 +2,11 @@ use markup5ever_rcdom::NodeData;
 
 use crate::{
     Element,
-    element_handler::{HandlerResult, Handlers, serialize_element},
+    element_handler::{HandlerResult, Handlers, element_util::serialize_element_result},
     node_util::{get_node_tag_name, get_parent_node},
     options::{Options, TranslationMode},
     serialize_if_faithful,
-    text_util::{append_block, concat_strings, indent_text_except_first_line},
+    text_util::{append_block, concat_strings, frame_as_block, indent_text_except_first_line},
 };
 
 pub(super) fn list_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
@@ -29,10 +29,7 @@ pub(super) fn list_handler(handlers: &dyn Handlers, element: Element) -> Option<
                 tag_name == Some("li") || tag_name.is_none()
             })
         {
-            return Some(HandlerResult {
-                content: serialize_element(handlers, &element),
-                markdown_translated: false,
-            });
+            return Some(serialize_element_result(handlers, &element));
         }
     }
     let parent = get_parent_node(element.node);
@@ -53,10 +50,7 @@ pub(super) fn list_handler(handlers: &dyn Handlers, element: Element) -> Option<
     if handlers.options().translation_mode == TranslationMode::Faithful
         && !result.markdown_translated
     {
-        return Some(HandlerResult {
-            content: serialize_element(handlers, &element),
-            markdown_translated: false,
-        });
+        return Some(serialize_element_result(handlers, &element));
     }
 
     let trimmed = result.content.trim_matches(|ch| ch == '\n');
@@ -67,7 +61,7 @@ pub(super) fn list_handler(handlers: &dyn Handlers, element: Element) -> Option<
     if is_parent_li {
         Some(concat_strings!("\n", trimmed, "\n").into())
     } else {
-        Some(concat_strings!("\n\n", trimmed, "\n\n").into())
+        Some(frame_as_block(trimmed).into())
     }
 }
 
