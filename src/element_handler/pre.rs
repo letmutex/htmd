@@ -1,17 +1,17 @@
 use crate::{
     Element,
+    element_handler::element_util::serialize_if_extra_attrs,
     element_handler::{
         HandlerResult, Handlers,
         element_util::{serialize_element, serialize_element_result},
     },
     node_util::get_node_tag_name,
     options::TranslationMode,
-    serialize_if_faithful,
     text_util::frame_as_block,
 };
 
 pub(super) fn pre_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
-    serialize_if_faithful!(handlers, element, 0);
+    serialize_if_extra_attrs!(handlers, element, 0);
     // The only faithful translation for this is from
     // `<pre><code>blah</code></pre>` to a code block. So, check that this node
     // has only one element, a pure `<code>` element. Cases:

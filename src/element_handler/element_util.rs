@@ -10,6 +10,21 @@ use html5ever::serialize::{HtmlSerializer, SerializeOpts, Serializer, TraversalS
 use markup5ever_rcdom::{NodeData, SerializableHandle};
 use std::io::{self, Write};
 
+/// Returns from the enclosing handler with `content` as the element's HTML,
+/// but only in faithful mode and only when `condition` holds. Pure mode has no
+/// HTML to fall back on, so it always translates.
+macro_rules! serialize_when_faithful {
+    ($handlers:expr, $condition:expr, $content:expr) => {
+        if $handlers.options().translation_mode == $crate::options::TranslationMode::Faithful
+            && $condition
+        {
+            return Some($crate::element_handler::HandlerResult::html($content));
+        }
+    };
+}
+
+pub(crate) use serialize_when_faithful;
+
 /// Handles a structural element when it has an allowed parent, or preserves it
 /// as HTML in faithful mode when it appears elsewhere.
 ///
@@ -148,21 +163,21 @@ where
     }
 }
 
-#[macro_export]
-macro_rules! serialize_if_faithful {
+/// Returns from the enclosing handler with `element` written as HTML when it
+/// carries more attributes than its Markdown translation can express.
+/// `num_attrs_allowed` of -1 rejects every attribute set, serializing the
+/// element whenever the mode is faithful; [`i64::MAX`] accepts any.
+macro_rules! serialize_if_extra_attrs {
     ($handlers:expr, $element:expr, $num_attrs_allowed:expr) => {
-        if $handlers.options().translation_mode == $crate::options::TranslationMode::Faithful
-            && $element.attrs.len() as i64 > $num_attrs_allowed
-        {
-            return Some($crate::element_handler::HandlerResult {
-                content: $crate::element_handler::element_util::serialize_element(
-                    $handlers, &$element,
-                ),
-                markdown_translated: false,
-            });
-        }
+        $crate::element_handler::element_util::serialize_when_faithful!(
+            $handlers,
+            $element.attrs.len() as i64 > $num_attrs_allowed,
+            $crate::element_handler::element_util::serialize_element($handlers, &$element)
+        )
     };
 }
+
+pub(crate) use serialize_if_extra_attrs;
 
 #[cfg(test)]
 mod tests {

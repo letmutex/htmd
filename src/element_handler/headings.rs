@@ -1,13 +1,13 @@
 use crate::{
     Element,
+    element_handler::element_util::serialize_if_extra_attrs,
     element_handler::{HandlerResult, Handlers},
     options::HeadingStyle,
-    serialize_if_faithful,
     text_util::TrimDocumentWhitespace,
 };
 
 pub(super) fn headings_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
-    serialize_if_faithful!(handlers, element, 0);
+    serialize_if_extra_attrs!(handlers, element, 0);
     let level = element.tag.chars().nth(1).unwrap() as u32 - '0' as u32;
     let content = handlers.walk_children(element.node).content;
     let content = content.trim_document_whitespace();

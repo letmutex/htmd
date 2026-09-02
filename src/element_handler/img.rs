@@ -1,7 +1,7 @@
 use crate::{
     Element,
+    element_handler::element_util::serialize_if_extra_attrs,
     element_handler::{HandlerResult, Handlers},
-    serialize_if_faithful,
     text_util::{JoinOnStringIterator, TrimDocumentWhitespace, concat_strings},
 };
 
@@ -20,7 +20,7 @@ pub(super) fn img_handler(handlers: &dyn Handlers, element: Element) -> Option<H
         } else if name == "title" {
             title = Some(attr.value.to_string());
         } else {
-            serialize_if_faithful!(handlers, element, 0);
+            serialize_if_extra_attrs!(handlers, element, 0);
         }
     }
 
