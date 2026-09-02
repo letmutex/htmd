@@ -2,7 +2,7 @@ use crate::{
     Element,
     element_handler::element_util::serialize_if_extra_attrs,
     element_handler::{HandlerResult, Handlers},
-    text_util::{JoinOnStringIterator, TrimDocumentWhitespace, concat_strings},
+    text_util::{concat_strings, normalize_title},
 };
 
 pub(super) fn img_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
@@ -26,18 +26,9 @@ pub(super) fn img_handler(handlers: &dyn Handlers, element: Element) -> Option<H
 
     link.as_ref()?;
 
-    let process_alt_title = |text: String| {
-        text.lines()
-            .map(|line| line.trim_document_whitespace().replace('"', "\\\""))
-            .filter(|line| !line.is_empty())
-            .join("\n")
-    };
-
-    // Handle new lines in alt
-    let alt = alt.map(process_alt_title);
-
-    // Handle new lines in title
-    let title = title.map(process_alt_title);
+    // Handle new lines in alt and in title
+    let alt = alt.as_deref().map(normalize_title);
+    let title = title.as_deref().map(normalize_title);
 
     let link = link.map(|text| text.replace('(', "\\(").replace(')', "\\)"));
 
