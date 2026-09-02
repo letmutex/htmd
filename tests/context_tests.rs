@@ -180,6 +180,68 @@ fn html_in_an_inline_element_is_a_raw_inline() {
     );
 }
 
+/// A line ending in a raw HTML inline ends the leaf block holding it: a blank
+/// line ends a paragraph, and a single line ending ends an ATX heading or a
+/// table row. Each is therefore written as a character reference.
+#[test]
+fn a_raw_inline_escapes_its_line_endings() {
+    assert_eq!(
+        r#"a<em foo="1&#10;&#10;2">y</em>b"#,
+        convert_faithful("<p>a<em foo=\"1\n\n2\">y</em>b</p>").unwrap()
+    );
+    assert_eq!(
+        "# <pre>x&#10;y</pre>",
+        convert_faithful("<h1><pre>x\ny</pre></h1>").unwrap()
+    );
+    // The parser folds a literal CRLF into a line feed, so the carriage return
+    // has to arrive as a character reference to survive.
+    assert_eq!(
+        "# <pre>x&#13;&#10;y</pre>",
+        convert_faithful("<h1><pre>x&#13;&#10;y</pre></h1>").unwrap()
+    );
+    assert_eq!(
+        concat!(
+            "| h                        |\n",
+            "| ------------------------ |\n",
+            "| <em foo=\"1&#10;2\">y</em> |"
+        ),
+        convert_faithful(
+            "<table><thead><tr><th>h</th></tr></thead>\
+             <tbody><tr><td><em foo=\"1\n2\">y</em></td></tr></tbody></table>"
+        )
+        .unwrap()
+    );
+    // Only a blank line ends a type 6 HTML block, so one keeps the rest of its
+    // line structure.
+    assert_eq!(
+        "<div>a\n&#10;b</div>",
+        convert_faithful("<div>a\n\nb</div>").unwrap()
+    );
+}
+
+/// A type 1 HTML block ends at its closing tag rather than at a blank line, so
+/// escaping a blank line inside one would needlessly rewrite the script, style,
+/// or preformatted text itself.
+#[test]
+fn a_type_1_block_keeps_its_blank_lines() {
+    assert_eq!(
+        "<script>a\n\nb</script>",
+        convert_faithful("<script>a\n\nb</script>").unwrap()
+    );
+    assert_eq!(
+        "<style>a\n\nb</style>",
+        convert_faithful("<style>a\n\nb</style>").unwrap()
+    );
+    assert_eq!(
+        "<pre>a\n\nb</pre>",
+        convert_faithful("<pre>a\n\nb</pre>").unwrap()
+    );
+    assert_eq!(
+        "<textarea>a\n\nb</textarea>",
+        convert_faithful("<textarea>a\n\nb</textarea>").unwrap()
+    );
+}
+
 #[test]
 fn a_serialized_element_follows_its_context() {
     assert_eq!(

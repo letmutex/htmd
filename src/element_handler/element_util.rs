@@ -1,6 +1,6 @@
 use crate::{
     Context, Element,
-    dom_walker::is_block_element,
+    dom_walker::{is_block_element, is_type_1_element},
     element_handler::{HandlerResult, Handlers},
     node_util::parent_tag_name_equals,
     text_util::frame_as_block,
@@ -85,9 +85,9 @@ fn try_serialize_element(handlers: &dyn Handlers, element: &Element) -> io::Resu
     // context. See the "Translating HTML nodes" section of
     // `unsupported_html.md`.
     if element.context == Context::Block && is_block_element(element.tag) {
-        serialize_block_element(element, serialize_opts())
+        serialize_block_element(element)
     } else {
-        serialize_inline_element(handlers, element, serialize_opts())
+        serialize_inline_element(handlers, element)
     }
 }
 
@@ -98,17 +98,13 @@ fn serialize_opts() -> SerializeOpts {
     }
 }
 
-fn serialize_inline_element(
-    handlers: &dyn Handlers,
-    element: &Element,
-    options: SerializeOpts,
-) -> io::Result<String> {
+fn serialize_inline_element(handlers: &dyn Handlers, element: &Element) -> io::Result<String> {
     let NodeData::Element { name, attrs, .. } = &element.node.data else {
         return Err(io::Error::other("expected an element node"));
     };
 
     let mut bytes = Vec::new();
-    let mut serializer = HtmlSerializer::new(&mut bytes, options);
+    let mut serializer = HtmlSerializer::new(&mut bytes, serialize_opts());
     serializer.start_elem(
         name.clone(),
         attrs
@@ -126,20 +122,70 @@ fn serialize_inline_element(
                 .as_bytes(),
         )?;
     serializer.end_elem(name.clone())?;
+    let html = String::from_utf8(bytes).map_err(io::Error::other)?;
+    Ok(escape_inline_line_endings(html))
+}
+
+fn serialize_block_element(element: &Element) -> io::Result<String> {
+    let html = serialize_subtree(element)?;
+    // A type 6 HTML block ends at the next blank line, so a blank line written
+    // inside the serialized HTML has to be escaped to keep the block in one
+    // piece. A type 1 block ends at the line holding its closing tag instead,
+    // which leaves its line endings — blank ones included — free to stand as
+    // they are; escaping them would rewrite the script, style, or preformatted
+    // text itself. See the "Translating HTML nodes" section of
+    // `unsupported_html.md`.
+    let html = if is_type_1_element(element.tag) {
+        html
+    } else {
+        escape_html_block_blank_lines(html)
+    };
+    Ok(frame_as_block(&html))
+}
+
+fn serialize_subtree(element: &Element) -> io::Result<String> {
+    let mut bytes = Vec::new();
+    let handle = SerializableHandle::from(element.node.clone());
+    serialize(&mut bytes, &handle, serialize_opts())?;
     String::from_utf8(bytes).map_err(io::Error::other)
 }
 
-fn serialize_block_element(element: &Element, options: SerializeOpts) -> io::Result<String> {
-    let mut bytes = Vec::new();
-    let handle = SerializableHandle::from(element.node.clone());
-    serialize(&mut bytes, &handle, options)?;
-    let html = String::from_utf8(bytes).map_err(io::Error::other)?;
-    Ok(frame_as_block(&escape_html_block_blank_lines(&html)))
+// A raw HTML inline lives inside a leaf block, and every leaf block is ended by
+// a line ending it does not expect: a blank line ends the paragraph holding one,
+// a single line ending ends an ATX heading or a table row. Encode every line
+// ending, the safe over-generalization of the blank line rule described in
+// `unsupported_html.md`. A character reference in a raw HTML inline's tag or in
+// the CommonMark text it holds decodes back to the line ending it replaced.
+pub(crate) fn escape_inline_line_endings(html: String) -> String {
+    if !has_line_ending(&html) {
+        return html;
+    }
+
+    let mut result = String::with_capacity(html.len());
+    for ch in html.chars() {
+        match ch {
+            '\r' => result.push_str("&#13;"),
+            '\n' => result.push_str("&#10;"),
+            _ => result.push(ch),
+        }
+    }
+    result
+}
+
+/// Whether `html` holds anything for the escapes below to do: the fast path
+/// both of them share, and the one place the set of line endings they know
+/// about is written down.
+fn has_line_ending(html: &str) -> bool {
+    html.contains(['\r', '\n'])
 }
 
 // A blank line terminates a CommonMark HTML block. Encode every line ending
 // after the first so serialized block content remains in one HTML block.
-fn escape_html_block_blank_lines(html: &str) -> String {
+fn escape_html_block_blank_lines(html: String) -> String {
+    if !has_line_ending(&html) {
+        return html;
+    }
+
     let mut result = String::with_capacity(html.len());
     let mut chars = html.chars().peekable();
 
@@ -226,15 +272,23 @@ pub(crate) use serialize_if_extra_attrs_or_inline;
 
 #[cfg(test)]
 mod tests {
-    use super::escape_html_block_blank_lines;
+    use super::{escape_html_block_blank_lines, escape_inline_line_endings};
+
+    #[test]
+    fn escapes_every_line_ending_of_a_raw_inline() {
+        assert_eq!("ab", escape_inline_line_endings("ab".into()));
+        assert_eq!("a&#10;b", escape_inline_line_endings("a\nb".into()));
+        assert_eq!("a&#13;&#10;b", escape_inline_line_endings("a\r\nb".into()));
+        assert_eq!("a&#13;b", escape_inline_line_endings("a\rb".into()));
+    }
 
     #[test]
     fn escapes_blank_lines_for_each_line_ending_style() {
-        assert_eq!("a\n&#10;b", escape_html_block_blank_lines("a\n\nb"));
+        assert_eq!("a\n&#10;b", escape_html_block_blank_lines("a\n\nb".into()));
         assert_eq!(
             "a\r\n&#13;&#10;b",
-            escape_html_block_blank_lines("a\r\n\r\nb")
+            escape_html_block_blank_lines("a\r\n\r\nb".into())
         );
-        assert_eq!("a\r&#13;b", escape_html_block_blank_lines("a\r\rb"));
+        assert_eq!("a\r&#13;b", escape_html_block_blank_lines("a\r\rb".into()));
     }
 }
