@@ -2,7 +2,7 @@ use markup5ever_rcdom::NodeData;
 
 use crate::{
     Element,
-    element_handler::element_util::serialize_if_extra_attrs,
+    element_handler::element_util::serialize_if_extra_attrs_or_inline,
     element_handler::{HandlerResult, Handlers, element_util::serialize_element_result},
     node_util::{get_node_tag_name, get_parent_node},
     options::{Options, TranslationMode},
@@ -12,12 +12,13 @@ use crate::{
 pub(super) fn list_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
     // In faithful mode, ...
     if handlers.options().translation_mode == TranslationMode::Faithful {
-        // ...make sure this element's attributes can be translated as markdown.
+        // ...a list is a CommonMark block, so it needs a block context, and
+        // this element's attributes must be translatable as markdown.
         let has_start = element
             .attrs
             .first()
             .is_some_and(|attr| &attr.name.local == "start");
-        serialize_if_extra_attrs!(handlers, element, if has_start { 1 } else { 0 });
+        serialize_if_extra_attrs_or_inline!(handlers, element, if has_start { 1 } else { 0 });
 
         // ...all children must be translated as Markdown, and all children must
         // be li elements.

@@ -503,6 +503,15 @@ fn escape_pre_text_if_needed(text: Cow<'_, str>) -> Cow<'_, str> {
     }
 }
 
+/// The tags which frame their content as a block rather than an inline run.
+///
+/// This is exactly CommonMark's
+/// [HTML block](https://spec.commonmark.org/0.31.2/#html-blocks) type 1 list
+/// plus its type 6 list, and `element_util::try_serialize_element` relies on
+/// that: a tag outside both lists could only open a type 7 block, so it has to
+/// be written as a raw HTML inline instead. Keep this set in step with the spec
+/// — adding a tag here because it reads as block-like would silently change
+/// that classification.
 pub(crate) static BLOCK_ELEMENTS: phf::Set<&'static str> = phf_set! {
     "address", "article", "aside", "base", "basefont", "blockquote", "body", "caption",
     "center", "col", "colgroup", "dd", "details", "dialog", "dir", "div", "dl", "dt",
