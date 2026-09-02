@@ -1,9 +1,11 @@
 use crate::{
-    Element,
-    element_handler::element_util::serialize_if_extra_attrs,
+    Context, Element,
     element_handler::{
         HandlerResult, Handlers,
-        element_util::{serialize_element, serialize_element_result},
+        element_util::{
+            serialize_element, serialize_element_result, serialize_element_verbatim,
+            serialize_if_extra_attrs, serialize_when_faithful,
+        },
     },
     node_util::get_node_tag_name,
     options::TranslationMode,
@@ -11,6 +13,14 @@ use crate::{
 };
 
 pub(super) fn pre_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
+    // A code block is a CommonMark block, so it needs a block context. In an
+    // inline context it is written as a raw HTML inline instead — one holding
+    // no CommonMark, since a code block's content is literal text.
+    serialize_when_faithful!(
+        handlers,
+        element.context == Context::Inline,
+        serialize_element_verbatim(&element)
+    );
     serialize_if_extra_attrs!(handlers, element, 0);
     // The only faithful translation for this is from
     // `<pre><code>blah</code></pre>` to a code block. So, check that this node
@@ -31,11 +41,11 @@ pub(super) fn pre_handler(handlers: &dyn Handlers, element: Element) -> Option<H
     if handlers.options().translation_mode == TranslationMode::Pure || is_simple_code_block {
         let result = handlers.walk_children(element.node, element.context);
 
-        if handlers.options().translation_mode == TranslationMode::Faithful
-            && !result.markdown_translated
-        {
-            return Some(HandlerResult::html(serialize_element(handlers, &element)));
-        }
+        serialize_when_faithful!(
+            handlers,
+            !result.markdown_translated,
+            serialize_element(handlers, &element)
+        );
 
         Some(frame_as_block(&result.content).into())
     } else {

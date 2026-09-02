@@ -68,7 +68,11 @@ fn a_commonmark_block_in_an_inline_context_is_a_raw_inline() {
     );
     assert_eq!("# <hr>", convert_faithful("<h1><hr></h1>").unwrap());
     // Only the tags of a raw HTML inline are HTML; what it holds is still
-    // translated.
+    // translated, except in a code block, whose content is literal text.
+    assert_eq!(
+        "# <pre><code>a</code></pre>",
+        convert_faithful("<h1><pre><code>a</code></pre></h1>").unwrap()
+    );
     assert_eq!(
         "# <table><thead><tr><th>h</th></tr></thead><tbody><tr><td>a</td></tr></tbody></table>",
         convert_faithful(
@@ -180,6 +184,85 @@ fn html_in_an_inline_element_is_a_raw_inline() {
     );
 }
 
+/// The content of a code span or code block is literal text, so no encoding of
+/// a break survives there.
+#[test]
+fn html_in_code_is_a_raw_inline() {
+    assert_eq!(
+        "a<code>x<br>y</code>b",
+        convert_faithful("<p>a<code>x<br>y</code>b</p>").unwrap()
+    );
+    assert_eq!(
+        "<pre><code>a<br>b</code></pre>",
+        convert_faithful("<pre><code>a<br>b</code></pre>").unwrap()
+    );
+    // An untranslatable attribute on the `<pre>` is no reason to start
+    // translating content which must stay literal.
+    assert_eq!(
+        "# <pre><b>a</b></pre>",
+        convert_faithful("<h1><pre><b>a</b></pre></h1>").unwrap()
+    );
+    assert_eq!(
+        r#"# <pre class="x"><b>a</b></pre>"#,
+        convert_faithful(r#"<h1><pre class="x"><b>a</b></pre></h1>"#).unwrap()
+    );
+}
+
+/// A raw text element holds literal characters rather than markup, so it is
+/// serialized whole: Markdown escaping or whitespace collapsing there would
+/// rewrite the script, style, or textarea itself.
+#[test]
+fn a_raw_text_element_is_serialized_verbatim() {
+    assert_eq!(
+        "# <script>a*b_c[d]</script>",
+        convert_faithful("<h1><script>a*b_c[d]</script></h1>").unwrap()
+    );
+    assert_eq!(
+        "# <script>if(a<b){}</script>",
+        convert_faithful("<h1><script>if(a<b){}</script></h1>").unwrap()
+    );
+    assert_eq!(
+        "x<script>a*b</script>y",
+        convert_faithful("<p>x<script>a*b</script>y</p>").unwrap()
+    );
+    assert_eq!(
+        "<script>a*b\nc</script>",
+        convert_faithful("<script>a*b\nc</script>").unwrap()
+    );
+    // The escaped line ending survives the trip back: a CommonMark parser
+    // decodes the reference while producing the raw HTML inline.
+    assert_eq!(
+        "# <script>a&#10;b</script>",
+        convert_faithful("<h1><script>a\nb</script></h1>").unwrap()
+    );
+}
+
+/// `textarea` and `title` hold no markup either, but an HTML parser decodes a
+/// character reference inside one. That decoding is the reason raw text
+/// elements must be serialized verbatim, so these two take the ordinary raw
+/// HTML inline path instead.
+#[test]
+fn an_rcdata_element_is_translated() {
+    assert_eq!(
+        r"# <textarea>a\*b\*c</textarea>",
+        convert_faithful("<h1><textarea>a*b*c</textarea></h1>").unwrap()
+    );
+    assert_eq!(
+        r"# <title>a\*b\*c</title>",
+        convert_faithful("<h1><title>a*b*c</title></h1>").unwrap()
+    );
+    // The walk compresses a line ending to a space rather than escaping it, so
+    // that is the half this path loses.
+    assert_eq!(
+        "# <textarea>a b</textarea>",
+        convert_faithful("<h1><textarea>a\nb</textarea></h1>").unwrap()
+    );
+    assert_eq!(
+        "<textarea>a*b\nc</textarea>",
+        convert_faithful("<textarea>a*b\nc</textarea>").unwrap()
+    );
+}
+
 /// A line ending in a raw HTML inline ends the leaf block holding it: a blank
 /// line ends a paragraph, and a single line ending ends an ATX heading or a
 /// table row. Each is therefore written as a character reference.
@@ -239,6 +322,10 @@ fn a_type_1_block_keeps_its_blank_lines() {
     assert_eq!(
         "<textarea>a\n\nb</textarea>",
         convert_faithful("<textarea>a\n\nb</textarea>").unwrap()
+    );
+    assert_eq!(
+        "# <script>a&#10;&#10;b</script>",
+        convert_faithful("<h1><script>a\n\nb</script></h1>").unwrap()
     );
 }
 
