@@ -53,6 +53,8 @@ pub enum HrStyle {
     Underscores,
 }
 
+/// When in `TranslationMode::Faithful`, this is ignored; in this mode,
+/// `<br>` is always translated as `<br>`.
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum BrStyle {
     TwoSpaces,
