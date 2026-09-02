@@ -3,13 +3,16 @@ use markup5ever_rcdom::{Node, NodeData};
 use phf::phf_set;
 use std::{borrow::Cow, cell::RefCell, rc::Rc};
 
-use crate::{Context, element_handler::ElementHandlers};
+use crate::{
+    Context,
+    element_handler::{ElementHandlers, element_util::escape_inline_line_endings},
+};
 
 use super::{
     options::TranslationMode,
     text_util::{
-        TrimDocumentWhitespace, compress_whitespace, index_of_markdown_ordered_item_dot,
-        is_markdown_atx_heading,
+        TrimDocumentWhitespace, compress_whitespace, concat_strings, frame_as_block,
+        index_of_markdown_ordered_item_dot, is_markdown_atx_heading,
     },
 };
 
@@ -61,14 +64,37 @@ pub(crate) fn walk_node(
         ),
         NodeData::Comment { contents } => {
             if handlers.options.translation_mode == TranslationMode::Faithful {
-                output.push_str("<!--");
-                output.push_str(contents);
-                output.push_str("-->");
+                walk_comment(contents, output, state);
             }
             true
         }
         NodeData::Doctype { .. } => true,
         NodeData::ProcessingInstruction { .. } => true,
+    }
+}
+
+/// A comment is an
+/// [HTML block](https://spec.commonmark.org/0.31.2/#html-blocks) of type 2,
+/// which ends at its own `-->` rather than at a blank line: in a block context
+/// it is framed as a block and its line endings are left as they are. In an
+/// inline context it is a raw HTML inline instead, and its line endings are
+/// escaped.
+///
+/// **That escape is an incorrect workaround.** The "Translating HTML nodes"
+/// table of `unsupported_html.md` gives a type 2-5 node in an inline context a
+/// newline encoding of `None`, because encoding works only where the HTML
+/// parser decodes character references and it decodes none inside a comment:
+/// the `&#10;` written here comes back as those five characters rather than as
+/// the line ending it replaced. It is kept because the conforming alternative
+/// is worse — a bare line ending ends the leaf block holding the comment,
+/// splitting a paragraph in two or cutting an ATX heading or a table row short.
+/// Representing this faithfully needs the containing block serialized instead,
+/// which is the "Special case" that document sets aside.
+fn walk_comment(contents: &str, output: &mut String, state: WalkState) {
+    let html = concat_strings!("<!--", contents, "-->");
+    match state.context {
+        Context::Block => append_normalized_content(output, frame_as_block(&html), state.is_pre),
+        Context::Inline => output.push_str(&escape_inline_line_endings(html)),
     }
 }
 

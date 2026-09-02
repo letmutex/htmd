@@ -377,6 +377,28 @@ fn a_title_escapes_its_line_endings() {
     );
 }
 
+/// A comment is a type 2 HTML block, which likewise ends at its own `-->`.
+#[test]
+fn a_comment_follows_its_context() {
+    assert_eq!("<!--a\n\nb-->", convert_faithful("<!--a\n\nb-->").unwrap());
+    assert_eq!(
+        "<div>a</div>\n\n<!--c-->\n\n<div>b</div>",
+        convert_faithful("<div>a</div><!--c--><div>b</div>").unwrap()
+    );
+    assert_eq!(
+        "> <!--c-->",
+        convert_faithful("<blockquote><!--c--></blockquote>").unwrap()
+    );
+    assert_eq!(
+        "# x<!--a&#10;b-->y",
+        convert_faithful("<h1>x<!--a\nb-->y</h1>").unwrap()
+    );
+    assert_eq!(
+        "x<!--a&#10;&#10;b-->y",
+        convert_faithful("<p>x<!--a\n\nb-->y</p>").unwrap()
+    );
+}
+
 #[test]
 fn a_serialized_element_follows_its_context() {
     assert_eq!(
