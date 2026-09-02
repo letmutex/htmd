@@ -29,7 +29,7 @@ pub(super) fn pre_handler(handlers: &dyn Handlers, element: Element) -> Option<H
     };
 
     if handlers.options().translation_mode == TranslationMode::Pure || is_simple_code_block {
-        let result = handlers.walk_children(element.node);
+        let result = handlers.walk_children(element.node, element.context);
 
         if handlers.options().translation_mode == TranslationMode::Faithful
             && !result.markdown_translated

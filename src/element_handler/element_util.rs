@@ -1,5 +1,5 @@
 use crate::{
-    Element,
+    Context, Element,
     dom_walker::is_block_element,
     element_handler::{HandlerResult, Handlers},
     node_util::parent_tag_name_equals,
@@ -33,16 +33,17 @@ pub(crate) use serialize_when_faithful;
 /// attribute set, and [`i64::MAX`] accepts any. Either test serializes the same
 /// element, so the order they are tried in does not matter.
 ///
-/// Handled child content is framed as a block. When
-/// `propagate_children_translation` is true, the returned translation status
-/// is false if any child required HTML; callers can use that status to fall
-/// back to serializing a larger containing structure.
+/// Handled child content is framed as a block, and translated in
+/// `children_context`. When `propagate_children_translation` is true, the
+/// returned translation status is false if any child required HTML; callers can
+/// use that status to fall back to serializing a larger containing structure.
 pub(super) fn handle_or_serialize_by_parent(
     handlers: &dyn Handlers,
     element: &Element,
     tag_names: &[&str],
     num_attrs_allowed: i64,
     propagate_children_translation: bool,
+    children_context: Context,
 ) -> Option<HandlerResult> {
     serialize_when_faithful!(
         handlers,
@@ -50,7 +51,7 @@ pub(super) fn handle_or_serialize_by_parent(
             || !parent_tag_name_equals(element.node, tag_names),
         serialize_element(handlers, element)
     );
-    let result = handlers.walk_children(element.node);
+    let result = handlers.walk_children(element.node, children_context);
     Some(HandlerResult {
         content: frame_as_block(&result.content),
         markdown_translated: !propagate_children_translation || result.markdown_translated,
@@ -104,7 +105,13 @@ fn serialize_inline_element(
     )?;
     serializer
         .writer
-        .write_all(handlers.walk_children(element.node).content.as_bytes())?;
+        // What a raw HTML inline holds is inline content, whatever context the
+        // element itself appears in.
+        .write_all(
+            handlers
+                .walk_children_content(element.node, Context::Inline)
+                .as_bytes(),
+        )?;
     serializer.end_elem(name.clone())?;
     String::from_utf8(bytes).map_err(io::Error::other)
 }

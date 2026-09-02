@@ -3,7 +3,7 @@ use markup5ever_rcdom::{Node, NodeData};
 use phf::phf_set;
 use std::{borrow::Cow, cell::RefCell, rc::Rc};
 
-use crate::element_handler::ElementHandlers;
+use crate::{Context, element_handler::ElementHandlers};
 
 use super::{
     options::TranslationMode,
@@ -15,13 +15,15 @@ use super::{
 
 /// The state a walk carries down through a subtree unchanged. `parent_tag` and
 /// `trim_leading_spaces` are deliberately not part of it: [`walk_children`]
-/// recomputes both for every child, while this describes the surroundings every
-/// descendant shares.
+/// recomputes both for every child, while these two describe the surroundings
+/// every descendant shares.
 #[derive(Clone, Copy)]
 pub(crate) struct WalkState {
     /// Whether the node sits inside a `<pre>` or `<code>`, where whitespace is
     /// preserved and text goes out unescaped.
     pub(crate) is_pre: bool,
+    /// The [`Context`] the node appears in.
+    pub(crate) context: Context,
 }
 
 pub(crate) fn walk_node(
@@ -34,7 +36,10 @@ pub(crate) fn walk_node(
 ) -> bool {
     match &node.data {
         NodeData::Document => {
-            let root = WalkState { is_pre: false };
+            let root = WalkState {
+                is_pre: false,
+                context: Context::Block,
+            };
             let _ = walk_children(node, output, handlers, true, root);
             trim_output_end(output);
             true
@@ -116,6 +121,7 @@ fn walk_element(
 ) -> bool {
     if is_passthrough_span(tag, attrs, handlers) {
         let mut content = String::new();
+        // A span holds inline content, so its children keep this context.
         let markdown_translated = walk_children(node, &mut content, handlers, false, state);
         trim_newlines(&mut content);
         append_normalized_content(output, content, state.is_pre);
@@ -132,7 +138,7 @@ fn walk_element(
         return markdown_translated;
     }
 
-    let Some(result) = handlers.handle(node, tag, attrs, true, 0) else {
+    let Some(result) = handlers.handle(node, tag, attrs, true, 0, state.context) else {
         return true;
     };
     if !result.content.is_empty() || tag != "head" {
@@ -225,7 +231,8 @@ pub(crate) fn walk_children(
     output: &mut String,
     handlers: &ElementHandlers,
     is_parent_block_element: bool,
-    // The state the children are walked in.
+    // The state the children are walked in; its context is the one they appear
+    // in.
     state: WalkState,
     // Return value: `markdown_translated`.
 ) -> bool {

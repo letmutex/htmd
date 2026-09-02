@@ -16,7 +16,7 @@ pub(super) fn html_handler(handlers: &dyn Handlers, element: Element) -> Option<
             .is_some_and(|parent| matches!(parent.data, NodeData::Document));
 
     if markdown_translatable {
-        let content = handlers.walk_children(element.node).content;
+        let content = handlers.walk_children_content(element.node, element.context);
         Some(frame_as_block(&content).into())
     } else {
         Some(serialize_element_result(handlers, &element))

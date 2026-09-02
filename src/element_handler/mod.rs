@@ -27,7 +27,7 @@ use crate::{
     text_util::frame_as_block,
 };
 
-use super::Element;
+use super::{Context, Element};
 use anchor::AnchorElementHandler;
 use blockquote::blockquote_handler;
 use br::br_handler;
@@ -221,12 +221,14 @@ impl ElementHandlers {
         attrs: &[Attribute],
         markdown_translated: bool,
         skipped_handlers: usize,
+        context: Context,
     ) -> Option<HandlerResult> {
         let element = Element {
             node,
             tag,
             attrs,
             markdown_translated,
+            context,
             skipped_handlers,
         };
         match self.find_handler(tag, skipped_handlers) {
@@ -236,7 +238,7 @@ impl ElementHandlers {
                     Some(serialize_element_result(self, &element))
                 } else {
                     // Default behavior: walk children and return their content
-                    Some(self.walk_children(node))
+                    Some(self.walk_children(node, context))
                 }
             }
         }
@@ -256,11 +258,19 @@ pub trait Handlers {
     /// Skip the current handler and fall back to the previous handler (earlier in registration order).
     fn fallback(&self, element: Element) -> Option<HandlerResult>;
 
-    /// Process a `markup5ever` node through the handlers.
-    fn handle(&self, node: &Rc<Node>) -> Option<HandlerResult>;
+    /// Process a `markup5ever` node through the handlers. `context` is the
+    /// [`Context`] the node appears in.
+    fn handle(&self, node: &Rc<Node>, context: Context) -> Option<HandlerResult>;
 
-    /// Walks children of a node and returns both content and markdown_translated status.
-    fn walk_children(&self, node: &Rc<Node>) -> HandlerResult;
+    /// Walks children of a node and returns both content and markdown_translated
+    /// status.
+    fn walk_children(&self, node: &Rc<Node>, context: Context) -> HandlerResult;
+
+    /// The content of [`Handlers::walk_children`], for the many handlers whose
+    /// own translation status does not depend on their children's.
+    fn walk_children_content(&self, node: &Rc<Node>, context: Context) -> String {
+        self.walk_children(node, context).content
+    }
 
     /// Get the conversion options.
     fn options(&self) -> &Options;
@@ -274,13 +284,15 @@ impl Handlers for ElementHandlers {
             element.attrs,
             element.markdown_translated,
             element.skipped_handlers + 1,
+            element.context,
         )
     }
 
-    fn handle(&self, node: &Rc<Node>) -> Option<HandlerResult> {
+    fn handle(&self, node: &Rc<Node>, context: Context) -> Option<HandlerResult> {
         let mut output = String::new();
         let state = WalkState {
             is_pre: is_inside_pre(node),
+            context,
         };
         let markdown_translated = walk_node(node, &mut output, self, None, true, state);
         Some(HandlerResult {
@@ -289,7 +301,7 @@ impl Handlers for ElementHandlers {
         })
     }
 
-    fn walk_children(&self, node: &Rc<Node>) -> HandlerResult {
+    fn walk_children(&self, node: &Rc<Node>, context: Context) -> HandlerResult {
         let mut output = String::new();
         let tag = crate::node_util::get_node_tag_name(node);
         let is_block = tag.is_some_and(crate::dom_walker::is_block_element);
@@ -297,6 +309,7 @@ impl Handlers for ElementHandlers {
             // Unlike `handle`, which walks the node itself, this walks inside
             // it, so the node's own tag counts too.
             is_pre: tag.is_some_and(is_pre_element) || is_inside_pre(node),
+            context,
         };
         let markdown_translated =
             crate::dom_walker::walk_children(node, &mut output, self, is_block, state);
@@ -329,7 +342,7 @@ pub(crate) fn is_inside_pre(node: &Rc<Node>) -> bool {
 
 fn block_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
     if handlers.options().translation_mode == TranslationMode::Pure {
-        let content = handlers.walk_children(element.node).content;
+        let content = handlers.walk_children_content(element.node, element.context);
         Some(frame_as_block(&content).into())
     } else {
         Some(serialize_element_result(handlers, &element))

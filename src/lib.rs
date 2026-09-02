@@ -33,6 +33,17 @@ pub fn convert(html: &str) -> Result<String, std::io::Error> {
     HtmlToMarkdown::new().convert(html)
 }
 
+/// The CommonMark context an element is translated in. See the "Translating
+/// HTML nodes" section of `unsupported_html.md`.
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
+pub enum Context {
+    /// A block may begin here: the document root and the contents of a
+    /// container block.
+    Block,
+    /// Only inline content may appear here: the contents of a leaf block.
+    Inline,
+}
+
 /// The DOM element.
 pub struct Element<'a> {
     /// The html5ever node of the element.
@@ -48,6 +59,10 @@ pub struct Element<'a> {
     /// likewise, translating lists ((`<ol>`/`<ul>`)`<li>`) to Markdown requires
     /// all `<li>` elements are translated to Markdown.
     pub markdown_translated: bool,
+    /// The [`Context`] this element appears in, as recorded by the walk which
+    /// produced it. An element which can only be written as HTML uses this to
+    /// pick between an HTML block and a raw HTML inline.
+    pub context: Context,
     /// The number of handlers to skip for this element.
     pub(crate) skipped_handlers: usize,
 }
@@ -138,6 +153,8 @@ impl HtmlToMarkdown {
             true,
             WalkState {
                 is_pre: is_inside_pre(tree),
+                // The root of the document is a block context.
+                context: Context::Block,
             },
         );
 

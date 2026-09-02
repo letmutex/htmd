@@ -77,7 +77,7 @@ impl ElementHandler for AnchorElementHandler {
         }
 
         let Some(link) = link else {
-            return Some(handlers.walk_children(element.node));
+            return Some(handlers.walk_children(element.node, element.context));
         };
 
         // Handle new lines in title
@@ -85,7 +85,7 @@ impl ElementHandler for AnchorElementHandler {
 
         let link = escape_link_destination(link);
 
-        let content = handlers.walk_children(element.node).content;
+        let content = handlers.walk_children_content(element.node, element.context);
         let md = match handlers.options().link_style {
             LinkStyle::Inlined => {
                 self.build_inlined_anchor(&content, &link, title.as_deref(), false)

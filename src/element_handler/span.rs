@@ -29,7 +29,7 @@ pub(super) fn span_handler(handlers: &dyn Handlers, element: Element) -> Option<
     serialize_if_extra_attrs!(handlers, element, -1);
 
     // Otherwise, just return the contents.
-    let content = handlers.walk_children(element.node).content;
+    let content = handlers.walk_children_content(element.node, element.context);
     let content = content.trim_matches('\n');
 
     Some(content.into())

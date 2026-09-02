@@ -44,7 +44,9 @@ pub(super) fn list_handler(handlers: &dyn Handlers, element: Element) -> Option<
             markdown_translated: translated,
         }
     } else {
-        handlers.walk_children(element.node)
+        // A list isn't a leaf or container block, so it passes on its context;
+        // the list items it holds are the container blocks.
+        handlers.walk_children(element.node, element.context)
     };
 
     if handlers.options().translation_mode == TranslationMode::Faithful
@@ -83,7 +85,7 @@ fn get_ol_content(handlers: &dyn Handlers, element: &Element) -> (String, bool) 
         .unwrap_or(1);
 
     for child in element.node.children.borrow().iter() {
-        let Some(res) = handlers.handle(child) else {
+        let Some(res) = handlers.handle(child, element.context) else {
             continue;
         };
         if !res.markdown_translated {
