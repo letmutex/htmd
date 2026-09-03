@@ -7,7 +7,7 @@ pub(crate) mod text_util;
 
 use std::rc::Rc;
 
-use dom_walker::walk_node;
+use dom_walker::{WalkState, walk_node};
 use element_handler::{ElementHandler, ElementHandlers, is_inside_pre};
 use html5ever::tendril::TendrilSink;
 use html5ever::tree_builder::TreeBuilderOpts;
@@ -136,7 +136,9 @@ impl HtmlToMarkdown {
             &self.handlers,
             None,
             true,
-            is_inside_pre(tree),
+            WalkState {
+                is_pre: is_inside_pre(tree),
+            },
         );
 
         // Trim leading/trailing newlines in place instead of allocating a copy.

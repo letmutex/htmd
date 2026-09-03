@@ -21,7 +21,7 @@ mod td_th;
 mod tr;
 
 use crate::{
-    dom_walker::walk_node,
+    dom_walker::{WalkState, walk_node},
     element_handler::element_util::serialize_element_result,
     options::{Options, TranslationMode},
     text_util::frame_as_block,
@@ -279,8 +279,10 @@ impl Handlers for ElementHandlers {
 
     fn handle(&self, node: &Rc<Node>) -> Option<HandlerResult> {
         let mut output = String::new();
-        let markdown_translated =
-            walk_node(node, &mut output, self, None, true, is_inside_pre(node));
+        let state = WalkState {
+            is_pre: is_inside_pre(node),
+        };
+        let markdown_translated = walk_node(node, &mut output, self, None, true, state);
         Some(HandlerResult {
             content: output,
             markdown_translated,
@@ -291,9 +293,13 @@ impl Handlers for ElementHandlers {
         let mut output = String::new();
         let tag = crate::node_util::get_node_tag_name(node);
         let is_block = tag.is_some_and(crate::dom_walker::is_block_element);
-        let is_pre = tag.is_some_and(is_pre_element) || is_inside_pre(node);
+        let state = WalkState {
+            // Unlike `handle`, which walks the node itself, this walks inside
+            // it, so the node's own tag counts too.
+            is_pre: tag.is_some_and(is_pre_element) || is_inside_pre(node),
+        };
         let markdown_translated =
-            crate::dom_walker::walk_children(node, &mut output, self, is_block, is_pre);
+            crate::dom_walker::walk_children(node, &mut output, self, is_block, state);
         HandlerResult {
             content: output,
             markdown_translated,

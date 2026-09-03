@@ -13,17 +13,29 @@ use super::{
     },
 };
 
+/// The state a walk carries down through a subtree unchanged. `parent_tag` and
+/// `trim_leading_spaces` are deliberately not part of it: [`walk_children`]
+/// recomputes both for every child, while this describes the surroundings every
+/// descendant shares.
+#[derive(Clone, Copy)]
+pub(crate) struct WalkState {
+    /// Whether the node sits inside a `<pre>` or `<code>`, where whitespace is
+    /// preserved and text goes out unescaped.
+    pub(crate) is_pre: bool,
+}
+
 pub(crate) fn walk_node(
     node: &Rc<Node>,
     output: &mut String,
     handlers: &ElementHandlers,
     parent_tag: Option<&str>,
     trim_leading_spaces: bool,
-    is_pre: bool,
+    state: WalkState,
 ) -> bool {
     match &node.data {
         NodeData::Document => {
-            let _ = walk_children(node, output, handlers, true, false);
+            let root = WalkState { is_pre: false };
+            let _ = walk_children(node, output, handlers, true, root);
             trim_output_end(output);
             true
         }
@@ -32,7 +44,7 @@ pub(crate) fn walk_node(
             output,
             parent_tag,
             trim_leading_spaces,
-            is_pre,
+            state.is_pre,
         ),
         NodeData::Element { name, attrs, .. } => walk_element(
             node,
@@ -40,7 +52,7 @@ pub(crate) fn walk_node(
             &attrs.borrow(),
             output,
             handlers,
-            is_pre,
+            state,
         ),
         NodeData::Comment { contents } => {
             if handlers.options.translation_mode == TranslationMode::Faithful {
@@ -100,13 +112,13 @@ fn walk_element(
     attrs: &[html5ever::Attribute],
     output: &mut String,
     handlers: &ElementHandlers,
-    is_pre: bool,
+    state: WalkState,
 ) -> bool {
     if is_passthrough_span(tag, attrs, handlers) {
         let mut content = String::new();
-        let markdown_translated = walk_children(node, &mut content, handlers, false, is_pre);
+        let markdown_translated = walk_children(node, &mut content, handlers, false, state);
         trim_newlines(&mut content);
-        append_normalized_content(output, content, is_pre);
+        append_normalized_content(output, content, state.is_pre);
         return markdown_translated;
     }
 
@@ -114,9 +126,9 @@ fn walk_element(
         && !handlers.tag_to_handler_indices.contains_key(tag)
     {
         let mut content = String::new();
-        let markdown_translated =
-            walk_children(node, &mut content, handlers, is_block_element(tag), is_pre);
-        append_normalized_content(output, content, is_pre);
+        let is_block = is_block_element(tag);
+        let markdown_translated = walk_children(node, &mut content, handlers, is_block, state);
+        append_normalized_content(output, content, state.is_pre);
         return markdown_translated;
     }
 
@@ -124,7 +136,7 @@ fn walk_element(
         return true;
     };
     if !result.content.is_empty() || tag != "head" {
-        append_normalized_content(output, result.content, is_pre);
+        append_normalized_content(output, result.content, state.is_pre);
     }
     result.markdown_translated
 }
@@ -213,10 +225,11 @@ pub(crate) fn walk_children(
     output: &mut String,
     handlers: &ElementHandlers,
     is_parent_block_element: bool,
-    is_pre: bool,
+    // The state the children are walked in.
+    state: WalkState,
     // Return value: `markdown_translated`.
 ) -> bool {
-    let mut trim_leading_spaces = !is_pre && is_parent_block_element;
+    let mut trim_leading_spaces = !state.is_pre && is_parent_block_element;
     let tag = match &node.data {
         NodeData::Document => Some("html"),
         NodeData::Element { name, .. } => Some(name.local.as_ref()),
@@ -251,7 +264,7 @@ pub(crate) fn walk_children(
 
         let output_len = output.len();
 
-        markdown_translated &= walk_node(child, output, handlers, tag, trim_leading_spaces, is_pre);
+        markdown_translated &= walk_node(child, output, handlers, tag, trim_leading_spaces, state);
 
         if output.len() > output_len {
             // Something was appended, update the flag
