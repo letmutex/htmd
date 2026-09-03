@@ -1,6 +1,6 @@
 use crate::{
     Context, Element,
-    element_handler::element_util::serialize_if_extra_attrs,
+    element_handler::element_util::serialize_if_extra_attrs_or_inline,
     element_handler::{HandlerResult, Handlers},
     node_util::{get_node_tag_name, get_parent_node},
     options::BulletListMarker,
@@ -11,7 +11,7 @@ pub(super) fn list_item_handler(
     handlers: &dyn Handlers,
     element: Element,
 ) -> Option<HandlerResult> {
-    serialize_if_extra_attrs!(handlers, element, 0);
+    serialize_if_extra_attrs_or_inline!(handlers, element, 0);
     // A list item is a container block: its children begin a block context.
     let mut content = handlers.walk_children_content(element.node, Context::Block);
     let start = content.len() - content.trim_start_document_whitespace().len();

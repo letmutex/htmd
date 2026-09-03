@@ -1,6 +1,6 @@
 use crate::Context;
 use crate::element_handler::element_util::serialize_element_result;
-use crate::element_handler::element_util::serialize_if_extra_attrs;
+use crate::element_handler::element_util::serialize_if_extra_attrs_or_inline;
 use crate::element_handler::{Element, HandlerResult, Handlers};
 use crate::node_util::{get_node_tag_name, get_parent_node};
 use crate::options::TranslationMode;
@@ -17,7 +17,9 @@ use std::rc::Rc;
 /// | Cell1   | Cell2   |
 /// ```
 pub(crate) fn table_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
-    serialize_if_extra_attrs!(handlers, element, 0);
+    // A GFM table is a CommonMark block, so the extraction below always runs in
+    // a block context.
+    serialize_if_extra_attrs_or_inline!(handlers, element, 0);
     if handlers.options().translation_mode == TranslationMode::Pure
         && (!has_explicit_headers(element.node) || is_inside_table_cell(element.node))
     {

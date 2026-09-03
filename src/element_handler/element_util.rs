@@ -27,7 +27,10 @@ pub(crate) use serialize_when_faithful;
 /// Handles a structural element when it has an allowed parent, or preserves it
 /// as HTML in faithful mode when it appears elsewhere.
 ///
-/// Faithful mode also writes the element as HTML when it carries more
+/// Every element handled here is part of a CommonMark block, so faithful mode
+/// also writes it as HTML when it appears in an inline context, where no block
+/// may begin; see the "Translating HTML nodes" section of
+/// `unsupported_html.md`. It does the same when the element carries more
 /// attributes than its Markdown translation can express, on the same terms as
 /// [`serialize_if_extra_attrs!`]: `num_attrs_allowed` of -1 rejects every
 /// attribute set, and [`i64::MAX`] accepts any. Either test serializes the same
@@ -47,7 +50,8 @@ pub(super) fn handle_or_serialize_by_parent(
 ) -> Option<HandlerResult> {
     serialize_when_faithful!(
         handlers,
-        element.attrs.len() as i64 > num_attrs_allowed
+        element.context == Context::Inline
+            || element.attrs.len() as i64 > num_attrs_allowed
             || !parent_tag_name_equals(element.node, tag_names),
         serialize_element(handlers, element)
     );
@@ -59,8 +63,8 @@ pub(super) fn handle_or_serialize_by_parent(
 }
 
 /// The [`HandlerResult`] for an element which can only be written as HTML: the
-/// element serialized, reported as not translated so that a container needing
-/// all-CommonMark children can serialize itself instead.
+/// element serialized per its [`Context`], reported as not translated so that a
+/// container needing all-CommonMark children can serialize itself instead.
 pub(crate) fn serialize_element_result(
     handlers: &dyn Handlers,
     element: &Element,
@@ -73,15 +77,24 @@ pub(crate) fn serialize_element(handlers: &dyn Handlers, element: &Element) -> S
 }
 
 fn try_serialize_element(handlers: &dyn Handlers, element: &Element) -> io::Result<String> {
-    let options = SerializeOpts {
+    // An element which can't be translated to CommonMark is an HTML block only
+    // where a block may begin *and* its tag opens one. A tag outside the type 1
+    // and 6 lists would instead open a type 7 HTML block, which cannot
+    // interrupt a paragraph and which swallows every following line down to the
+    // next blank one; a raw HTML inline is what such a tag needs, whatever the
+    // context. See the "Translating HTML nodes" section of
+    // `unsupported_html.md`.
+    if element.context == Context::Block && is_block_element(element.tag) {
+        serialize_block_element(element, serialize_opts())
+    } else {
+        serialize_inline_element(handlers, element, serialize_opts())
+    }
+}
+
+fn serialize_opts() -> SerializeOpts {
+    SerializeOpts {
         traversal_scope: TraversalScope::IncludeNode,
         ..Default::default()
-    };
-
-    if is_block_element(element.tag) {
-        serialize_block_element(element, options)
-    } else {
-        serialize_inline_element(handlers, element, options)
     }
 }
 
@@ -191,6 +204,25 @@ macro_rules! serialize_if_extra_attrs {
 }
 
 pub(crate) use serialize_if_extra_attrs;
+
+/// [`serialize_if_extra_attrs!`] for a handler whose Markdown is a CommonMark
+/// block, which additionally needs a block context: a block can only be written
+/// where one may begin, so in an inline context the element is written as a raw
+/// HTML inline instead. See the "Translating HTML nodes" section of
+/// `unsupported_html.md`. Either test serializes the same element, so the order
+/// they are tried in does not matter.
+macro_rules! serialize_if_extra_attrs_or_inline {
+    ($handlers:expr, $element:expr, $num_attrs_allowed:expr) => {
+        $crate::element_handler::element_util::serialize_when_faithful!(
+            $handlers,
+            $element.context == $crate::Context::Inline
+                || $element.attrs.len() as i64 > $num_attrs_allowed,
+            $crate::element_handler::element_util::serialize_element($handlers, &$element)
+        )
+    };
+}
+
+pub(crate) use serialize_if_extra_attrs_or_inline;
 
 #[cfg(test)]
 mod tests {
