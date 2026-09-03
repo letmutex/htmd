@@ -1,10 +1,10 @@
 use crate::{
     Element,
     dom_walker::is_block_element,
+    element_handler::element_util::serialize_if_extra_attrs,
     element_handler::{HandlerResult, Handlers, element_util::handle_or_serialize_by_parent},
     node_util::get_node_tag_name,
     options::TranslationMode,
-    serialize_if_faithful,
 };
 
 pub(super) fn td_th_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
@@ -16,7 +16,7 @@ pub(super) fn td_th_handler(handlers: &dyn Handlers, element: Element) -> Option
             .borrow()
             .iter()
             .any(|child| get_node_tag_name(child).is_some_and(is_block_element));
-    serialize_if_faithful!(
+    serialize_if_extra_attrs!(
         handlers,
         element,
         // Force HTML serialization in faithful mode if the table cell contains

@@ -2,8 +2,8 @@ use markup5ever_rcdom::NodeData;
 
 use crate::{
     Element,
+    element_handler::element_util::serialize_if_extra_attrs,
     element_handler::{HandlerResult, Handlers},
-    serialize_if_faithful,
     text_util::concat_strings,
 };
 
@@ -26,7 +26,7 @@ pub(super) fn span_handler(handlers: &dyn Handlers, element: Element) -> Option<
     }
 
     // Always serialize as HTML if we're in faithful mode.
-    serialize_if_faithful!(handlers, element, -1);
+    serialize_if_extra_attrs!(handlers, element, -1);
 
     // Otherwise, just return the contents.
     let content = handlers.walk_children(element.node).content;

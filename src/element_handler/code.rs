@@ -5,10 +5,10 @@ use markup5ever_rcdom::{Node, NodeData};
 
 use crate::{
     Element,
+    element_handler::element_util::serialize_if_extra_attrs,
     element_handler::{HandlerResult, Handlers, element_util::serialize_element_result},
     node_util::{get_node_tag_name, get_parent_node},
     options::{CodeBlockFence, CodeBlockStyle, TranslationMode},
-    serialize_if_faithful,
     text_util::{JoinOnStringIterator, TrimDocumentWhitespace, concat_strings},
 };
 
@@ -59,7 +59,7 @@ fn handle_code_block(
                 None
             }
         });
-        serialize_if_faithful!(handlers, element, if language.is_none() { 0 } else { 1 });
+        serialize_if_extra_attrs!(handlers, element, if language.is_none() { 0 } else { 1 });
         let mut result = String::from(&fence);
         if let Some(ref lang) = language {
             result.push_str(lang);
@@ -70,7 +70,7 @@ fn handle_code_block(
         result.push_str(&fence);
         Some(result.into())
     } else {
-        serialize_if_faithful!(handlers, element, 0);
+        serialize_if_extra_attrs!(handlers, element, 0);
         let code = content
             .lines()
             .map(|line| concat_strings!("    ", line))
@@ -114,7 +114,7 @@ fn find_language_from_attrs(attrs: &[Attribute]) -> Option<String> {
 }
 
 fn handle_inline_code(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
-    serialize_if_faithful!(handlers, element, 0);
+    serialize_if_extra_attrs!(handlers, element, 0);
     let content = handlers.walk_children(element.node).content;
     let preserve_boundary_spaces = handlers.options().preformatted_code
         && content.starts_with(' ')

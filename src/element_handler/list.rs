@@ -2,10 +2,10 @@ use markup5ever_rcdom::NodeData;
 
 use crate::{
     Element,
+    element_handler::element_util::serialize_if_extra_attrs,
     element_handler::{HandlerResult, Handlers, element_util::serialize_element_result},
     node_util::{get_node_tag_name, get_parent_node},
     options::{Options, TranslationMode},
-    serialize_if_faithful,
     text_util::{append_block, concat_strings, frame_as_block, indent_text_except_first_line},
 };
 
@@ -17,7 +17,7 @@ pub(super) fn list_handler(handlers: &dyn Handlers, element: Element) -> Option<
             .attrs
             .first()
             .is_some_and(|attr| &attr.name.local == "start");
-        serialize_if_faithful!(handlers, element, if has_start { 1 } else { 0 });
+        serialize_if_extra_attrs!(handlers, element, if has_start { 1 } else { 0 });
 
         // ...all children must be translated as Markdown, and all children must
         // be li elements.

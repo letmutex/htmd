@@ -1,7 +1,7 @@
 use crate::{
     Element,
+    element_handler::element_util::serialize_if_extra_attrs,
     element_handler::{HandlerResult, Handlers},
-    serialize_if_faithful,
     text_util::{StripWhitespace, concat_strings},
 };
 
@@ -10,7 +10,7 @@ pub(super) fn emphasis_handler(
     element: Element,
     marker: &str,
 ) -> Option<HandlerResult> {
-    serialize_if_faithful!(handlers, element, 0);
+    serialize_if_extra_attrs!(handlers, element, 0);
     let content = handlers.walk_children(element.node).content;
     if content.is_empty() {
         return None;

@@ -1,9 +1,9 @@
 use crate::{
     Element,
+    element_handler::element_util::serialize_if_extra_attrs,
     element_handler::{HandlerResult, Handlers},
     node_util::{get_node_tag_name, get_parent_node},
     options::BulletListMarker,
-    serialize_if_faithful,
     text_util::{TrimDocumentWhitespace, concat_strings, indent_text_except_first_line},
 };
 
@@ -11,7 +11,7 @@ pub(super) fn list_item_handler(
     handlers: &dyn Handlers,
     element: Element,
 ) -> Option<HandlerResult> {
-    serialize_if_faithful!(handlers, element, 0);
+    serialize_if_extra_attrs!(handlers, element, 0);
     let mut content = handlers.walk_children(element.node).content;
     let start = content.len() - content.trim_start_document_whitespace().len();
     if start > 0 {

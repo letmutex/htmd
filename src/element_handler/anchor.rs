@@ -2,9 +2,9 @@ use std::cell::RefCell;
 
 use crate::{
     Element, ElementHandler,
+    element_handler::element_util::serialize_if_extra_attrs,
     element_handler::{HandlerResult, Handlers},
     options::{LinkReferenceStyle, LinkStyle},
-    serialize_if_faithful,
     text_util::{StripWhitespace, TrimDocumentWhitespace, concat_strings},
 };
 
@@ -72,7 +72,7 @@ impl ElementHandler for AnchorElementHandler {
                 title = Some(attr.value.to_string());
             } else {
                 // This is an attribute which can't be translated to Markdown.
-                serialize_if_faithful!(handlers, element, 0);
+                serialize_if_extra_attrs!(handlers, element, 0);
             }
         }
 
