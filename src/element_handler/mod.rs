@@ -16,9 +16,8 @@ mod p;
 mod pre;
 mod span;
 mod table;
-mod tbody;
+mod table_section;
 mod td_th;
-mod thead;
 mod tr;
 
 use crate::{
@@ -49,9 +48,8 @@ use pre::pre_handler;
 use span::span_handler;
 use std::{collections::HashMap, rc::Rc};
 use table::table_handler;
-use tbody::tbody_handler;
+use table_section::table_section_handler;
 use td_th::td_th_handler;
-use thead::thead_handler;
 use tr::tr_handler;
 
 /// The processing result of an `ElementHandler`.
@@ -169,11 +167,8 @@ impl ElementHandlers {
         // tr
         handlers.add_handler(vec!["tr"], tr_handler);
 
-        // tbody
-        handlers.add_handler(vec!["tbody"], tbody_handler);
-
-        // thead
-        handlers.add_handler(vec!["thead"], thead_handler);
+        // thead, tbody
+        handlers.add_handler(vec!["tbody", "thead"], table_section_handler);
 
         // caption
         handlers.add_handler(vec!["caption"], caption_handler);

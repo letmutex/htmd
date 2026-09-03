@@ -3,7 +3,6 @@ use crate::{
     dom_walker::is_block_element,
     element_handler::{HandlerResult, Handlers},
     node_util::parent_tag_name_equals,
-    options::TranslationMode,
     text_util::frame_as_block,
 };
 use html5ever::serialize::{HtmlSerializer, SerializeOpts, Serializer, TraversalScope, serialize};
@@ -28,6 +27,12 @@ pub(crate) use serialize_when_faithful;
 /// Handles a structural element when it has an allowed parent, or preserves it
 /// as HTML in faithful mode when it appears elsewhere.
 ///
+/// Faithful mode also writes the element as HTML when it carries more
+/// attributes than its Markdown translation can express, on the same terms as
+/// [`serialize_if_extra_attrs!`]: `num_attrs_allowed` of -1 rejects every
+/// attribute set, and [`i64::MAX`] accepts any. Either test serializes the same
+/// element, so the order they are tried in does not matter.
+///
 /// Handled child content is framed as a block. When
 /// `propagate_children_translation` is true, the returned translation status
 /// is false if any child required HTML; callers can use that status to fall
@@ -36,19 +41,20 @@ pub(super) fn handle_or_serialize_by_parent(
     handlers: &dyn Handlers,
     element: &Element,
     tag_names: &[&str],
+    num_attrs_allowed: i64,
     propagate_children_translation: bool,
 ) -> Option<HandlerResult> {
-    if handlers.options().translation_mode == TranslationMode::Faithful
-        && !parent_tag_name_equals(element.node, tag_names)
-    {
-        Some(serialize_element_result(handlers, element))
-    } else {
-        let result = handlers.walk_children(element.node);
-        Some(HandlerResult {
-            content: frame_as_block(&result.content),
-            markdown_translated: !propagate_children_translation || result.markdown_translated,
-        })
-    }
+    serialize_when_faithful!(
+        handlers,
+        element.attrs.len() as i64 > num_attrs_allowed
+            || !parent_tag_name_equals(element.node, tag_names),
+        serialize_element(handlers, element)
+    );
+    let result = handlers.walk_children(element.node);
+    Some(HandlerResult {
+        content: frame_as_block(&result.content),
+        markdown_translated: !propagate_children_translation || result.markdown_translated,
+    })
 }
 
 /// The [`HandlerResult`] for an element which can only be written as HTML: the
