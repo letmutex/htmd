@@ -5,7 +5,7 @@ use crate::{
     element_handler::element_util::serialize_if_extra_attrs,
     element_handler::{HandlerResult, Handlers},
     options::{LinkReferenceStyle, LinkStyle},
-    text_util::{StripWhitespace, TrimDocumentWhitespace, concat_strings},
+    text_util::{StripWhitespace, concat_strings, normalize_title},
 };
 
 /// Handler for HTML `<a>` (anchor) elements.
@@ -81,7 +81,7 @@ impl ElementHandler for AnchorElementHandler {
         };
 
         // Handle new lines in title
-        let title = title.map(|text| process_title(&text));
+        let title = title.as_deref().map(normalize_title);
 
         let link = escape_link_destination(link);
 
@@ -199,28 +199,4 @@ fn escape_link_destination(link: String) -> String {
         }
     }
     escaped
-}
-
-fn process_title(text: &str) -> String {
-    let mut result = String::with_capacity(text.len());
-    let mut wrote_any = false;
-
-    for line in text.lines() {
-        let line = line.trim_document_whitespace();
-        if line.is_empty() {
-            continue;
-        }
-        if wrote_any {
-            result.push('\n');
-        }
-        for ch in line.chars() {
-            if ch == '"' {
-                result.push('\\');
-            }
-            result.push(ch);
-        }
-        wrote_any = true;
-    }
-
-    result
 }

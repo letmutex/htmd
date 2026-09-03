@@ -142,6 +142,30 @@ pub(crate) fn frame_as_block(content: &str) -> String {
     concat_strings!("\n\n", content.trim_matches('\n'), "\n\n")
 }
 
+/// Normalizes an `alt` or `title` attribute value for Markdown: each line is
+/// trimmed of document whitespace, blank lines are dropped, every `"` is
+/// escaped so the value can sit inside a quoted title, and what is left is
+/// joined with a newline.
+pub(crate) fn normalize_title(text: &str) -> String {
+    let mut result = String::with_capacity(text.len());
+    for line in text.lines() {
+        let line = line.trim_document_whitespace();
+        if line.is_empty() {
+            continue;
+        }
+        if !result.is_empty() {
+            result.push('\n');
+        }
+        for ch in line.chars() {
+            match ch {
+                '"' => result.push_str("\\\""),
+                _ => result.push(ch),
+            }
+        }
+    }
+    result
+}
+
 pub(crate) fn compress_whitespace(input: &str) -> Cow<'_, str> {
     if input.is_empty() {
         return Cow::Borrowed(input);
