@@ -11,7 +11,7 @@ pub(super) fn emphasis_handler(
     marker: &str,
 ) -> Option<HandlerResult> {
     serialize_if_extra_attrs!(handlers, element, 0);
-    let content = handlers.walk_children(element.node).content;
+    let content = handlers.walk_children_content(element.node, element.context);
     if content.is_empty() {
         return None;
     }

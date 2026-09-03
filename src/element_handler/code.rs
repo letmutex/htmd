@@ -44,7 +44,9 @@ fn handle_code_block(
     element: Element,
     parent: &Rc<Node>,
 ) -> Option<HandlerResult> {
-    let content = handlers.walk_children(element.node).content;
+    // `<code>` begins no block of its own, so it passes on its context: the
+    // inline context begun by the `<pre>` this is the code block of.
+    let content = handlers.walk_children_content(element.node, element.context);
     let content = content.strip_suffix('\n').unwrap_or(&content);
     if handlers.options().code_block_style == CodeBlockStyle::Fenced {
         let fence = if handlers.options().code_block_fence == CodeBlockFence::Tildes {
@@ -115,7 +117,9 @@ fn find_language_from_attrs(attrs: &[Attribute]) -> Option<String> {
 
 fn handle_inline_code(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
     serialize_if_extra_attrs!(handlers, element, 0);
-    let content = handlers.walk_children(element.node).content;
+    // A code span holds literal text — every child is a text node here, as
+    // `code_handler` checked — so the context it is read in doesn't matter.
+    let content = handlers.walk_children_content(element.node, element.context);
     let preserve_boundary_spaces = handlers.options().preformatted_code
         && content.starts_with(' ')
         && content.ends_with(' ')

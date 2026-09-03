@@ -1,3 +1,4 @@
+use crate::Context;
 use crate::element_handler::element_util::serialize_element_result;
 use crate::element_handler::element_util::serialize_if_extra_attrs;
 use crate::element_handler::{Element, HandlerResult, Handlers};
@@ -36,7 +37,7 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: Element) -> Option
     }
 
     if rows.is_empty() && headers.is_empty() {
-        let content = handlers.walk_children(element.node).content;
+        let content = handlers.walk_children_content(element.node, element.context);
         let content = content.trim_matches('\n');
         if content.is_empty() {
             return None;
@@ -92,9 +93,11 @@ fn extract_table_content(
             continue;
         };
 
+        // A table only builds CommonMark in a block context, so its caption,
+        // sections, rows and cells all sit in one.
         match name.local.as_ref() {
             "caption" => {
-                if let Some(result) = handlers.handle(child) {
+                if let Some(result) = handlers.handle(child, Context::Block) {
                     table.all_children_translated &= result.markdown_translated;
                     table
                         .captions
@@ -242,7 +245,9 @@ fn extract_row_cells(
         if let NodeData::Element { name, .. } = &cell_node.data
             && name.local.as_ref() == cell_tag
         {
-            let Some(res) = handlers.handle(cell_node) else {
+            // See `extract_table_content`: a cell of a translated table is
+            // always in a block context.
+            let Some(res) = handlers.handle(cell_node, Context::Block) else {
                 continue;
             };
             if !res.markdown_translated {

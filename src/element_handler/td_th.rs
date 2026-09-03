@@ -1,5 +1,5 @@
 use crate::{
-    Element,
+    Context, Element,
     dom_walker::is_block_element,
     element_handler::element_util::handle_or_serialize_by_parent,
     element_handler::{HandlerResult, Handlers},
@@ -24,5 +24,8 @@ pub(super) fn td_th_handler(handlers: &dyn Handlers, element: Element) -> Option
         // block elements.
         if has_block_elements { -1 } else { 0 },
         false,
+        // A cell's contents are parsed as inline content, so no HTML block can
+        // open inside one.
+        Context::Inline,
     )
 }

@@ -96,7 +96,7 @@ fn delegated_unhandled_subtree_preserves_ancestor_preformatted_context() {
             vec!["delegate"],
             |handlers: &dyn Handlers, element: Element| {
                 let child = element.node.children.borrow().first()?.clone();
-                handlers.handle(&child)
+                handlers.handle(&child, element.context)
             },
         )
         .build();

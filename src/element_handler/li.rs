@@ -1,5 +1,5 @@
 use crate::{
-    Element,
+    Context, Element,
     element_handler::element_util::serialize_if_extra_attrs,
     element_handler::{HandlerResult, Handlers},
     node_util::{get_node_tag_name, get_parent_node},
@@ -12,7 +12,8 @@ pub(super) fn list_item_handler(
     element: Element,
 ) -> Option<HandlerResult> {
     serialize_if_extra_attrs!(handlers, element, 0);
-    let mut content = handlers.walk_children(element.node).content;
+    // A list item is a container block: its children begin a block context.
+    let mut content = handlers.walk_children_content(element.node, Context::Block);
     let start = content.len() - content.trim_start_document_whitespace().len();
     if start > 0 {
         content.drain(..start);
