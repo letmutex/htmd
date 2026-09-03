@@ -3,7 +3,7 @@ mod blockquote;
 mod br;
 mod caption;
 mod code;
-mod element_util;
+pub(crate) mod element_util;
 mod emphasis;
 mod head_body;
 mod headings;
@@ -23,9 +23,9 @@ mod tr;
 
 use crate::{
     dom_walker::walk_node,
-    element_handler::element_util::serialize_element,
+    element_handler::element_util::serialize_element_result,
     options::{Options, TranslationMode},
-    text_util::concat_strings,
+    text_util::frame_as_block,
 };
 
 use super::Element;
@@ -76,6 +76,18 @@ impl From<&str> for HandlerResult {
         HandlerResult {
             content: value.to_string(),
             markdown_translated: true,
+        }
+    }
+}
+
+impl HandlerResult {
+    /// The result for an element written as HTML rather than translated. Its
+    /// `markdown_translated` is false, so a container which needs every child
+    /// in CommonMark can fall back to serializing itself.
+    pub(crate) fn html(content: String) -> Self {
+        HandlerResult {
+            content,
+            markdown_translated: false,
         }
     }
 }
@@ -215,32 +227,18 @@ impl ElementHandlers {
         markdown_translated: bool,
         skipped_handlers: usize,
     ) -> Option<HandlerResult> {
+        let element = Element {
+            node,
+            tag,
+            attrs,
+            markdown_translated,
+            skipped_handlers,
+        };
         match self.find_handler(tag, skipped_handlers) {
-            Some(handler) => handler.handle(
-                self,
-                Element {
-                    node,
-                    tag,
-                    attrs,
-                    markdown_translated,
-                    skipped_handlers,
-                },
-            ),
+            Some(handler) => handler.handle(self, element),
             None => {
                 if self.options.translation_mode == TranslationMode::Faithful {
-                    Some(HandlerResult {
-                        content: serialize_element(
-                            self,
-                            &Element {
-                                node,
-                                tag,
-                                attrs,
-                                markdown_translated,
-                                skipped_handlers: 0,
-                            },
-                        ),
-                        markdown_translated: false,
-                    })
+                    Some(serialize_element_result(self, &element))
                 } else {
                     // Default behavior: walk children and return their content
                     Some(self.walk_children(node))
@@ -298,7 +296,7 @@ impl Handlers for ElementHandlers {
         let mut output = String::new();
         let tag = crate::node_util::get_node_tag_name(node);
         let is_block = tag.is_some_and(crate::dom_walker::is_block_element);
-        let is_pre = tag.is_some_and(|t| t == "pre" || t == "code") || is_inside_pre(node);
+        let is_pre = tag.is_some_and(is_pre_element) || is_inside_pre(node);
         let markdown_translated =
             crate::dom_walker::walk_children(node, &mut output, self, is_block, is_pre);
         HandlerResult {
@@ -312,12 +310,15 @@ impl Handlers for ElementHandlers {
     }
 }
 
+/// Whether `tag` preserves whitespace and holds text which goes out unescaped.
+fn is_pre_element(tag: &str) -> bool {
+    tag == "pre" || tag == "code"
+}
+
 pub(crate) fn is_inside_pre(node: &Rc<Node>) -> bool {
     let mut current = crate::node_util::get_parent_node(node);
     while let Some(parent) = current {
-        if let Some(tag) = crate::node_util::get_node_tag_name(&parent)
-            && (tag == "pre" || tag == "code")
-        {
+        if crate::node_util::get_node_tag_name(&parent).is_some_and(is_pre_element) {
             return true;
         }
         current = crate::node_util::get_parent_node(&parent);
@@ -328,13 +329,9 @@ pub(crate) fn is_inside_pre(node: &Rc<Node>) -> bool {
 fn block_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
     if handlers.options().translation_mode == TranslationMode::Pure {
         let content = handlers.walk_children(element.node).content;
-        let content = content.trim_matches('\n');
-        Some(concat_strings!("\n\n", content, "\n\n").into())
+        Some(frame_as_block(&content).into())
     } else {
-        Some(HandlerResult {
-            content: serialize_element(handlers, &element),
-            markdown_translated: false,
-        })
+        Some(serialize_element_result(handlers, &element))
     }
 }
 

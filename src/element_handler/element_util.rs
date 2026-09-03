@@ -4,7 +4,7 @@ use crate::{
     element_handler::{HandlerResult, Handlers},
     node_util::parent_tag_name_equals,
     options::TranslationMode,
-    text_util::concat_strings,
+    text_util::frame_as_block,
 };
 use html5ever::serialize::{HtmlSerializer, SerializeOpts, Serializer, TraversalScope, serialize};
 use markup5ever_rcdom::{NodeData, SerializableHandle};
@@ -26,18 +26,24 @@ pub(super) fn handle_or_serialize_by_parent(
     if handlers.options().translation_mode == TranslationMode::Faithful
         && !parent_tag_name_equals(element.node, tag_names)
     {
-        Some(HandlerResult {
-            content: serialize_element(handlers, element),
-            markdown_translated: false,
-        })
+        Some(serialize_element_result(handlers, element))
     } else {
         let result = handlers.walk_children(element.node);
-        let content = result.content.trim_matches('\n');
         Some(HandlerResult {
-            content: concat_strings!("\n\n", content, "\n\n"),
+            content: frame_as_block(&result.content),
             markdown_translated: !propagate_children_translation || result.markdown_translated,
         })
     }
+}
+
+/// The [`HandlerResult`] for an element which can only be written as HTML: the
+/// element serialized, reported as not translated so that a container needing
+/// all-CommonMark children can serialize itself instead.
+pub(crate) fn serialize_element_result(
+    handlers: &dyn Handlers,
+    element: &Element,
+) -> HandlerResult {
+    HandlerResult::html(serialize_element(handlers, element))
 }
 
 pub(crate) fn serialize_element(handlers: &dyn Handlers, element: &Element) -> String {
@@ -87,11 +93,7 @@ fn serialize_block_element(element: &Element, options: SerializeOpts) -> io::Res
     let handle = SerializableHandle::from(element.node.clone());
     serialize(&mut bytes, &handle, options)?;
     let html = String::from_utf8(bytes).map_err(io::Error::other)?;
-    Ok(concat_strings!(
-        "\n\n",
-        escape_html_block_blank_lines(&html),
-        "\n\n"
-    ))
+    Ok(frame_as_block(&escape_html_block_blank_lines(&html)))
 }
 
 // A blank line terminates a CommonMark HTML block. Encode every line ending

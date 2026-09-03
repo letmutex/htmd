@@ -5,7 +5,7 @@ use markup5ever_rcdom::{Node, NodeData};
 
 use crate::{
     Element,
-    element_handler::{HandlerResult, Handlers, serialize_element},
+    element_handler::{HandlerResult, Handlers, element_util::serialize_element_result},
     node_util::{get_node_tag_name, get_parent_node},
     options::{CodeBlockFence, CodeBlockStyle, TranslationMode},
     serialize_if_faithful,
@@ -23,10 +23,7 @@ pub(super) fn code_handler(handlers: &dyn Handlers, element: Element) -> Option<
             .iter()
             .all(|node| matches!(node.data, NodeData::Text { .. }))
     {
-        return Some(HandlerResult {
-            content: serialize_element(handlers, &element),
-            markdown_translated: false,
-        });
+        return Some(serialize_element_result(handlers, &element));
     }
 
     // Determine the type: inline code or a code block.

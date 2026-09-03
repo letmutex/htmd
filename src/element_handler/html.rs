@@ -2,33 +2,23 @@ use markup5ever_rcdom::NodeData;
 
 use crate::{
     Element,
-    element_handler::{HandlerResult, Handlers, serialize_element},
+    element_handler::{HandlerResult, Handlers, element_util::serialize_element_result},
     node_util::get_parent_node,
     options::TranslationMode,
-    text_util::concat_strings,
+    text_util::frame_as_block,
 };
 
 pub(super) fn html_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
-    // In faithful mode, this is markdown translatable only when it's the root
-    // of the document.
-    let markdown_translatable = if handlers.options().translation_mode == TranslationMode::Faithful
-        && let Some(parent) = get_parent_node(element.node)
-        && let NodeData::Document = parent.data
-    {
-        true
-    } else {
-        // It's always markdown translatable in pure mode.
-        handlers.options().translation_mode == TranslationMode::Pure
-    };
+    // It's always markdown translatable in pure mode; in faithful mode, only
+    // when it's the root of the document.
+    let markdown_translatable = handlers.options().translation_mode == TranslationMode::Pure
+        || get_parent_node(element.node)
+            .is_some_and(|parent| matches!(parent.data, NodeData::Document));
 
     if markdown_translatable {
         let content = handlers.walk_children(element.node).content;
-        let content = content.trim_matches('\n');
-        Some(concat_strings!("\n\n", content, "\n\n").into())
+        Some(frame_as_block(&content).into())
     } else {
-        Some(HandlerResult {
-            content: serialize_element(handlers, &element),
-            markdown_translated: false,
-        })
+        Some(serialize_element_result(handlers, &element))
     }
 }

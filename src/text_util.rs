@@ -134,6 +134,14 @@ pub(crate) fn append_block(output: &mut String, content: &str) {
     output.push_str(content_without_newlines);
 }
 
+/// Frames `content` as a CommonMark block: any newlines already around it are
+/// dropped and a blank line is written on either side. The walk collapses a run
+/// of newlines at a boundary to two, so blocks framed this way end up separated
+/// by exactly one blank line however they are combined.
+pub(crate) fn frame_as_block(content: &str) -> String {
+    concat_strings!("\n\n", content.trim_matches('\n'), "\n\n")
+}
+
 pub(crate) fn compress_whitespace(input: &str) -> Cow<'_, str> {
     if input.is_empty() {
         return Cow::Borrowed(input);

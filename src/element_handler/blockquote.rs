@@ -2,7 +2,7 @@ use crate::{
     Element,
     element_handler::{HandlerResult, Handlers},
     serialize_if_faithful,
-    text_util::{JoinOnStringIterator, TrimDocumentWhitespace, concat_strings},
+    text_util::{JoinOnStringIterator, TrimDocumentWhitespace, concat_strings, frame_as_block},
 };
 
 pub(super) fn blockquote_handler(
@@ -17,5 +17,5 @@ pub(super) fn blockquote_handler(
         .lines()
         .map(|line| concat_strings!("> ", line))
         .join("\n");
-    Some(concat_strings!("\n\n", content, "\n\n").into())
+    Some(frame_as_block(&content).into())
 }
