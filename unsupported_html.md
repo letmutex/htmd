@@ -64,45 +64,75 @@ Leaf blocks, which are headings (`<h1>`-`<h6>`), paragraphs (`<p>`), and tables
 which are a blockquote (`<blockquote>`) and a list item (`<li>`), begin a block
 context. No other HTML element can affect the context. This context passed down
 by the DOM walker then enables an HTML node to examine the current context to be
-correctly translated. Note that the contents of code blocks are treated as
-literal text, making them neither an inline nor a block context. Since these
-cannot contain HTML nodes, they are exempt from the following logic.
+correctly translated. Note that the contents of CommonMark code blocks are
+treated as literal text, making them neither an inline nor a block context.
+Since CommonMark code blocks cannot contain HTML nodes, they are exempt from the
+following logic.
 
-| HTML node                     | Context | Newline encoding | CommonMark translation |
-| ----------------------------- | ------- | ---------------- | ---------------------- |
-| Type 1-5                      | Block   | None             | HTML block             |
-| Type 1                        | Inline  | Newlines         | Raw HTML inline        |
-| Type 2-5, with blank lines    | Inline  | None             | Special case           |
-| Type 2-5, without blank lines | Inline  | None             | Raw HTML inline        |
-| Type 6                        | Block   | Blank lines      | HTML block             |
-| Type 6                        | Inline  | Newlines         | Raw HTML inline        |
-| Type 7                        | Any     | Newlines         | Raw HTML inline        |
+| HTML node | Context | Newline encoding  | CommonMark translation |
+| --------- | ------- | ----------------- | ---------------------- |
+| Type 1-5  | Block   | None              | HTML block             |
+| Type 1    | Inline  | Newlines          | Raw HTML inline        |
+| Type 2-5  | Inline  | Newlines ⇒ spaces | Raw HTML inline        |
+| Type 6    | Block   | Blank lines       | HTML block             |
+| Type 6    | Inline  | Newlines          | Raw HTML inline        |
+| Type 7    | Any     | Newlines          | Raw HTML inline        |
 
 Newline encoding consists of replacing CR/LF characters with `&#13;`/`&#10;`.
-Blank lines are defined by
+Blank line encoding consists of newline encoding of blank lines, where blank
+lines are defined by
 [section 2.1 of the CommonMark spec](https://spec.commonmark.org/0.31.2/#characters-and-lines).
-Encoding works exactly when the HTML parser decodes character references at that
-position; the following special cases flow from this understanding.
+Newlines ⇒ spaces consists of replacing newlines with a space. CommonMark HTML
+blocks and type 2-5 raw HTML inlines need no additional encoding, while the
+contents of type 1 `<pre>`/`<textarea>` and type 6-7 as raw HTML inlines must be
+CommonMark escaped (see `dom_walker::escape_if_needed()`).
 
-**Special case**: the containing CommonMark block must be translated as an HTML
-block while also translating the special case type 2-5 content as an HTML block
-then appending the remaining HTML contents to it without an intervening newline;
-`<h1>a<!--b⏎⏎c-->d</h1>` becomes `<h1>a⏎⏎<!--b⏎⏎c-->d</h1>` (which is a slightly
-lossy translation). Due to this complexity, the current implementation is
-unspecified for simplicity.
+Type 1 content placed inline works for `<pre>` and `<textarea>`: newlines can be
+encoded as HTML character references, and always-encoded characters `"`, `&`,
+`<`, or `>` are interpreted by the HTML parser. For `<script>` and `<style>`,
+newlines can still be encoded, since they are interpreted by the CommonMark
+parser; however, the always-encoded characters are not interpreted by the HTML
+parser inside these tags. This requires a tradeoff: for simplicity this type 1
+content leaves the always-encoded characters in `<script>`/`<style>` tags,
+causing them to be mis-translated; the alternative of emitting this content as
+an HTML block would mis-translate this content placed in CommonMark blocks that
+cannot contain a newline (headings and tables). (A more complex, higher-fidelity
+result comes from translating the containing CommonMark block to HTML while also
+translating the type 1 content as an HTML block then appending the remaining
+HTML contents to it without an intervening newline;
+`<h1>a<script>"&<⏎⏎>"</script></h1>` becomes
+`<h1>a⏎⏎<script>"&<⏎⏎>"</script></h1>`, which is a slightly lossy translation.)
 
-**Special case**: If (`<script>`, `<style>` or type 2-5 blocks) containing blank
-lines are nested inside a type 6 block, the naive translated result is
-incorrect. The correct result would be placing a blank line after the type 6
-block to start another block, following the approach of previous special case.
+Type 2-5 content placed inline face other difficulties. Newlines cannot be
+encoded, since the CommonMark parser doesn't interpret entities inside this type
+of raw HTML inline. For simplicity, newlines are replaced with spaces, a lossy
+translation. (A more complex, higher-fidelity result comes from translating the
+containing CommonMark block to HTML while also translating the type 2-5 content
+as an HTML block then appending the remaining HTML contents to it without an
+intervening newline; `<h1>a<!--b⏎⏎c-->d</h1>` becomes
+`<h1>a⏎⏎<!--b⏎⏎c-->d</h1>`, which is a slightly lossy translation.)
+
+Encoding works exactly when the parser reading that position decodes character
+references there: the CommonMark parser in the text of a raw HTML inline, the
+HTML parser in the data and attribute values of an HTML block. It works nowhere
+else — inside a comment, a CDATA section, a declaration, or a raw text element
+the reference stays as the literal characters composing it. The following
+special cases flow from this.
+
+**Special case**: If a type 1 `<script>`, `<style>` or a type 2-5 block
+containing blank lines is nested inside a type 6 block, the naive translated
+result is incorrect. The correct result would be placing a blank line before the
+next type 1-6 block to start another block. Likewise, nesting a type 1-5 block
+inside a another type 1 block fails when the inner block contains any type 1
+termination condition followed by newline lines: `<pre><style></style>⏎a</pre>`.
 Due to this complexity, the current implementation is unspecified for
 simplicity.
 
 **Special case**: Content in `<iframe>`, `<xmp>`, `<noscript>` (scripting
-enabled), `<noembed>`, `<noframes>`, and `<plaintext>` tags all come back from
-the HTML5ever tokenizer as literal characters, meaning encoding cannot be used
-to handle newlines. The implementation for these unusual cases is unspecified
-for simplicity.
+enabled), `<noembed>`, `<noframes>`, and `<plaintext>` tags comes back from the
+html5ever tokenizer as literal characters, meaning encoding cannot be used to
+handle newlines. The implementation for these unusual cases is unspecified for
+simplicity.
 
 The type 7 choice of always translating to a raw HTML inline is a tradeoff: it
 provides more natural behavior inside tight lists and when encountering text
@@ -225,12 +255,11 @@ At the document root
 | `<br>` after a block       | `<p>a</p><br>`               | `a⏎⏎<br>`                    |
 | `<br>`s-only `<div>`       | `<div><br><br>...<br></div>` | `<div><br><br>...<br></div>` |
 
-Note that rows 1 and 5 round-trip exactly, while the remaining rows wrap the
-result in a paragraph per the discussion in the translating HTML nodes section.
-The `<div>` row needs no special case at all: `div` *is* a block-level tag name,
-so the whole element is an HTML block of
-[type 6](https://spec.commonmark.org/0.31.2/#html-blocks) and round-trips
-verbatim, however many `<br>`s it holds.
+Note that row 2 wraps the result in a paragraph per the discussion in the
+translating HTML nodes section, a lossy translation. The `<div>` row needs no
+special case at all: `div` *is* a block-level tag name, so the whole element is
+an HTML block of [type 6](https://spec.commonmark.org/0.31.2/#html-blocks) and
+round-trips verbatim, however many `<br>`s it holds.
 
 Headings
 --------
@@ -274,9 +303,9 @@ Paragraphs
 | `<br>` before an image               | `<p><br><img src="i"></p>` | `<br>![](i)`      |
 | `<br>` after an image                | `<p><img src="i"><br></p>` | `![](i)<br>`      |
 
-The first row is the analysis section's rule that a paragraph writing out as a
-single complete tag must be serialized: a bare `<br>` re-opens as an HTML block,
-and the `<p>` around it would be lost.
+The first row is the special case for paragraph section's rule that a paragraph
+writing out as a single complete tag must be serialized: a bare `<br>` re-opens
+as an HTML block, and the `<p>` around it would be lost.
 
 Two or more `<br>`s need nothing of the sort. The second tag keeps the line from
 being type 7, so the plain encoding is already an ordinary paragraph and
@@ -313,8 +342,8 @@ width. Table heading behavior is identical to body-cell behavior. In the
 
 A cell's contents are parsed as inline content, so no HTML block can open inside
 one and the rule in the analysis section never applies. Any cell contents which
-require a newline (such as an HTML comment with blank lines) forces the entire
-table to be serialized as HTML.
+require a newline (such as a list) force the entire table to be serialized as
+HTML.
 
 | Description                       | HTML in                    | Faithful expected               |
 | --------------------------------- | -------------------------- | ------------------------------- |
@@ -333,8 +362,9 @@ Lists
 | `<br>`-only paragraph (one `<br>`)   | `<ul><li><p><br></p></li></ul>`            | `*␣␣␣<p><br></p>`     |
 | `<br>`s-only paragraph (two or more) | `<ul><li><p><br><br>...<br></p></li></ul>` | `*␣␣␣<br><br>...<br>` |
 
-Row 4 results from the special case section above: like a blockquote, a list
-item's marker is stripped like a `>`, so a bare tag re-opens as an HTML block.
+Row 4 results from the special case for paragraphs section above: like a
+blockquote, a list item's marker is stripped like a `>`, so a bare tag re-opens
+as an HTML block.
 
 Note that the last row of this table produces the desired HTML only in a loose
 list; in a tight list, it produces the HTML for row 1. The algorithm below uses
@@ -365,8 +395,7 @@ Notes:
   [blockquote](https://spec.commonmark.org/0.31.2/#block-quotes), an
   [ATX heading](https://spec.commonmark.org/0.31.2/#atx-headings), a
   [fenced code block](https://spec.commonmark.org/0.31.2/#fenced-code-blocks), a
-  [thematic break](https://spec.commonmark.org/0.31.2/#thematic-breaks), a
-  [GFM table](https://github.github.com/gfm/#tables-extension-), or an
+  [thematic break](https://spec.commonmark.org/0.31.2/#thematic-breaks), or an
   [HTML block](https://spec.commonmark.org/0.31.2/#html-blocks) of types 1-6 —
   then omit the blank line which separates them except in approach 1.2.1 below.
 * A CommonMark list of one item holding one block cannot contain a blank line,
