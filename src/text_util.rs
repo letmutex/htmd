@@ -145,7 +145,18 @@ pub(crate) fn frame_as_block(content: &str) -> String {
 /// Normalizes an `alt` or `title` attribute value for Markdown: each line is
 /// trimmed of document whitespace, blank lines are dropped, every `"` is
 /// escaped so the value can sit inside a quoted title, and what is left is
-/// joined with a newline.
+/// joined with `&#10;`.
+///
+/// The join is a character reference rather than the line ending it replaces
+/// because the value ends up inside a CommonMark inline — a link destination's
+/// title, or the label an image takes its alt text from — and a line ending
+/// there ends the leaf block holding it, truncating an ATX heading or a table
+/// row. CommonMark recognizes character references in both places, so `&#10;`
+/// decodes back to the line ending it replaced; this is the same encoding
+/// [`escape_inline_line_endings`] applies to a raw HTML inline.
+///
+/// [`escape_inline_line_endings`]:
+///     crate::element_handler::element_util::escape_inline_line_endings
 pub(crate) fn normalize_title(text: &str) -> String {
     let mut result = String::with_capacity(text.len());
     for line in text.lines() {
@@ -154,11 +165,15 @@ pub(crate) fn normalize_title(text: &str) -> String {
             continue;
         }
         if !result.is_empty() {
-            result.push('\n');
+            result.push_str("&#10;");
         }
         for ch in line.chars() {
             match ch {
                 '"' => result.push_str("\\\""),
+                // `lines()` splits on a line feed, so a lone carriage return —
+                // which an attribute value can still hold, written as `&#13;` —
+                // reaches here intact and needs the same encoding.
+                '\r' => result.push_str("&#13;"),
                 _ => result.push(ch),
             }
         }

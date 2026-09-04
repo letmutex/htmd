@@ -153,7 +153,11 @@ fn run_cases() {
                 .replace("&gt;", ">")
                 .replace("&nbsp;", "\u{a0}")
                 // For case: list-like text with non-breaking spaces
-                .replace("<!-- hard break -->", ""),
+                .replace("<!-- hard break -->", "")
+                // For the cases with a new line in an `alt` or `title`, which
+                // expect the character reference for one. Writing the reference
+                // out would only have it decoded when the index is parsed.
+                .replace("<!-- line feed -->", "&#10;"),
             md,
             "Failed on test case '{}' ({}/{})",
             case.name,

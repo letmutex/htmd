@@ -329,6 +329,76 @@ fn a_type_1_block_keeps_its_blank_lines() {
     );
 }
 
+/// A link title and an image's alt text are inline content, and a line ending
+/// there ends the leaf block holding it just as one in a raw HTML inline does:
+/// written literally, `# [t](u "a⏎b")` is the heading `[t](u "a` followed by
+/// the paragraph `b")`. CommonMark recognizes character references in both, so
+/// each line ending is encoded instead.
+#[test]
+fn a_title_escapes_its_line_endings() {
+    assert_eq!(
+        r#"# [t](u "a&#10;b")"#,
+        convert_faithful("<h1><a href=\"u\" title=\"a\nb\">t</a></h1>").unwrap()
+    );
+    assert_eq!(
+        r#"# ![a&#10;b](i "c&#10;d")"#,
+        convert_faithful("<h1><img src=\"i\" alt=\"a\nb\" title=\"c\nd\"></h1>").unwrap()
+    );
+    // A blank line is dropped rather than encoded: the lines around it are
+    // joined by the one reference the surviving line break needs.
+    assert_eq!(
+        r#"[t](u "a&#10;b")"#,
+        convert_faithful("<p><a href=\"u\" title=\"a\n\nb\">t</a></p>").unwrap()
+    );
+    // A carriage return reaches the title only as a character reference, the
+    // parser having folded any literal CRLF into a line feed. `lines()` splits
+    // a CRLF, so that pair normalizes to the one reference a line break needs...
+    assert_eq!(
+        r#"# [t](u "a&#10;b")"#,
+        convert_faithful("<h1><a href=\"u\" title=\"a&#13;&#10;b\">t</a></h1>").unwrap()
+    );
+    // ...while a lone carriage return is no line break to `lines()` and so is
+    // encoded where it stands.
+    assert_eq!(
+        r#"# [t](u "a&#13;b")"#,
+        convert_faithful("<h1><a href=\"u\" title=\"a&#13;b\">t</a></h1>").unwrap()
+    );
+    assert_eq!(
+        concat!(
+            "| h                |\n",
+            "| ---------------- |\n",
+            "| [t](u \"a&#10;b\") |"
+        ),
+        convert_faithful(
+            "<table><thead><tr><th>h</th></tr></thead>\
+             <tbody><tr><td><a href=\"u\" title=\"a\nb\">t</a></td></tr></tbody></table>"
+        )
+        .unwrap()
+    );
+}
+
+/// A comment is a type 2 HTML block, which likewise ends at its own `-->`.
+#[test]
+fn a_comment_follows_its_context() {
+    assert_eq!("<!--a\n\nb-->", convert_faithful("<!--a\n\nb-->").unwrap());
+    assert_eq!(
+        "<div>a</div>\n\n<!--c-->\n\n<div>b</div>",
+        convert_faithful("<div>a</div><!--c--><div>b</div>").unwrap()
+    );
+    assert_eq!(
+        "> <!--c-->",
+        convert_faithful("<blockquote><!--c--></blockquote>").unwrap()
+    );
+    assert_eq!(
+        "# x<!--a&#10;b-->y",
+        convert_faithful("<h1>x<!--a\nb-->y</h1>").unwrap()
+    );
+    assert_eq!(
+        "x<!--a&#10;&#10;b-->y",
+        convert_faithful("<p>x<!--a\n\nb-->y</p>").unwrap()
+    );
+}
+
 #[test]
 fn a_serialized_element_follows_its_context() {
     assert_eq!(
