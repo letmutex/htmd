@@ -7,6 +7,7 @@ use crate::{
 };
 use html5ever::serialize::{HtmlSerializer, SerializeOpts, Serializer, TraversalScope, serialize};
 use markup5ever_rcdom::{NodeData, SerializableHandle};
+use phf::phf_set;
 use std::io::{self, Write};
 
 /// Returns from the enclosing handler with `content` as the element's HTML,
@@ -86,9 +87,40 @@ fn try_serialize_element(handlers: &dyn Handlers, element: &Element) -> io::Resu
     // `unsupported_html.md`.
     if element.context == Context::Block && is_block_element(element.tag) {
         serialize_block_element(element)
+    } else if is_raw_text_element(element.tag) {
+        // What a raw text element holds is literal characters, not markup, so
+        // translating it the way `serialize_inline_element` does would rewrite
+        // the text itself.
+        serialize_inline_verbatim(element)
     } else {
         serialize_inline_element(handlers, element)
     }
+}
+
+/// The tags whose content an HTML parser reads as raw text: no markup, and no
+/// character references either. That second half is what rules out translating
+/// them; see [`serialize_inline_verbatim`]. The RCDATA elements `textarea` and
+/// `title` are deliberately absent — an HTML parser does decode references
+/// inside those, so they take the ordinary raw HTML inline path, where the
+/// Markdown their content holds is escaped along with it.
+///
+/// **In an inline context that path does not meet the newline encoding the
+/// "Translating HTML nodes" table of `unsupported_html.md` asks of these two
+/// tags** — type 1 for `textarea`, type 6 for `title`. Walking the content as
+/// CommonMark is what escapes the Markdown in it, and that same walk compresses
+/// a line ending to a space before anything can encode it:
+/// `<h1><textarea>a⏎b</textarea></h1>` is written `# <textarea>a b</textarea>`,
+/// not `# <textarea>a&#10;b</textarea>`. Keeping both halves would need a walk
+/// which preserves whitespace *and* escapes Markdown specials, and neither mode
+/// the walker has does both — `is_pre_element` content preserves whitespace but
+/// goes out unescaped. The line ending is what is given up, because giving up
+/// the escaping instead would let `a*b*c` in a textarea come back as emphasis.
+static RAW_TEXT_ELEMENTS: phf::Set<&'static str> = phf_set! {
+    "script", "style",
+};
+
+fn is_raw_text_element(tag: &str) -> bool {
+    RAW_TEXT_ELEMENTS.contains(tag)
 }
 
 fn serialize_opts() -> SerializeOpts {
@@ -141,6 +173,34 @@ fn serialize_block_element(element: &Element) -> io::Result<String> {
         escape_html_block_blank_lines(html)
     };
     Ok(frame_as_block(&html))
+}
+
+/// [`serialize_inline_verbatim`] for callers outside this module.
+pub(crate) fn serialize_element_verbatim(element: &Element) -> String {
+    serialize_inline_verbatim(element).unwrap_or_else(|error| error.to_string())
+}
+
+/// Serializes `element` and everything it holds as HTML, translating none of
+/// it. Unlike a raw HTML inline, whose content is still translated, the content
+/// of a code block or a raw text element is literal text: no CommonMark
+/// encoding survives there. The result is a raw HTML inline, so its line
+/// endings are escaped as well.
+///
+/// A line ending does survive this: only the tags of a raw HTML inline are
+/// HTML, so a CommonMark parser reads what sits between them as text and
+/// decodes the `&#13;`/`&#10;` there before any HTML parser sees a `<script>`
+/// element.
+///
+/// **Limitation:** that same fact costs the content its escaping. Serializing
+/// it leaves any Markdown special it holds bare, and the CommonMark parser
+/// reading it back takes that special as Markdown — `a*b*c` in a script comes
+/// back as `a<em>b</em>c`. Escaping the content instead would need an escape
+/// which survives an HTML parser, and a character reference is not one: inside
+/// a raw text element it stays those five or six characters. Representing this
+/// faithfully needs the containing block serialized instead, which is the
+/// "Special case" section of `unsupported_html.md`.
+fn serialize_inline_verbatim(element: &Element) -> io::Result<String> {
+    serialize_subtree(element).map(escape_inline_line_endings)
 }
 
 fn serialize_subtree(element: &Element) -> io::Result<String> {
