@@ -3,11 +3,10 @@ use crate::{
     dom_walker::{is_block_element, is_type_1_element},
     element_handler::{HandlerResult, Handlers},
     node_util::parent_tag_name_equals,
-    text_util::{frame_as_block, has_line_ending},
+    text_util::{frame_as_block, has_line_ending, push_encoding_line_ending},
 };
 use html5ever::serialize::{HtmlSerializer, SerializeOpts, Serializer, TraversalScope, serialize};
 use markup5ever_rcdom::{NodeData, SerializableHandle};
-use phf::phf_set;
 use std::io::{self, Write};
 
 /// Returns from the enclosing handler with `content` as the element's HTML,
@@ -51,7 +50,7 @@ pub(super) fn handle_or_serialize_by_parent(
 ) -> Option<HandlerResult> {
     serialize_when_faithful!(
         handlers,
-        element.context == Context::Inline
+        element.context.is_inline()
             || element.attrs.len() as i64 > num_attrs_allowed
             || !parent_tag_name_equals(element.node, tag_names),
         serialize_element(handlers, element)
@@ -87,40 +86,9 @@ fn try_serialize_element(handlers: &dyn Handlers, element: &Element) -> io::Resu
     // `unsupported_html.md`.
     if element.context == Context::Block && is_block_element(element.tag) {
         serialize_block_element(element)
-    } else if is_raw_text_element(element.tag) {
-        // What a raw text element holds is literal characters, not markup, so
-        // translating it the way `serialize_inline_element` does would rewrite
-        // the text itself.
-        serialize_inline_verbatim(element)
     } else {
         serialize_inline_element(handlers, element)
     }
-}
-
-/// The tags whose content an HTML parser reads as raw text: no markup, and no
-/// character references either. That second half is what rules out translating
-/// them; see [`serialize_inline_verbatim`]. The RCDATA elements `textarea` and
-/// `title` are deliberately absent — an HTML parser does decode references
-/// inside those, so they take the ordinary raw HTML inline path, where the
-/// Markdown their content holds is escaped along with it.
-///
-/// **In an inline context that path does not meet the newline encoding the
-/// "Translating HTML nodes" table of `unsupported_html.md` asks of these two
-/// tags** — type 1 for `textarea`, type 6 for `title`. Walking the content as
-/// CommonMark is what escapes the Markdown in it, and that same walk compresses
-/// a line ending to a space before anything can encode it:
-/// `<h1><textarea>a⏎b</textarea></h1>` is written `# <textarea>a b</textarea>`,
-/// not `# <textarea>a&#10;b</textarea>`. Keeping both halves would need a walk
-/// which preserves whitespace *and* escapes Markdown specials, and neither mode
-/// the walker has does both — `is_pre_element` content preserves whitespace but
-/// goes out unescaped. The line ending is what is given up, because giving up
-/// the escaping instead would let `a*b*c` in a textarea come back as emphasis.
-static RAW_TEXT_ELEMENTS: phf::Set<&'static str> = phf_set! {
-    "script", "style",
-};
-
-fn is_raw_text_element(tag: &str) -> bool {
-    RAW_TEXT_ELEMENTS.contains(tag)
 }
 
 fn serialize_opts() -> SerializeOpts {
@@ -144,18 +112,21 @@ fn serialize_inline_element(handlers: &dyn Handlers, element: &Element) -> io::R
             .iter()
             .map(|attr| (&attr.name, &attr.value[..])),
     )?;
-    serializer
-        .writer
-        // What a raw HTML inline holds is inline content, whatever context the
-        // element itself appears in.
-        .write_all(
-            handlers
-                .walk_children_content(element.node, Context::Inline)
-                .as_bytes(),
-        )?;
+    // Everything written so far is the open tag, whose attribute values hold
+    // the only whitespace of this element the walk below does not reach.
+    let open_tag_len = serializer.writer.len();
+    serializer.writer.write_all(
+        handlers
+            .walk_raw_html_inline_children(element.node)
+            .as_bytes(),
+    )?;
     serializer.end_elem(name.clone())?;
-    let html = String::from_utf8(bytes).map_err(io::Error::other)?;
-    Ok(escape_inline_line_endings(html))
+    let mut html = String::from_utf8(bytes).map_err(io::Error::other)?;
+    if has_line_ending(&html[..open_tag_len]) {
+        let encoded = escape_attribute_line_endings(&html[..open_tag_len]);
+        html.replace_range(..open_tag_len, &encoded);
+    }
+    Ok(html)
 }
 
 fn serialize_block_element(element: &Element) -> io::Result<String> {
@@ -175,35 +146,6 @@ fn serialize_block_element(element: &Element) -> io::Result<String> {
     Ok(frame_as_block(&html))
 }
 
-/// [`serialize_inline_verbatim`] for callers outside this module.
-pub(crate) fn serialize_element_verbatim(element: &Element) -> String {
-    serialize_inline_verbatim(element).unwrap_or_else(|error| error.to_string())
-}
-
-/// Serializes `element` and everything it holds as HTML, translating none of
-/// it. Unlike a raw HTML inline, whose content is still translated, the content
-/// of a code block or a raw text element is literal text: no CommonMark
-/// encoding survives there. The result is a raw HTML inline, so its line
-/// endings are escaped as well.
-///
-/// A line ending does survive this: only the tags of a raw HTML inline are
-/// HTML, so a CommonMark parser reads what sits between them as text and
-/// decodes the `&#13;`/`&#10;` there before any HTML parser sees a `<script>`
-/// element. `round_trip_in_an_inline_context` in `tests/basic_tests.rs` shows
-/// the trip.
-///
-/// **Limitation:** that same fact costs the content its escaping. Serializing
-/// it leaves any Markdown special it holds bare, and the CommonMark parser
-/// reading it back takes that special as Markdown — `a*b*c` in a script comes
-/// back as `a<em>b</em>c`. Escaping the content instead would need an escape
-/// which survives an HTML parser, and a character reference is not one: inside
-/// a raw text element it stays those five or six characters. Representing this
-/// faithfully needs the containing block serialized instead, which is the
-/// "Special case" section of `unsupported_html.md`.
-fn serialize_inline_verbatim(element: &Element) -> io::Result<String> {
-    serialize_subtree(element).map(escape_inline_line_endings)
-}
-
 fn serialize_subtree(element: &Element) -> io::Result<String> {
     let mut bytes = Vec::new();
     let handle = SerializableHandle::from(element.node.clone());
@@ -211,28 +153,22 @@ fn serialize_subtree(element: &Element) -> io::Result<String> {
     String::from_utf8(bytes).map_err(io::Error::other)
 }
 
-// A raw HTML inline lives inside a leaf block, and every leaf block is ended by
-// a line ending it does not expect: a blank line ends the paragraph holding one,
-// a single line ending ends an ATX heading or a table row. Encode every line
-// ending, the safe over-generalization of the blank line rule described in
-// `unsupported_html.md`. A character reference in a raw HTML inline's tag or in
-// the CommonMark text it holds decodes back to the line ending it replaced.
-pub(crate) fn escape_inline_line_endings(html: String) -> String {
-    if !has_line_ending(&html) {
-        return html;
-    }
-
-    let mut result = String::with_capacity(html.len());
-    for ch in html.chars() {
-        match ch {
-            '\r' => result.push_str("&#13;"),
-            '\n' => result.push_str("&#10;"),
-            _ => result.push(ch),
-        }
+/// Writes every line ending in the open tag of a raw HTML inline as a
+/// character reference.
+///
+/// A raw HTML inline lives inside a leaf block, which a line ending ends: a
+/// blank one ends a paragraph, a single one an ATX heading or a table row. The
+/// contents are kept safe by the whitespace collapsing of the walk, but
+/// `unsupported_html.md` leaves an attribute value's whitespace alone, so a
+/// line ending there is encoded instead — the open tag passes through
+/// CommonMark verbatim, and the HTML parser reading the result decodes it back.
+fn escape_attribute_line_endings(open_tag: &str) -> String {
+    let mut result = String::with_capacity(open_tag.len());
+    for ch in open_tag.chars() {
+        push_encoding_line_ending(&mut result, ch);
     }
     result
 }
-
 
 // A blank line terminates a CommonMark HTML block. Encode every line ending
 // after the first so serialized block content remains in one HTML block.
@@ -293,16 +229,31 @@ where
     }
 }
 
+/// Returns from the enclosing handler with `element` written as HTML when
+/// `condition` holds and the mode is faithful. The macros below are spellings
+/// of this with the condition filled in.
+macro_rules! serialize_element_when_faithful {
+    ($handlers:expr, $element:expr, $condition:expr) => {
+        $crate::element_handler::element_util::serialize_when_faithful!(
+            $handlers,
+            $condition,
+            $crate::element_handler::element_util::serialize_element($handlers, &$element)
+        )
+    };
+}
+
+pub(crate) use serialize_element_when_faithful;
+
 /// Returns from the enclosing handler with `element` written as HTML when it
 /// carries more attributes than its Markdown translation can express.
 /// `num_attrs_allowed` of -1 rejects every attribute set, serializing the
 /// element whenever the mode is faithful; [`i64::MAX`] accepts any.
 macro_rules! serialize_if_extra_attrs {
     ($handlers:expr, $element:expr, $num_attrs_allowed:expr) => {
-        $crate::element_handler::element_util::serialize_when_faithful!(
+        $crate::element_handler::element_util::serialize_element_when_faithful!(
             $handlers,
-            $element.attrs.len() as i64 > $num_attrs_allowed,
-            $crate::element_handler::element_util::serialize_element($handlers, &$element)
+            $element,
+            $element.attrs.len() as i64 > $num_attrs_allowed
         )
     };
 }
@@ -317,11 +268,10 @@ pub(crate) use serialize_if_extra_attrs;
 /// they are tried in does not matter.
 macro_rules! serialize_if_extra_attrs_or_inline {
     ($handlers:expr, $element:expr, $num_attrs_allowed:expr) => {
-        $crate::element_handler::element_util::serialize_when_faithful!(
+        $crate::element_handler::element_util::serialize_element_when_faithful!(
             $handlers,
-            $element.context == $crate::Context::Inline
-                || $element.attrs.len() as i64 > $num_attrs_allowed,
-            $crate::element_handler::element_util::serialize_element($handlers, &$element)
+            $element,
+            $element.context.is_inline() || $element.attrs.len() as i64 > $num_attrs_allowed
         )
     };
 }
@@ -330,14 +280,16 @@ pub(crate) use serialize_if_extra_attrs_or_inline;
 
 #[cfg(test)]
 mod tests {
-    use super::{escape_html_block_blank_lines, escape_inline_line_endings};
+    use super::{escape_attribute_line_endings, escape_html_block_blank_lines};
 
     #[test]
-    fn escapes_every_line_ending_of_a_raw_inline() {
-        assert_eq!("ab", escape_inline_line_endings("ab".into()));
-        assert_eq!("a&#10;b", escape_inline_line_endings("a\nb".into()));
-        assert_eq!("a&#13;&#10;b", escape_inline_line_endings("a\r\nb".into()));
-        assert_eq!("a&#13;b", escape_inline_line_endings("a\rb".into()));
+    fn escapes_the_line_endings_of_an_open_tag() {
+        assert_eq!("ab", escape_attribute_line_endings("ab"));
+        assert_eq!("a&#10;b", escape_attribute_line_endings("a\nb"));
+        assert_eq!("a&#13;&#10;b", escape_attribute_line_endings("a\r\nb"));
+        assert_eq!("a&#13;b", escape_attribute_line_endings("a\rb"));
+        assert_eq!("a&#10;&#10;b", escape_attribute_line_endings("a\n\nb"));
+        assert_eq!("a \t b", escape_attribute_line_endings("a \t b"));
     }
 
     #[test]

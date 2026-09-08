@@ -1,10 +1,10 @@
 use crate::{
-    Context, Element,
+    Element,
     element_handler::{
         HandlerResult, Handlers,
         element_util::{
-            serialize_element, serialize_element_result, serialize_element_verbatim,
-            serialize_if_extra_attrs, serialize_when_faithful,
+            serialize_element, serialize_element_result, serialize_if_extra_attrs_or_inline,
+            serialize_when_faithful,
         },
     },
     node_util::get_node_tag_name,
@@ -14,17 +14,12 @@ use crate::{
 
 pub(super) fn pre_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
     // A code block is a CommonMark block, so it needs a block context. In an
-    // inline context it is written as a raw HTML inline instead — one holding
-    // no CommonMark, since a code block's content is literal text.
-    serialize_when_faithful!(
-        handlers,
-        element.context == Context::Inline,
-        serialize_element_verbatim(&element)
-    );
-    serialize_if_extra_attrs!(handlers, element, 0);
+    // inline context this `<pre>` is a raw HTML inline instead, its content
+    // walked like that of any other one.
+    serialize_if_extra_attrs_or_inline!(handlers, element, 0);
     // The only faithful translation for this is from
     // `<pre><code>blah</code></pre>` to a code block. So, check that this node
-    // has only one element, a pure `<code>` element. Cases:
+    // has only one element, a pure `<code>` element. Cases:
     //
     // 1.  We're in pure translation mode. No special treatment.
     // 2.  We're in faithful mode:

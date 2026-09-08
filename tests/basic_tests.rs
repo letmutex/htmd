@@ -764,14 +764,16 @@ fn round_trip(html: &str) -> String {
 /// inside one; this implementation ignores those cases.
 #[test]
 fn round_trip_in_a_block_context() {
-    // Type 1: verbatim, both ways.
+    // Type 1: verbatim, both ways. Without the `<body>`, html5ever files a
+    // leading `<script>` or `<style>` under the `<head>`, whose content is
+    // dropped.
     assert_eq!(
         "<script>a*b\n\nc</script>",
-        round_trip("<script>a*b\n\nc</script>")
+        round_trip("<body><script>a*b\n\nc</script></body>")
     );
     assert_eq!(
         "<style>a*b\n\nc</style>",
-        round_trip("<style>a*b\n\nc</style>")
+        round_trip("<body><style>a*b\n\nc</style></body>")
     );
 
     // Type 6: the escaped blank line decodes when an HTML parser reads this
@@ -780,79 +782,54 @@ fn round_trip_in_a_block_context() {
 
     // Type 7 is a raw HTML inline, so CommonMark opens a paragraph around it —
     // the tradeoff the "Translating HTML nodes" section of `unsupported_html.md`
-    // takes deliberately. The `*` survives, having been escaped as `a\*b`, but
-    // the blank line is compressed to a space on the way out.
+    // takes deliberately. The `*` survives, escaped as `a\*b`; the blank line
+    // does not, a raw HTML inline having its whitespace collapsed.
     assert_eq!(
         "<p><del>a*b c</del></p>\n",
         round_trip("<del>a*b\n\nc</del>")
     );
+    // The loss the same section names: `<br><br>` at the root stays `<br><br>`,
+    // which reads back inside the paragraph CommonMark opens around it.
+    assert_eq!("<p><br><br></p>\n", round_trip("<br><br>"));
+    // A lone `<br>` meets the type 7 start condition, so it comes back as the
+    // HTML block it opened.
+    assert_eq!("<br>", round_trip("<br>"));
 }
 
 /// A heading is a leaf block, so each element below is written as a raw HTML
 /// inline. Only its tags are HTML; what sits between them is CommonMark text,
-/// which is what makes the line-ending escape work here — the CommonMark parser
-/// decodes `&#10;` while producing that text, before any HTML parser sees a
-/// `<script>` element. The same fact cuts the other way for a raw text element:
-/// its content is passed through unescaped, so a Markdown special in it is read
-/// as Markdown.
+/// which is what makes the escape of `a\*b` work here — the CommonMark parser
+/// consumes the backslash before any HTML parser sees a `<script>` element.
+/// `round_trip_losses_of_a_walked_raw_inline` holds the cases where reading
+/// that content as text costs something.
 #[test]
 fn round_trip_in_an_inline_context() {
-    // The line ending survives, decoded by the CommonMark parser.
+    // The Markdown special survives; the line ending is collapsed to a space.
     assert_eq!(
-        "<h1>x<script>a*b\nc</script>y</h1>\n",
+        "<h1>x<script>a*b c</script>y</h1>\n",
         round_trip("<h1>x<script>a*b\nc</script>y</h1>")
     );
     assert_eq!(
-        "<h1>x<style>a*b\nc</style>y</h1>\n",
+        "<h1>x<style>a*b c</style>y</h1>\n",
         round_trip("<h1>x<style>a*b\nc</style>y</h1>")
     );
-
-    // A raw text element's content is serialized as it stands, so the Markdown
-    // it holds is read as Markdown rather than as the script or stylesheet it
-    // was. Escaping it would need the escape to survive an HTML parser which
-    // does not decode references inside these elements.
-    assert_eq!(
-        "<h1>x<script>a<em>b</em>c</script>y</h1>\n",
-        round_trip("<h1>x<script>a*b*c</script>y</h1>")
-    );
-    assert_eq!(
-        "<h1>x<style>a<em>b</em>c</style>y</h1>\n",
-        round_trip("<h1>x<style>a*b*c</style>y</h1>")
-    );
-    assert_eq!(
-        "<h1>x<script><a href=\"b\">a</a></script>y</h1>\n",
-        round_trip("<h1>x<script>[a](b)</script>y</h1>")
-    );
-    // A `<` in a script is left bare, and CommonMark escapes it on the way out.
-    assert_eq!(
-        "<h1>x<script>if(a&lt;b){}</script>y</h1>\n",
-        round_trip("<h1>x<script>if(a<b){}</script>y</h1>")
-    );
-    // An `&` does survive: the reference is written back as a reference.
-    assert_eq!(
-        "<h1>x<script>a&amp;b</script>y</h1>\n",
-        round_trip("<h1>x<script>a&amp;b</script>y</h1>")
-    );
+    assert_round_trips("<h1>x<script>a*b*c</script>y</h1>");
+    assert_round_trips("<h1>x<style>a*b*c</style>y</h1>");
+    assert_round_trips("<h1>x<script>[a](b)</script>y</h1>");
 
     // `textarea` and `title` are RCDATA rather than raw text: an HTML parser
-    // does decode a character reference inside one, so nothing forces them to
-    // be serialized verbatim and they take the ordinary raw HTML inline path.
-    // That path makes the opposite trade, the one the type 6 and type 7 cases
-    // below make: the Markdown special survives, and the line ending is the
-    // half that is lost.
+    // does decode a character reference inside one, so nothing forces their
+    // structure to be serialized.
     assert_eq!(
         "<h1>x<textarea>a*b c</textarea>y</h1>\n",
         round_trip("<h1>x<textarea>a*b\nc</textarea>y</h1>")
     );
-
-    // A type 6 or type 7 element takes the mirror-image trade: its content is
-    // walked as text, so a Markdown special in it is escaped and survives...
     assert_eq!(
-        "<h1>x<div>a*b*c</div>y</h1>\n",
-        round_trip("<h1>x<div>a*b*c</div>y</h1>")
+        "<h1>x<pre>a*b c</pre>y</h1>\n",
+        round_trip("<h1>x<pre>a*b\nc</pre>y</h1>")
     );
-    // ...but that walk compresses the line ending to a space instead of
-    // escaping it, so the line ending is the half that is lost.
+
+    assert_round_trips("<h1>x<div>a*b*c</div>y</h1>");
     assert_eq!(
         "<h1>x<div>a*b c</div>y</h1>\n",
         round_trip("<h1>x<div>a*b\nc</div>y</h1>")
@@ -861,4 +838,123 @@ fn round_trip_in_an_inline_context() {
         "<h1>x<del>a*b c</del>y</h1>\n",
         round_trip("<h1>x<del>a*b\nc</del>y</h1>")
     );
+
+    // A comment goes the same way.
+    assert_eq!(
+        "<h1>x<!--a b-->y</h1>\n",
+        round_trip("<h1>x<!--a\nb-->y</h1>")
+    );
+}
+
+/// Asserts that `html` comes back as itself. pulldown-cmark ends a block with
+/// a line ending, which is the only difference these trips are allowed.
+fn assert_round_trips(html: &str) {
+    assert_eq!(
+        format!("{html}\n"),
+        round_trip(html),
+        "round trip of {html}"
+    );
+}
+
+/// Every raw HTML inline has its content walked, `<pre>`, `<script>` and
+/// `<style>` included, so each of the trips below returns the HTML it started
+/// from. `round_trip_losses_of_a_walked_raw_inline` holds the cases which do
+/// not.
+#[test]
+fn round_trip_of_a_walked_raw_inline() {
+    // A nested element.
+    assert_round_trips("<h1>x<div>a<em>b</em>c</div>y</h1>");
+    assert_round_trips("<h1>x<del>a<em>b</em>c</del>y</h1>");
+    assert_round_trips("<h1>x<pre>a<em>b</em>c</pre>y</h1>");
+
+    // A literal `<`.
+    assert_round_trips("<h1>x<div>a&lt;b&gt;c</div>y</h1>");
+    assert_round_trips("<h1>x<del>a&lt;b&gt;c</del>y</h1>");
+    assert_round_trips("<h1>x<pre>a&lt;b&gt;c</pre>y</h1>");
+    assert_round_trips("<h1>x<textarea>a&lt;b&gt;c</textarea>y</h1>");
+    // A raw text element decodes no reference, so this `<script>` holds the
+    // eleven characters `a&lt;b&gt;c` — and those are what comes back.
+    assert_round_trips("<h1>x<script>a&lt;b&gt;c</script>y</h1>");
+
+    // A literal `&`.
+    assert_round_trips("<h1>x<div>a&amp;b</div>y</h1>");
+    assert_round_trips("<h1>x<pre>a&amp;b</pre>y</h1>");
+    assert_round_trips("<h1>x<script>a&amp;b</script>y</h1>");
+
+    // Markdown specials.
+    assert_round_trips("<h1>x<div>a*b_c[d]</div>y</h1>");
+    assert_round_trips("<h1>x<pre>a*b_c[d]</pre>y</h1>");
+    assert_round_trips("<h1>x<script>a*b_c[d]</script>y</h1>");
+    assert_round_trips("<h1>x<style>a*b_c[d]</style>y</h1>");
+
+    // A `<code>` child: a code span where CommonMark allows one, and a raw
+    // HTML inline of its own inside a `<pre>`.
+    assert_round_trips("<h1>x<div>a<code>c*d</code>b</div>y</h1>");
+    assert_round_trips("<h1>x<pre>a<code>c*d</code>b</pre>y</h1>");
+    assert_round_trips("<h1><pre><code>a</code></pre></h1>");
+    assert_round_trips(r#"<h1>x<div>a<code class="q">c*d</code>b</div>y</h1>"#);
+
+    // A block context is untouched by all of this: this is an HTML block,
+    // written as it stands. `round_trip_in_a_block_context` has the rest.
+    assert_eq!("<pre>a*b\n\nc</pre>", round_trip("<pre>a*b\n\nc</pre>"));
+}
+
+/// The trips of `round_trip_of_a_walked_raw_inline` which lose something. Each
+/// assertion holds what actually comes back, and says what went missing.
+#[test]
+fn round_trip_losses_of_a_walked_raw_inline() {
+    // The `<` of a raw text element: CommonMark writes `&lt;`, and an HTML
+    // parser leaves that reference alone inside a `<script>`. This is the
+    // tradeoff the "Translating HTML nodes" section of `unsupported_html.md`
+    // takes; the alternative it names is serializing the containing block.
+    assert_eq!(
+        "<h1>x<script>if(a&lt;b){}</script>y</h1>\n",
+        round_trip("<h1>x<script>if(a<b){}</script>y</h1>")
+    );
+    assert_eq!(
+        "<h1>x<script>a&lt;em&gt;b&lt;/em&gt;c</script>y</h1>\n",
+        round_trip("<h1>x<script>a<em>b</em>c</script>y</h1>")
+    );
+
+    // `<b>` and `<i>` have no Markdown of their own, so the walk writes the
+    // `<strong>` and `<em>` their Markdown means.
+    assert_eq!(
+        "<h1><pre><strong>a</strong></pre></h1>\n",
+        round_trip("<h1><pre><b>a</b></pre></h1>")
+    );
+
+    // A `<textarea>` is RCDATA, so this one holds the characters `a<em>b`.
+    assert_eq!(
+        "<h1>x<textarea>a&lt;em&gt;b&lt;/em&gt;c</textarea>y</h1>\n",
+        round_trip("<h1>x<textarea>a<em>b</em>c</textarea>y</h1>")
+    );
+
+    // A code block ends with a line ending its content did not have.
+    assert_eq!(
+        "<pre><code>a*b\nc\n</code></pre>\n",
+        round_trip("<pre><code>a*b\nc</code></pre>")
+    );
+
+    // A line ending inside a raw HTML inline is collapsed to a space. No one
+    // encoding is decoded in every shape a raw HTML inline takes — a comment
+    // and a raw text element decode none at all — which is why the
+    // "Translating HTML nodes" section of `unsupported_html.md` collapses.
+    for (html, expected) in [
+        ("<h1>x<div>a\nb</div>y</h1>", "<h1>x<div>a b</div>y</h1>\n"),
+        ("<h1>x<pre>a\nb</pre>y</h1>", "<h1>x<pre>a b</pre>y</h1>\n"),
+        (
+            "<h1>x<script>a\nb</script>y</h1>",
+            "<h1>x<script>a b</script>y</h1>\n",
+        ),
+        (
+            "<h1>x<textarea>a\nb</textarea>y</h1>",
+            "<h1>x<textarea>a b</textarea>y</h1>\n",
+        ),
+        (
+            "<h1><pre><code>a*b\nc</code></pre></h1>",
+            "<h1><pre><code>a*b c</code></pre></h1>\n",
+        ),
+    ] {
+        assert_eq!(expected, round_trip(html), "round trip of {html}");
+    }
 }
