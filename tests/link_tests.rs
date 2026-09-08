@@ -102,3 +102,32 @@ fn a_link_destination_escapes_its_line_endings() {
         convert_faithful(r#"<p><a href="u(v)">t</a></p>"#).unwrap()
     );
 }
+
+/// Faithful mode writing every link as a reference-style one, which is what
+/// puts a definition in the buffer the rollback empties.
+fn referenced_link_converter() -> HtmlToMarkdown {
+    HtmlToMarkdown::builder()
+        .options(Options {
+            translation_mode: TranslationMode::Faithful,
+            link_style: LinkStyle::Referenced,
+            ..Default::default()
+        })
+        .build()
+}
+
+/// The same rollback for the other two handlers which may throw a walk away.
+#[test]
+fn a_serialized_container_drops_the_link_references_it_walked() {
+    let converter = referenced_link_converter();
+
+    // A `<caption>` has no CommonMark spelling, so the whole table serializes.
+    let table = concat!(
+        r#"<table><caption>c</caption><tbody><tr><td><a href="q">z</a></td></tr>"#,
+        "</tbody></table>"
+    );
+    assert_eq!(table, converter.convert(table).unwrap());
+
+    // A `<pre>` holding more than a single `<code>` serializes as well.
+    let pre = r#"<pre>a<div><a href="q">z</a></div></pre>"#;
+    assert_eq!(pre, converter.convert(pre).unwrap());
+}

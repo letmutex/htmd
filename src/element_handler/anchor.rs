@@ -25,7 +25,8 @@ use crate::{
 ///   reference-style links.
 /// - **Speculative conversion:** If a container handler (such as a table) converts children speculatively
 ///   and then discards the result in faithful mode, any reference-style links inside those children
-///   will remain in the buffer for document-level append unless handled.
+///   will remain in the buffer for document-level append unless handled. A handler which discards a
+///   walk it has already made takes a [`LinkReferenceCheckpoint`] first.
 pub(super) struct AnchorElementHandler {}
 
 impl AnchorElementHandler {
@@ -35,6 +36,22 @@ impl AnchorElementHandler {
 
     pub(super) fn new() -> Self {
         Self {}
+    }
+}
+
+/// The state of the link reference buffer before a speculative walk. A handler
+/// which then writes itself as HTML rolls back, so the document does not end
+/// with definitions nothing refers to.
+pub(crate) struct LinkReferenceCheckpoint(usize);
+
+impl LinkReferenceCheckpoint {
+    pub(crate) fn new() -> Self {
+        Self(AnchorElementHandler::LINK_REFERENCES.with(|links| links.borrow().len()))
+    }
+
+    /// Drops every definition buffered since [`Self::new`].
+    pub(crate) fn roll_back(self) {
+        AnchorElementHandler::LINK_REFERENCES.with(|links| links.borrow_mut().truncate(self.0));
     }
 }
 
