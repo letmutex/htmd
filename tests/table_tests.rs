@@ -280,25 +280,17 @@ Sample Table
         assert_eq!(expected, result);
     }
 
+    /// A cell's contents are parsed as inline content, so a block element in a
+    /// cell is written as a raw HTML inline and the table stays a table. See
+    /// the "Translating HTML nodes" section of `unsupported_html.md`.
     #[test]
     fn test_table_block_cells() {
         assert_eq!(
             indoc!(
                 r#"
-                <table>
-                    <thead>
-                        <tr>
-                            <th>a</th>
-                            <th><p>b</p></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>c</td>
-                            <td>d</td>
-                        </tr>
-                    </tbody>
-                </table>"#
+                | a | <p>b</p> |
+                | - | -------- |
+                | c | d        |"#
             ),
             // This has a block (a paragraph) in the table headings.
             convert_faithful(indoc!(
