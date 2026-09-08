@@ -83,8 +83,9 @@ Type 6 HTML blocks cannot contain blank lines; these must be encoded by
 replacing CR/LF characters in blank lines with `&#13;`/`&#10;`, where blank
 lines are defined by
 [section 2.1 of the CommonMark spec](https://spec.commonmark.org/0.31.2/#characters-and-lines).
-All raw HTML inlines will have whitespace collapsed in their contents (including newlines, which
-would otherwise be problematic), a standard part of current htmd processing.
+All raw HTML inlines will have whitespace collapsed in their contents (including
+newlines, which would otherwise be problematic), a standard part of current htmd
+processing.
 
 These rules bind every element handler, the custom handlers registered through
 `add_handler` included. In particular, no handler may write a bare newline in an
@@ -131,10 +132,9 @@ following special cases flow from this.
 containing blank lines is nested inside a type 6 block, the naive translated
 result is incorrect. The correct result would be placing a blank line before the
 next type 1-6 block to start another block. Likewise, nesting a type 1-5 block
-inside a another type 1 block fails when the inner block contains any type 1
-termination condition followed by newline lines: `<pre><style></style>⏎a</pre>`.
-Due to this complexity, the current implementation is unspecified for
-simplicity.
+inside another type 1 block fails when the inner block contains any type 1
+termination condition followed by newlines: `<pre><style></style>⏎a</pre>`. Due
+to this complexity, the current implementation is unspecified for simplicity.
 
 **Special case**: Content in `<iframe>`, `<xmp>`, `<noscript>` (scripting
 enabled), `<noembed>`, `<noframes>`, and `<plaintext>` tags comes back from the
@@ -353,7 +353,7 @@ are literal text and are not parsed by CommonMark. However, newlines in
 single-line CommonMark blocks (such as a heading or a table cell) or blank lines
 in other blocks end the math span and begin another block. Since LaTex
 mathematics ignores newlines and other forms of whitespace, all newlines are
-removed from math expressions to prevent these mis-translations.
+replaced with spaces in math expressions to prevent these mis-translations.
 
 Table cells
 -----------
