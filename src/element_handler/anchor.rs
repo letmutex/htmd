@@ -5,7 +5,7 @@ use crate::{
     element_handler::element_util::serialize_if_extra_attrs,
     element_handler::{HandlerResult, Handlers},
     options::{LinkReferenceStyle, LinkStyle},
-    text_util::{StripWhitespace, concat_strings, normalize_title},
+    text_util::{StripWhitespace, concat_strings, escape_link_destination, normalize_title},
 };
 
 /// Handler for HTML `<a>` (anchor) elements.
@@ -183,20 +183,4 @@ impl AnchorElementHandler {
             current
         })
     }
-}
-
-fn escape_link_destination(link: String) -> String {
-    if !link.contains(['(', ')']) {
-        return link;
-    }
-
-    let mut escaped = String::with_capacity(link.len());
-    for ch in link.chars() {
-        match ch {
-            '(' => escaped.push_str("\\("),
-            ')' => escaped.push_str("\\)"),
-            _ => escaped.push(ch),
-        }
-    }
-    escaped
 }

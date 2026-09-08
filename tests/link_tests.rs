@@ -63,3 +63,42 @@ fn links_inlined_prefer_autolinks() {
         converter.convert(html).unwrap()
     );
 }
+
+
+/// A line ending in a link destination ends the leaf block holding it: written
+/// literally, `a[t](u⏎⏎v)b` is two paragraphs and no link at all. CommonMark
+/// decodes a character reference in a destination, so it is encoded instead.
+#[test]
+fn a_link_destination_escapes_its_line_endings() {
+    assert_eq!(
+        "a[t](u&#10;v)b",
+        convert_faithful("<p>a<a href=\"u\nv\">t</a>b</p>").unwrap()
+    );
+    assert_eq!(
+        "a[t](u&#10;&#10;v)b",
+        convert_faithful("<p>a<a href=\"u\n\nv\">t</a>b</p>").unwrap()
+    );
+    assert_eq!(
+        "# a[t](u&#10;v)b",
+        convert_faithful("<h1>a<a href=\"u\nv\">t</a>b</h1>").unwrap()
+    );
+    // A carriage return reaches the destination only as a character reference,
+    // the parser having folded any literal CRLF into a line feed.
+    assert_eq!(
+        "a[t](u&#13;v)b",
+        convert_faithful("<p>a<a href=\"u&#13;v\">t</a>b</p>").unwrap()
+    );
+    // An image's destination takes the same encoding.
+    assert_eq!(
+        "a![](i&#10;j)b",
+        convert_faithful("<p>a<img src=\"i\nj\">b</p>").unwrap()
+    );
+    assert_eq!(
+        "[t](u)",
+        convert_faithful(r#"<p><a href="u">t</a></p>"#).unwrap()
+    );
+    assert_eq!(
+        r"[t](u\(v\))",
+        convert_faithful(r#"<p><a href="u(v)">t</a></p>"#).unwrap()
+    );
+}

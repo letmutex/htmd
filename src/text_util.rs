@@ -142,6 +142,47 @@ pub(crate) fn frame_as_block(content: &str) -> String {
     concat_strings!("\n\n", content.trim_matches('\n'), "\n\n")
 }
 
+/// Whether `text` holds a line ending: the one place the set of line endings
+/// the escapes here and in `element_util` know about is written down.
+pub(crate) fn has_line_ending(text: &str) -> bool {
+    text.contains(['\r', '\n'])
+}
+
+/// Pushes `ch` onto `output`, writing a line ending as the character reference
+/// a CommonMark parser decodes back into it. Encoding this way lets a line
+/// ending sit inside a leaf block — a raw HTML inline, a link destination, a
+/// quoted title — which a bare one would end.
+///
+/// Being per-character, this is no use where a CRLF pair has to count as the
+/// one line ending it is; see `element_util::escape_html_block_blank_lines`.
+pub(crate) fn push_encoding_line_ending(output: &mut String, ch: char) {
+    match ch {
+        '\r' => output.push_str("&#13;"),
+        '\n' => output.push_str("&#10;"),
+        _ => output.push(ch),
+    }
+}
+
+/// Escapes a [link destination](https://spec.commonmark.org/0.31.2/#link-destination):
+/// the parentheses which would close it early, and the line endings it may not
+/// hold at all. A line ending becomes a character reference for the reason
+/// [`normalize_title`] gives.
+pub(crate) fn escape_link_destination(link: String) -> String {
+    if !link.contains(['(', ')']) && !has_line_ending(&link) {
+        return link;
+    }
+
+    let mut escaped = String::with_capacity(link.len());
+    for ch in link.chars() {
+        match ch {
+            '(' => escaped.push_str("\\("),
+            ')' => escaped.push_str("\\)"),
+            _ => push_encoding_line_ending(&mut escaped, ch),
+        }
+    }
+    escaped
+}
+
 /// Normalizes an `alt` or `title` attribute value for Markdown: each line is
 /// trimmed of document whitespace, blank lines are dropped, every `"` is
 /// escaped so the value can sit inside a quoted title, and what is left is
@@ -152,11 +193,7 @@ pub(crate) fn frame_as_block(content: &str) -> String {
 /// title, or the label an image takes its alt text from — and a line ending
 /// there ends the leaf block holding it, truncating an ATX heading or a table
 /// row. CommonMark recognizes character references in both places, so `&#10;`
-/// decodes back to the line ending it replaced; this is the same encoding
-/// [`escape_inline_line_endings`] applies to a raw HTML inline.
-///
-/// [`escape_inline_line_endings`]:
-///     crate::element_handler::element_util::escape_inline_line_endings
+/// decodes back to the line ending it replaced.
 pub(crate) fn normalize_title(text: &str) -> String {
     let mut result = String::with_capacity(text.len());
     for line in text.lines() {
@@ -173,8 +210,7 @@ pub(crate) fn normalize_title(text: &str) -> String {
                 // `lines()` splits on a line feed, so a lone carriage return —
                 // which an attribute value can still hold, written as `&#13;` —
                 // reaches here intact and needs the same encoding.
-                '\r' => result.push_str("&#13;"),
-                _ => result.push(ch),
+                _ => push_encoding_line_ending(&mut result, ch),
             }
         }
     }
