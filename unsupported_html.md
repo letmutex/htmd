@@ -21,7 +21,7 @@ driven by [CommonMark](https://spec.commonmark.org/0.31.2/) rules:
 The Faithful expected column is what a correct design should produce. Notation
 inside a cell: `⏎` is a newline; `␣` is a space; `<br><br>...<br>` stands for
 one or more `<br>` elements. Where one `<br>` and a run of them need different
-Markdown, they get a row each.
+Markdown or produce different translations, they get a row each.
 
 Analysis
 --------
@@ -59,65 +59,73 @@ Translating HTML nodes
 Given an HTML node that can't be encoded as CommonMark, it must be classified
 either as an HTML block or a raw HTML inline. To distinguish these, the DOM
 walker must record its context: the initial (root) context is a block context.
-Leaf blocks, which are headings (`<h1>`-`<h6>`), paragraphs (`<p>`), and tables
-(`<td>`/`<th>`/`<caption>`), begin an inline context, while container blocks,
-which are a blockquote (`<blockquote>`) and a list item (`<li>`), begin a block
-context. No other HTML element can affect the context. This context passed down
-by the DOM walker then enables an HTML node to examine the current context to be
-correctly translated. Note that the contents of CommonMark code blocks are
-treated as literal text, making them neither an inline nor a block context.
-Since CommonMark code blocks cannot contain HTML nodes, they are exempt from the
+Leaf blocks, which are headings (`<h1>`-`<h6>`), paragraphs (`<p>`), captions
+(`<caption>`, which are translated as a paragraph in pure mode), and tables
+(`<td>`/`<th>`), begin an inline context, while container blocks, which are a
+blockquote (`<blockquote>`) and a list item (`<li>`), begin a block context. No
+other HTML element can affect the context. This context passed down by the DOM
+walker then enables an HTML node to examine the current context to be correctly
+translated. Note that the contents of CommonMark code blocks are treated as
+literal text, making them neither an inline nor a block context. Since
+CommonMark code blocks cannot contain HTML nodes, they are exempt from the
 following logic.
 
-| HTML node | Context | Newline encoding  | CommonMark translation |
-| --------- | ------- | ----------------- | ---------------------- |
-| Type 1-5  | Block   | None              | HTML block             |
-| Type 1    | Inline  | Newlines          | Raw HTML inline        |
-| Type 2-5  | Inline  | Newlines ⇒ spaces | Raw HTML inline        |
-| Type 6    | Block   | Blank lines       | HTML block             |
-| Type 6    | Inline  | Newlines          | Raw HTML inline        |
-| Type 7    | Any     | Newlines          | Raw HTML inline        |
+| HTML node | Context | CommonMark translation |
+| --------- | ------- | ---------------------- |
+| Type 1-5  | Block   | HTML block             |
+| Type 1    | Inline  | Raw HTML inline        |
+| Type 2-5  | Inline  | Raw HTML inline        |
+| Type 6    | Block   | HTML block             |
+| Type 6    | Inline  | Raw HTML inline        |
+| Type 7    | Any     | Raw HTML inline        |
 
-Newline encoding consists of replacing CR/LF characters with `&#13;`/`&#10;`.
-Blank line encoding consists of newline encoding of blank lines, where blank
+Type 6 HTML blocks cannot contain blank lines; these must be encoded by
+replacing CR/LF characters in blank lines with `&#13;`/`&#10;`, where blank
 lines are defined by
 [section 2.1 of the CommonMark spec](https://spec.commonmark.org/0.31.2/#characters-and-lines).
-Newlines ⇒ spaces consists of replacing newlines with a space. CommonMark HTML
-blocks and type 2-5 raw HTML inlines need no additional encoding, while the
-contents of type 1 `<pre>`/`<textarea>` and type 6-7 as raw HTML inlines must be
-CommonMark escaped (see `dom_walker::escape_if_needed()`).
+All raw HTML inlines will have whitespace collapsed in their contents (including newlines, which
+would otherwise be problematic), a standard part of current htmd processing.
 
-Type 1 content placed inline works for `<pre>` and `<textarea>`: newlines can be
-encoded as HTML character references, and always-encoded characters `"`, `&`,
-`<`, or `>` are interpreted by the HTML parser. For `<script>` and `<style>`,
-newlines can still be encoded, since they are interpreted by the CommonMark
-parser; however, the always-encoded characters are not interpreted by the HTML
-parser inside these tags. This requires a tradeoff: for simplicity this type 1
-content leaves the always-encoded characters in `<script>`/`<style>` tags,
+These rules bind every element handler, the custom handlers registered through
+`add_handler` included. In particular, no handler may write a bare newline in an
+inline context: every one of them is encoded, replaced or removed by the rules
+above, so an inline context holds a single line. A handler which writes one
+anyway produces a translation this design does not describe, and the result is
+unspecified.
+
+Type 1 content placed inline works for `<pre>` and `<textarea>`: always-encoded
+characters `"`, `&`, `<`, or `>` are interpreted by the HTML parser. For
+`<script>` and `<style>`, the always-encoded characters are not interpreted by
+the HTML parser inside these tags. This requires a tradeoff: this type 1 content
+is walked like any other raw HTML inline, so the always-encoded characters in
+`<script>`/`<style>` tags are escaped and come back as character references,
 causing them to be mis-translated; the alternative of emitting this content as
 an HTML block would mis-translate this content placed in CommonMark blocks that
-cannot contain a newline (headings and tables). (A more complex, higher-fidelity
-result comes from translating the containing CommonMark block to HTML while also
-translating the type 1 content as an HTML block then appending the remaining
-HTML contents to it without an intervening newline;
-`<h1>a<script>"&<⏎⏎>"</script></h1>` becomes
-`<h1>a⏎⏎<script>"&<⏎⏎>"</script></h1>`, which is a slightly lossy translation.)
+cannot contain a newline (headings and tables). Walking is what makes the
+surrounding cases right — the Markdown specials in the content are escaped, so
+`<h1>a<script>b*c*d</script>e</h1>` keeps its literal `*c*` — and the escaping
+of `<` and `>` is the price of it. (A more complex, higher-fidelity result comes
+from translating the containing CommonMark block to HTML while also translating
+the type 1 content as an HTML block then appending the remaining HTML contents
+to it without an intervening newline; `<h1>a<script>"&<⏎⏎>"</script></h1>`
+becomes `<h1>a⏎⏎<script>"&<⏎⏎>"</script></h1>`, which is a slightly lossy
+translation.)
 
 Type 2-5 content placed inline face other difficulties. Newlines cannot be
 encoded, since the CommonMark parser doesn't interpret entities inside this type
-of raw HTML inline. For simplicity, newlines are replaced with spaces, a lossy
-translation. (A more complex, higher-fidelity result comes from translating the
-containing CommonMark block to HTML while also translating the type 2-5 content
-as an HTML block then appending the remaining HTML contents to it without an
-intervening newline; `<h1>a<!--b⏎⏎c-->d</h1>` becomes
+of raw HTML inline. For simplicity, whitespace including newlines is collapsed,
+a lossy translation. (A more complex, higher-fidelity result comes from
+translating the containing CommonMark block to HTML while also translating the
+type 2-5 content as an HTML block then appending the remaining HTML contents to
+it without an intervening newline; `<h1>a<!--b⏎⏎c-->d</h1>` becomes
 `<h1>a⏎⏎<!--b⏎⏎c-->d</h1>`, which is a slightly lossy translation.)
 
 Encoding works exactly when the parser reading that position decodes character
-references there: the CommonMark parser in the text of a raw HTML inline, the
-HTML parser in the data and attribute values of an HTML block. It works nowhere
-else — inside a comment, a CDATA section, a declaration, or a raw text element
-the reference stays as the literal characters composing it. The following
-special cases flow from this.
+references there: the CommonMark parser in the text between raw HTML inlines,
+the HTML parser in the data and attribute values of an HTML block. It works
+nowhere else — inside a comment, a CDATA section, a declaration, or a raw text
+element the reference stays as the literal characters composing it. The
+following special cases flow from this.
 
 **Special case**: If a type 1 `<script>`, `<style>` or a type 2-5 block
 containing blank lines is nested inside a type 6 block, the naive translated
@@ -133,6 +141,9 @@ enabled), `<noembed>`, `<noframes>`, and `<plaintext>` tags comes back from the
 html5ever tokenizer as literal characters, meaning encoding cannot be used to
 handle newlines. The implementation for these unusual cases is unspecified for
 simplicity.
+
+**Special case**: A `<!DOCTYPE html>` declaration (which html5ever attaches to
+the document node) is dropped when translating.
 
 The type 7 choice of always translating to a raw HTML inline is a tradeoff: it
 provides more natural behavior inside tight lists and when encountering text
@@ -187,6 +198,8 @@ encoding of a break survives there, which is why all rows of the table are HTML.
 
 Inline elements
 ---------------
+
+**Important**: This section is under development. Ignore it.
 
 The principles derived in this section apply to all the following sections,
 since they are containers for inline elements. Notation: *text*, represented
@@ -268,11 +281,11 @@ The rows use `<h1>`. In the setext table, an `<h2>` underlines with `---`
 instead of `===`; levels 3-6 have no setext form. In the ATX table, each level
 writes one more `#`.
 
-[Setext headings](https://spec.commonmark.org/0.31.2/#setext-headings) cannot
-contain blank lines. The special case for paragraphs section's criteria for
-paragraphs apply here as well; if a level 1 or level 2 heading (the only
-headings expressible using setext) meets these criteria, it must instead be
-encoded as an ATX heading as shown in the first row below.
+The special case for paragraphs section's criteria also apply to
+[Setext headings](https://spec.commonmark.org/0.31.2/#setext-headings); if a
+level 1 or level 2 heading (the only headings expressible using setext) meets
+these criteria, it must instead be encoded as an ATX heading as shown in the
+first row below.
 
 | Description                        | HTML in                    | Faithful expected         |
 | ---------------------------------- | -------------------------- | ------------------------- |
@@ -321,12 +334,26 @@ Blockquotes
 | `<br>` starting a blockquote     | `<blockquote><p><br><em>b</em></p></blockquote>` | `>␣<br>*b*`         |
 | `<br>` ending a blockquote       | `<blockquote><p><em>a</em><br></p></blockquote>` | `>␣*a*<br>`         |
 
+Note that the line 1 translation is lossy: a `<p>` will be inserted when the
+CommonMark is translated back to HTML.
+
 **Special case**: the blank line rule from the analysis section that puts a
 blank line on either side of an HTML block, such as a lone `<br>`, is written as
 a blank `>` line here. The first row is the root-level row one container down,
 and holds for the same reason. The second row is the paragraph row one container
 down: the `>` is stripped before the line is scanned, so the bare tag would
 re-open as an HTML block exactly as it does at the root.
+
+Math
+----
+
+Like an inline code span, the contents of
+[math expressions](https://pulldown-cmark.github.io/pulldown-cmark/specs/math.html)
+are literal text and are not parsed by CommonMark. However, newlines in
+single-line CommonMark blocks (such as a heading or a table cell) or blank lines
+in other blocks end the math span and begin another block. Since LaTex
+mathematics ignores newlines and other forms of whitespace, all newlines are
+removed from math expressions to prevent these mis-translations.
 
 Table cells
 -----------
@@ -341,9 +368,9 @@ width. Table heading behavior is identical to body-cell behavior. In the
 `|` which appears in the rendered output.
 
 A cell's contents are parsed as inline content, so no HTML block can open inside
-one and the rule in the analysis section never applies. Any cell contents which
-require a newline (such as a list) force the entire table to be serialized as
-HTML.
+one; also, any instance of a `|` must be escaped as `\|`. The entire table must
+be serialized as HTML if the table contains a child which could only be written
+as HTML (a cell with an attribute, a `<caption>`, etc.).
 
 | Description                       | HTML in                    | Faithful expected               |
 | --------------------------------- | -------------------------- | ------------------------------- |
@@ -353,6 +380,8 @@ HTML.
 
 Lists
 -----
+
+**Important**: This section is under development. Ignore it.
 
 | Description                          | HTML in                                    | Faithful expected     |
 | ------------------------------------ | ------------------------------------------ | --------------------- |
