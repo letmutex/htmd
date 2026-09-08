@@ -198,16 +198,32 @@ mod table_tests_1 {
         </table>
         "#;
 
-        let expected = r#"
-Sample Table
-| John | 35 | New York      |
-| Jane | 28 | San Francisco |
-"#
-        .trim();
+        // A `<caption>` has no CommonMark spelling and is invalid outside a
+        // `<table>`, so faithful mode serializes the whole table.
+        let expected = html.trim();
 
         let markdown = convert_faithful(html).unwrap();
         let result = markdown.trim();
         assert_eq!(expected, result);
+    }
+
+    /// CommonMark has no caption: writing the content as a paragraph above the
+    /// table reads as one but is not one, so only pure mode does it.
+    #[test]
+    fn test_table_caption_is_commonmark_only_in_pure_mode() {
+        let html = concat!(
+            "<table><caption>Sample Table</caption>",
+            "<thead><tr><th>h</th></tr></thead>",
+            "<tbody><tr><td>John</td></tr></tbody></table>"
+        );
+
+        assert_eq!(
+            "Sample Table\n| h    |\n| ---- |\n| John |",
+            htmd::HtmlToMarkdown::new().convert(html).unwrap()
+        );
+        // A `<caption>` is only valid inside a `<table>`, so the whole table is
+        // serialized around it rather than the caption written on its own.
+        assert_eq!(html, convert_faithful(html).unwrap());
     }
 
     #[test]

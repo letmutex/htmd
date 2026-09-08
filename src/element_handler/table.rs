@@ -53,9 +53,7 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: Element) -> Option
 
     let mut table_md = String::from("\n\n");
 
-    for caption in captions {
-        table_md.push_str(&format!("{caption}\n"));
-    }
+    table_md.push_str(&captions);
 
     let col_widths = compute_column_widths(&headers, &rows, num_columns);
 
@@ -72,7 +70,8 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: Element) -> Option
 }
 
 struct ExtractedTable {
-    captions: Vec<String>,
+    /// The caption blocks, each already terminated by its line ending.
+    captions: String,
     headers: Vec<String>,
     rows: Vec<Vec<String>>,
     all_children_translated: bool,
@@ -83,7 +82,7 @@ fn extract_table_content(
     table_node: &Rc<markup5ever_rcdom::Node>,
 ) -> ExtractedTable {
     let mut table = ExtractedTable {
-        captions: Vec::new(),
+        captions: String::new(),
         headers: Vec::new(),
         rows: Vec::new(),
         all_children_translated: true,
@@ -100,10 +99,15 @@ fn extract_table_content(
         match name.local.as_ref() {
             "caption" => {
                 if let Some(result) = handlers.handle(child, Context::Block) {
+                    // A caption which only HTML can express takes the whole
+                    // table with it: written as an HTML block of its own it
+                    // would land outside any table, where the "in body"
+                    // insertion mode drops the start tag as a parse error.
                     table.all_children_translated &= result.markdown_translated;
                     table
                         .captions
-                        .push(result.content.trim_document_whitespace().to_string());
+                        .push_str(result.content.trim_document_whitespace());
+                    table.captions.push('\n');
                 }
             }
             "thead" => {

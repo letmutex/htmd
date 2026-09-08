@@ -404,18 +404,42 @@ fn faithful_mode_table() {
     );
 }
 
+/// CommonMark has no caption, so faithful mode always writes the element as
+/// HTML — and a `<caption>` is only valid inside a `<table>`, so the whole table
+/// is serialized around it.
 #[test]
-fn faithful_mode_serializes_a_table_when_its_caption_requires_html() {
+fn faithful_mode_serializes_a_table_with_a_caption() {
     let html = concat!(
         r#"<table><caption><span class="label">Caption</span></caption>"#,
         "<tr><th>Header</th></tr><tr><td>Cell</td></tr></table>"
     );
+    // html5ever inserts the `<tbody>` around the rows.
     let expected = concat!(
         r#"<table><caption><span class="label">Caption</span></caption>"#,
         "<tbody><tr><th>Header</th></tr><tr><td>Cell</td></tr></tbody></table>"
     );
 
     assert_eq!(expected, convert_faithful(html).unwrap());
+    // The point of serializing the whole table: the `<caption>` comes back as
+    // an element rather than as the bare text an HTML block outside the table
+    // would give. The block is the whole document here, so pulldown-cmark
+    // writes it without the trailing line ending `assert_round_trips` expects.
+    assert_eq!(expected, round_trip(expected));
+}
+
+/// Pure mode has no HTML to fall back on, so it keeps writing the caption as a
+/// paragraph above the table.
+#[test]
+fn pure_mode_writes_a_caption_as_a_paragraph() {
+    let html = concat!(
+        "<table><caption>Caption</caption>",
+        "<tr><th>Header</th></tr><tr><td>Cell</td></tr></table>"
+    );
+
+    assert_eq!(
+        "Caption\n| Header |\n| ------ |\n| Cell   |",
+        htmd::convert(html).unwrap()
+    );
 }
 
 #[test]
