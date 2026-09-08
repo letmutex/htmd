@@ -226,6 +226,36 @@ mod table_tests_1 {
         assert_eq!(html, convert_faithful(html).unwrap());
     }
 
+    /// A GFM table has no headerless form: the delimiter row which makes the
+    /// block a table has to follow a header row.
+    #[test]
+    fn a_table_with_no_header_row_is_written_as_html() {
+        let html = concat!(
+            "<table><tbody><tr><td>a</td><td>b</td></tr>",
+            "<tr><td>c</td><td>d</td></tr></tbody></table>"
+        );
+        assert_eq!(html, convert_faithful(html).unwrap());
+
+        // A block element in a cell is a raw HTML inline and no reason to
+        // serialize; the missing header row is the reason here.
+        let block_cell = "<table><tbody><tr><td><p>a</p></td></tr></tbody></table>";
+        assert_eq!(block_cell, convert_faithful(block_cell).unwrap());
+    }
+
+    /// Pure mode has no HTML to fall back on, so it writes an empty header row.
+    /// A table is only built where the markup holds a `th` or a `thead`, hence
+    /// the empty `<thead>` needed to reach this.
+    #[test]
+    fn pure_mode_writes_an_empty_header_row_for_a_headerless_table() {
+        let html = "<table><thead></thead><tbody><tr><td>a</td></tr></tbody></table>";
+
+        assert_eq!(
+            "|   |\n| - |\n| a |",
+            htmd::HtmlToMarkdown::new().convert(html).unwrap()
+        );
+        assert_eq!(html, convert_faithful(html).unwrap());
+    }
+
     #[test]
     fn test_empty_table() {
         let html = "<table></table>";
