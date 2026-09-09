@@ -416,7 +416,6 @@ fn a_serialized_element_follows_its_context() {
     );
 }
 
-
 /// The contents of a math span are literal text, but a line ending there would
 /// end the span and begin another block. LaTeX ignores whitespace, so each line
 /// ending becomes a space.

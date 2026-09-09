@@ -351,9 +351,12 @@ Like an inline code span, the contents of
 [math expressions](https://pulldown-cmark.github.io/pulldown-cmark/specs/math.html)
 are literal text and are not parsed by CommonMark. However, newlines in
 single-line CommonMark blocks (such as a heading or a table cell) or blank lines
-in other blocks end the math span and begin another block. Since LaTex
+in other blocks end the math span and begin another block. Since LaTeX
 mathematics ignores newlines and other forms of whitespace, all newlines are
-replaced with spaces in math expressions to prevent these mis-translations.
+replaced with spaces in math expressions to prevent these mis-translations. In
+addition, leading and trailing whitespace is trimmed, since inline math may not
+begin or end with whitespace per the
+[pulldown-cmark spec](https://pulldown-cmark.github.io/pulldown-cmark/specs/math.html).
 
 Table cells
 -----------
