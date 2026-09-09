@@ -28,8 +28,8 @@ pub(super) fn span_handler(handlers: &dyn Handlers, element: Element) -> Option<
             let contents = contents.replace("\n", " ");
             let contents = contents.replace("\r", " ");
             let contents = contents.trim();
-            // Math cannot be empty.
-            if !contents.is_empty() {
+            // Inline math cannot be empty.
+            if !contents.is_empty() || delimiter == "$$" {
                 return Some(concat_strings!(delimiter, contents, delimiter).into());
             }
         }
