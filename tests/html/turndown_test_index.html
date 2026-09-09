@@ -743,7 +743,7 @@ Another div</pre>
 before continuation</pre>
 </div>
 
-<div class="case" data-name="whitespace in nested inline elements">
+<div class="case" data-name="whitespace in nested inline elements" data-options='{"translationMode": "Pure"}'>
   <div class="input">Text at root <strong><a href="http://www.example.com">link text with trailing space in strong </a></strong>more text at root</div>
   <pre class="expected">Text at root **[link text with trailing space in strong](http://www.example.com)** more text at root</pre>
 </div>
@@ -882,7 +882,7 @@ Content in another div</pre>
   <pre class="expected">You can use \* for multiplication</pre>
 </div>
 
-<div class="case" data-name="escaping ** inside strong tags">
+<div class="case" data-name="escaping ** inside strong tags" data-options='{"translationMode": "Pure"}'>
   <div class="input"><strong>**test</strong></div>
   <pre class="expected">**\*\*test**</pre>
 </div>

@@ -1,9 +1,23 @@
+use unicode_properties::{GeneralCategoryGroup, UnicodeGeneralCategory};
+
 use crate::{
     Element,
-    element_handler::element_util::serialize_if_extra_attrs,
-    element_handler::{HandlerResult, Handlers},
+    element_handler::{
+        HandlerResult, Handlers,
+        element_util::{serialize_element, serialize_if_extra_attrs},
+    },
+    options::TranslationMode,
     text_util::{StripWhitespace, concat_strings},
 };
+
+/// A [Unicode punctuation character](https://spec.commonmark.org/0.31.2/#unicode-punctuation-character):
+/// a character in a general category of `P` (punctuation) or `S` (symbol).
+fn is_unicode_punctuation(ch: char) -> bool {
+    matches!(
+        ch.general_category_group(),
+        GeneralCategoryGroup::Punctuation | GeneralCategoryGroup::Symbol
+    )
+}
 
 pub(super) fn emphasis_handler(
     handlers: &dyn Handlers,
@@ -22,6 +36,14 @@ pub(super) fn emphasis_handler(
     if content.is_empty() {
         return None;
     }
+    // See the [spec](unsupported_html.md) section on Inline elements.
+    if handlers.options().translation_mode == TranslationMode::Faithful
+        && (content.starts_with(is_unicode_punctuation)
+            || content.ends_with(is_unicode_punctuation))
+    {
+        return Some(HandlerResult::html(serialize_element(handlers, &element)));
+    }
+
     let content = concat_strings!(
         leading_whitespace.unwrap_or(""),
         marker,
