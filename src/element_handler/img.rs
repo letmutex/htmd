@@ -2,7 +2,7 @@ use crate::{
     Element,
     element_handler::element_util::serialize_if_extra_attrs,
     element_handler::{HandlerResult, Handlers},
-    text_util::{concat_strings, normalize_title},
+    text_util::{concat_strings, escape_link_destination, normalize_title},
 };
 
 pub(super) fn img_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
@@ -30,7 +30,7 @@ pub(super) fn img_handler(handlers: &dyn Handlers, element: Element) -> Option<H
     let alt = alt.as_deref().map(normalize_title);
     let title = title.as_deref().map(normalize_title);
 
-    let link = link.map(|text| text.replace('(', "\\(").replace(')', "\\)"));
+    let link = link.map(escape_link_destination);
 
     let has_spaces_in_link = link.as_ref().is_some_and(|link| link.contains(' '));
 

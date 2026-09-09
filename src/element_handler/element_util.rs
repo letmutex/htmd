@@ -3,7 +3,7 @@ use crate::{
     dom_walker::{is_block_element, is_type_1_element},
     element_handler::{HandlerResult, Handlers},
     node_util::parent_tag_name_equals,
-    text_util::frame_as_block,
+    text_util::{frame_as_block, has_line_ending},
 };
 use html5ever::serialize::{HtmlSerializer, SerializeOpts, Serializer, TraversalScope, serialize};
 use markup5ever_rcdom::{NodeData, SerializableHandle};
@@ -233,12 +233,6 @@ pub(crate) fn escape_inline_line_endings(html: String) -> String {
     result
 }
 
-/// Whether `html` holds anything for the escapes below to do: the fast path
-/// both of them share, and the one place the set of line endings they know
-/// about is written down.
-fn has_line_ending(html: &str) -> bool {
-    html.contains(['\r', '\n'])
-}
 
 // A blank line terminates a CommonMark HTML block. Encode every line ending
 // after the first so serialized block content remains in one HTML block.
