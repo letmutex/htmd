@@ -16,12 +16,30 @@ pub(super) fn span_handler(handlers: &dyn Handlers, element: Element) -> Option<
         && children.len() == 1
         && let NodeData::Text { contents } = &children[0].data
     {
-        if *attr.value == *"math math-inline" {
-            return Some(concat_strings!("$", contents.borrow().to_string(), "$").into());
-        }
-
-        if *attr.value == *"math math-display" {
-            return Some(concat_strings!("$$", contents.borrow().to_string(), "$$").into());
+        let delimiter = match &*attr.value {
+            "math math-inline" => Some("$"),
+            "math math-display" => Some("$$"),
+            _ => None,
+        };
+        if let Some(delimiter) = delimiter {
+            // Per the [spec](../unsupported_html.md), replace newlines with
+            // spaces: LaTeX ignores whitespace, while a line ending here would
+            // end the math span and begin another block. A CRLF pair is a
+            // single line ending, so it becomes a single space.
+            let contents = contents.borrow();
+            let mut math = String::with_capacity(contents.len());
+            let mut chars = contents.chars().peekable();
+            while let Some(c) = chars.next() {
+                match c {
+                    '\r' => {
+                        chars.next_if_eq(&'\n');
+                        math.push(' ');
+                    }
+                    '\n' => math.push(' '),
+                    _ => math.push(c),
+                }
+            }
+            return Some(concat_strings!(delimiter, math, delimiter).into());
         }
     }
 

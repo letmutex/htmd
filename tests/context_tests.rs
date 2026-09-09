@@ -415,3 +415,31 @@ fn a_serialized_element_follows_its_context() {
         convert_faithful("<ul><li><em foo>y</em></li></ul>").unwrap()
     );
 }
+
+
+/// The contents of a math span are literal text, but a line ending there would
+/// end the span and begin another block. LaTeX ignores whitespace, so each line
+/// ending becomes a space.
+#[test]
+fn a_math_span_replaces_its_line_endings_with_spaces() {
+    assert_eq!(
+        "x$a b$y",
+        convert_faithful("<p>x<span class=\"math math-inline\">a\nb</span>y</p>").unwrap()
+    );
+    assert_eq!(
+        "$$a b$$",
+        convert_faithful("<p><span class=\"math math-display\">a\nb</span></p>").unwrap()
+    );
+    // A carriage return reaches the span only as a character reference, the
+    // parser having folded any literal CRLF into a line feed. A CRLF pair is
+    // one line ending, so it becomes one space...
+    assert_eq!(
+        "$a b$",
+        convert_faithful("<p><span class=\"math math-inline\">a&#13;&#10;b</span></p>").unwrap()
+    );
+    // ...while a lone carriage return is a line ending of its own.
+    assert_eq!(
+        "$a b$",
+        convert_faithful("<p><span class=\"math math-inline\">a&#13;b</span></p>").unwrap()
+    );
+}
