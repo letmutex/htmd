@@ -28,7 +28,7 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: Element) -> Option
 
     let ExtractedTable {
         captions,
-        headers,
+        mut headers,
         rows,
         all_children_translated,
     } = extract_table_content(handlers, element.node);
@@ -51,18 +51,25 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: Element) -> Option
         .len()
         .max(rows.iter().map(|row| row.len()).max().unwrap_or(0));
 
+    // A [GFM table](https://github.github.com/gfm/#tables-extension-) has no
+    // headerless form: the delimiter row which makes the block a table has to
+    // follow a header row. Faithful mode writes HTML rather than invent one;
+    // pure mode has no such fallback and writes an empty header row.
+    if handlers.options().translation_mode == TranslationMode::Faithful && headers.is_empty() {
+        return Some(serialize_element_result(handlers, &element));
+    }
+    if headers.is_empty() {
+        headers = vec![String::new(); num_columns];
+    }
+
     let mut table_md = String::from("\n\n");
 
-    for caption in captions {
-        table_md.push_str(&format!("{caption}\n"));
-    }
+    table_md.push_str(&captions);
 
     let col_widths = compute_column_widths(&headers, &rows, num_columns);
 
-    if !headers.is_empty() {
-        table_md.push_str(&format_row_padded(&headers, num_columns, &col_widths));
-        table_md.push_str(&format_separator_padded(num_columns, &col_widths));
-    }
+    table_md.push_str(&format_row_padded(&headers, num_columns, &col_widths));
+    table_md.push_str(&format_separator_padded(num_columns, &col_widths));
     for row in rows {
         table_md.push_str(&format_row_padded(&row, num_columns, &col_widths));
     }
@@ -72,7 +79,8 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: Element) -> Option
 }
 
 struct ExtractedTable {
-    captions: Vec<String>,
+    /// The caption blocks, each already terminated by its line ending.
+    captions: String,
     headers: Vec<String>,
     rows: Vec<Vec<String>>,
     all_children_translated: bool,
@@ -83,7 +91,7 @@ fn extract_table_content(
     table_node: &Rc<markup5ever_rcdom::Node>,
 ) -> ExtractedTable {
     let mut table = ExtractedTable {
-        captions: Vec::new(),
+        captions: String::new(),
         headers: Vec::new(),
         rows: Vec::new(),
         all_children_translated: true,
@@ -100,10 +108,15 @@ fn extract_table_content(
         match name.local.as_ref() {
             "caption" => {
                 if let Some(result) = handlers.handle(child, Context::Block) {
+                    // A caption which only HTML can express takes the whole
+                    // table with it: written as an HTML block of its own it
+                    // would land outside any table, where the "in body"
+                    // insertion mode drops the start tag as a parse error.
                     table.all_children_translated &= result.markdown_translated;
                     table
                         .captions
-                        .push(result.content.trim_document_whitespace().to_string());
+                        .push_str(result.content.trim_document_whitespace());
+                    table.captions.push('\n');
                 }
             }
             "thead" => {
@@ -286,7 +299,9 @@ fn format_row_padded(row: &[String], num_columns: usize, col_widths: &[usize]) -
 fn format_separator_padded(num_columns: usize, col_widths: &[usize]) -> String {
     let mut line = String::from("|");
     for (_, col_width) in col_widths.iter().enumerate().take(num_columns) {
-        line.push_str(&concat_strings!(" ", "-".repeat(*col_width), " |"));
+        // A column whose every cell is empty has a width of zero, and a
+        // delimiter cell holding no `-` stops the row being a delimiter row.
+        line.push_str(&concat_strings!(" ", "-".repeat((*col_width).max(1)), " |"));
     }
     line.push('\n');
     line

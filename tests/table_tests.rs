@@ -198,16 +198,62 @@ mod table_tests_1 {
         </table>
         "#;
 
-        let expected = r#"
-Sample Table
-| John | 35 | New York      |
-| Jane | 28 | San Francisco |
-"#
-        .trim();
+        // A `<caption>` has no CommonMark spelling and is invalid outside a
+        // `<table>`, so faithful mode serializes the whole table.
+        let expected = html.trim();
 
         let markdown = convert_faithful(html).unwrap();
         let result = markdown.trim();
         assert_eq!(expected, result);
+    }
+
+    /// CommonMark has no caption: writing the content as a paragraph above the
+    /// table reads as one but is not one, so only pure mode does it.
+    #[test]
+    fn test_table_caption_is_commonmark_only_in_pure_mode() {
+        let html = concat!(
+            "<table><caption>Sample Table</caption>",
+            "<thead><tr><th>h</th></tr></thead>",
+            "<tbody><tr><td>John</td></tr></tbody></table>"
+        );
+
+        assert_eq!(
+            "Sample Table\n| h    |\n| ---- |\n| John |",
+            htmd::HtmlToMarkdown::new().convert(html).unwrap()
+        );
+        // A `<caption>` is only valid inside a `<table>`, so the whole table is
+        // serialized around it rather than the caption written on its own.
+        assert_eq!(html, convert_faithful(html).unwrap());
+    }
+
+    /// A GFM table has no headerless form: the delimiter row which makes the
+    /// block a table has to follow a header row.
+    #[test]
+    fn a_table_with_no_header_row_is_written_as_html() {
+        let html = concat!(
+            "<table><tbody><tr><td>a</td><td>b</td></tr>",
+            "<tr><td>c</td><td>d</td></tr></tbody></table>"
+        );
+        assert_eq!(html, convert_faithful(html).unwrap());
+
+        // A block element in a cell is a raw HTML inline and no reason to
+        // serialize; the missing header row is the reason here.
+        let block_cell = "<table><tbody><tr><td><p>a</p></td></tr></tbody></table>";
+        assert_eq!(block_cell, convert_faithful(block_cell).unwrap());
+    }
+
+    /// Pure mode has no HTML to fall back on, so it writes an empty header row.
+    /// A table is only built where the markup holds a `th` or a `thead`, hence
+    /// the empty `<thead>` needed to reach this.
+    #[test]
+    fn pure_mode_writes_an_empty_header_row_for_a_headerless_table() {
+        let html = "<table><thead></thead><tbody><tr><td>a</td></tr></tbody></table>";
+
+        assert_eq!(
+            "|   |\n| - |\n| a |",
+            htmd::HtmlToMarkdown::new().convert(html).unwrap()
+        );
+        assert_eq!(html, convert_faithful(html).unwrap());
     }
 
     #[test]
