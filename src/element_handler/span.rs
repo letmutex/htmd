@@ -22,24 +22,16 @@ pub(super) fn span_handler(handlers: &dyn Handlers, element: Element) -> Option<
             _ => None,
         };
         if let Some(delimiter) = delimiter {
-            // Per the [spec](../unsupported_html.md), replace newlines with
-            // spaces: LaTeX ignores whitespace, while a line ending here would
-            // end the math span and begin another block. A CRLF pair is a
-            // single line ending, so it becomes a single space.
+            // Per the [spec](unsupported_html.md), process math.
             let contents = contents.borrow();
-            let mut math = String::with_capacity(contents.len());
-            let mut chars = contents.chars().peekable();
-            while let Some(c) = chars.next() {
-                match c {
-                    '\r' => {
-                        chars.next_if_eq(&'\n');
-                        math.push(' ');
-                    }
-                    '\n' => math.push(' '),
-                    _ => math.push(c),
-                }
+            let contents = contents.replace("\r\n", " ");
+            let contents = contents.replace("\n", " ");
+            let contents = contents.replace("\r", " ");
+            let contents = contents.trim();
+            // Inline math cannot be empty.
+            if !contents.is_empty() || delimiter == "$$" {
+                return Some(concat_strings!(delimiter, contents, delimiter).into());
             }
-            return Some(concat_strings!(delimiter, math, delimiter).into());
         }
     }
 
