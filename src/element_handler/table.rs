@@ -268,7 +268,7 @@ fn normalize_cell_content(content: &str) -> String {
     let content = content
         .replace('\n', " ")
         .replace('\r', "")
-        .replace('|', "&#124;");
+        .replace('|', "\\|");
     content.trim_document_whitespace().to_string()
 }
 

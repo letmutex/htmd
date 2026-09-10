@@ -166,6 +166,38 @@ fn html_in_a_table_cell_is_a_raw_inline() {
         )
         .unwrap()
     );
+    // A block element in a cell is a raw HTML inline like any other.
+    assert_eq!(
+        "| h        |\n| -------- |\n| <p>a</p> |",
+        convert_faithful(
+            "<table><thead><tr><th>h</th></tr></thead>\
+             <tbody><tr><td><p>a</p></td></tr></tbody></table>"
+        )
+        .unwrap()
+    );
+    assert_eq!(
+        "| h                   |\n| ------------------- |\n| <ul><li>a</li></ul> |",
+        convert_faithful(
+            "<table><thead><tr><th>h</th></tr></thead>\
+             <tbody><tr><td><ul><li>a</li></ul></td></tr></tbody></table>"
+        )
+        .unwrap()
+    );
+}
+
+/// What a cell cannot absorb as a raw HTML inline is an attribute on the cell
+/// itself: a GFM row has nowhere to write one. The `<caption>` half of the same
+/// rule is covered by
+/// `basic_tests::faithful_mode_serializes_a_table_with_a_caption`. See the
+/// table cells section of `unsupported_html.md`.
+#[test]
+fn a_cell_attribute_writes_the_whole_table_as_html() {
+    let with_colspan = "<table><thead><tr><th>h</th></tr></thead>\
+                        <tbody><tr><td colspan=\"2\">a</td></tr></tbody></table>";
+    assert_eq!(with_colspan, convert_faithful(with_colspan).unwrap());
+    let heading_colspan = "<table><thead><tr><th colspan=\"2\">h</th></tr></thead>\
+                           <tbody><tr><td>a</td></tr></tbody></table>";
+    assert_eq!(heading_colspan, convert_faithful(heading_colspan).unwrap());
 }
 
 #[test]

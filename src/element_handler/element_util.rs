@@ -255,7 +255,7 @@ fn escape_html_block_blank_lines(html: String) -> String {
             result.push(chars.next().unwrap());
         }
 
-        copy_horizontal_whitespace(&mut chars, &mut result);
+        copy_blank_line_whitespace(&mut chars, &mut result);
         let Some(next) = chars.next() else {
             break;
         };
@@ -271,18 +271,21 @@ fn escape_html_block_blank_lines(html: String) -> String {
                 continue;
             }
         }
-        copy_horizontal_whitespace(&mut chars, &mut result);
+        copy_blank_line_whitespace(&mut chars, &mut result);
     }
 
     result
 }
 
-fn copy_horizontal_whitespace<I>(chars: &mut std::iter::Peekable<I>, output: &mut String)
+/// Copies the run of spaces and tabs at `chars` — the only characters a
+/// [blank line](https://spec.commonmark.org/0.31.2/#characters-and-lines) may
+/// hold, so a line carrying any other whitespace ends no HTML block.
+fn copy_blank_line_whitespace<I>(chars: &mut std::iter::Peekable<I>, output: &mut String)
 where
     I: Iterator<Item = char>,
 {
     while let Some(&next) = chars.peek() {
-        if !next.is_whitespace() || next == '\r' || next == '\n' {
+        if next != ' ' && next != '\t' {
             break;
         }
         output.push(next);
@@ -345,5 +348,21 @@ mod tests {
             escape_html_block_blank_lines("a\r\n\r\nb".into())
         );
         assert_eq!("a\r&#13;b", escape_html_block_blank_lines("a\r\rb".into()));
+    }
+
+    #[test]
+    fn escapes_only_the_lines_which_are_blank() {
+        assert_eq!(
+            "a\n  &#10;b",
+            escape_html_block_blank_lines("a\n  \nb".into())
+        );
+        assert_eq!(
+            "a\n\t&#10;b",
+            escape_html_block_blank_lines("a\n\t\nb".into())
+        );
+        assert_eq!(
+            "a\n\u{0C}\nb",
+            escape_html_block_blank_lines("a\n\u{0C}\nb".into())
+        );
     }
 }
