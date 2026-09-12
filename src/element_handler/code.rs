@@ -6,7 +6,10 @@ use markup5ever_rcdom::{Node, NodeData};
 use crate::{
     Element,
     element_handler::element_util::serialize_if_extra_attrs,
-    element_handler::{HandlerResult, Handlers, element_util::serialize_element_result},
+    element_handler::{
+        HandlerResult, Handlers,
+        element_util::{serialize_element_result, serialize_element_when_faithful},
+    },
     node_util::{get_node_tag_name, get_parent_node},
     options::{CodeBlockFence, CodeBlockStyle, TranslationMode},
     text_util::{JoinOnStringIterator, TrimDocumentWhitespace, concat_strings},
@@ -44,6 +47,8 @@ fn handle_code_block(
     element: Element,
     parent: &Rc<Node>,
 ) -> Option<HandlerResult> {
+    // A code block is a CommonMark block, so it needs a block context.
+    serialize_element_when_faithful!(handlers, element, element.context.is_inline());
     // `<code>` begins no block of its own, so it passes on its context: the
     // inline context begun by the `<pre>` this is the code block of.
     let content = handlers.walk_children_content(element.node, element.context);

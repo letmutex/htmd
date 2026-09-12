@@ -33,15 +33,26 @@ pub fn convert(html: &str) -> Result<String, std::io::Error> {
     HtmlToMarkdown::new().convert(html)
 }
 
-/// The CommonMark context an element is translated in. See the "Translating
-/// HTML nodes" section of `unsupported_html.md`.
+/// The CommonMark context an element is translated in: the root and a
+/// container block's contents are a block context, a leaf block's and a raw
+/// HTML inline's an inline one. See the "Translating HTML nodes" section of
+/// `unsupported_html.md`.
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum Context {
     /// A block may begin here: the document root and the contents of a
     /// container block.
     Block,
-    /// Only inline content may appear here: the contents of a leaf block.
+    /// Only inline content may appear here: the contents of a leaf block, and
+    /// the contents of a raw HTML inline.
     Inline,
+}
+
+impl Context {
+    /// Whether only inline content may appear here, in which case an element
+    /// whose Markdown is a block is written as HTML instead.
+    pub fn is_inline(self) -> bool {
+        self == Context::Inline
+    }
 }
 
 /// The DOM element.

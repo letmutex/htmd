@@ -228,52 +228,69 @@ fn html_in_code_is_a_raw_inline() {
         "<pre><code>a<br>b</code></pre>",
         convert_faithful("<pre><code>a<br>b</code></pre>").unwrap()
     );
-    // An untranslatable attribute on the `<pre>` is no reason to start
-    // translating content which must stay literal.
+    // Only the tags of a raw HTML inline are HTML: a `<pre>` written as one
+    // holds CommonMark, translated like any other inline content.
     assert_eq!(
-        "# <pre><b>a</b></pre>",
+        "# <pre>**a**</pre>",
         convert_faithful("<h1><pre><b>a</b></pre></h1>").unwrap()
     );
     assert_eq!(
-        r#"# <pre class="x"><b>a</b></pre>"#,
+        r#"# <pre class="x">**a**</pre>"#,
         convert_faithful(r#"<h1><pre class="x"><b>a</b></pre></h1>"#).unwrap()
+    );
+    // A `<code>` is the exception: a code block is a CommonMark block, so in
+    // an inline context it is a raw HTML inline of its own.
+    assert_eq!(
+        r"# <pre><code>a\*b c</code></pre>",
+        convert_faithful("<h1><pre><code>a*b\nc</code></pre></h1>").unwrap()
+    );
+    // An inline `<code>` outside a `<pre>` is a code span, whose content is
+    // literal and so takes no escape.
+    assert_eq!(
+        "# <div>a`c*d`b</div>",
+        convert_faithful("<h1><div>a<code>c*d</code>b</div></h1>").unwrap()
     );
 }
 
-/// A raw text element holds literal characters rather than markup, so it is
-/// serialized whole: Markdown escaping or whitespace collapsing there would
-/// rewrite the script, style, or textarea itself.
+/// A raw text element holds literal characters rather than markup, so its
+/// structure is serialized as it stands. The Markdown specials of that text are
+/// still escaped, a CommonMark parser reading what sits between the tags of a
+/// raw HTML inline as text.
 #[test]
-fn a_raw_text_element_is_serialized_verbatim() {
+fn a_raw_text_element_escapes_the_markdown_it_holds() {
     assert_eq!(
-        "# <script>a*b_c[d]</script>",
+        r"# <script>a\*b\_c\[d\]</script>",
         convert_faithful("<h1><script>a*b_c[d]</script></h1>").unwrap()
     );
+    // The `<` escape buys nothing here: CommonMark writes `&lt;`, and an HTML
+    // parser decodes no character reference inside a raw text element. That is
+    // the tradeoff the "Translating HTML nodes" section of
+    // `unsupported_html.md` takes.
     assert_eq!(
-        "# <script>if(a<b){}</script>",
+        r"# <script>if(a\<b){}</script>",
         convert_faithful("<h1><script>if(a<b){}</script></h1>").unwrap()
     );
     assert_eq!(
-        "x<script>a*b</script>y",
+        r"x<script>a\*b</script>y",
         convert_faithful("<p>x<script>a*b</script>y</p>").unwrap()
     );
+    // An HTML block holds no CommonMark to escape, so it goes out as it
+    // stands. Without the `<body>`, html5ever files a leading `<script>` under
+    // the `<head>`, whose content is dropped.
     assert_eq!(
         "<script>a*b\nc</script>",
-        convert_faithful("<script>a*b\nc</script>").unwrap()
+        convert_faithful("<body><script>a*b\nc</script></body>").unwrap()
     );
-    // The escaped line ending survives the trip back: a CommonMark parser
-    // decodes the reference while producing the raw HTML inline. See
-    // `round_trip_in_an_inline_context` in `basic_tests.rs`.
+    // See `round_trip_in_an_inline_context` in `basic_tests.rs`.
     assert_eq!(
-        "# <script>a&#10;b</script>",
+        "# <script>a b</script>",
         convert_faithful("<h1><script>a\nb</script></h1>").unwrap()
     );
 }
 
-/// `textarea` and `title` hold no markup either, but an HTML parser decodes a
-/// character reference inside one. That decoding is the reason raw text
-/// elements must be serialized verbatim, so these two take the ordinary raw
-/// HTML inline path instead.
+/// `textarea` and `title` hold no markup either, but they are RCDATA rather
+/// than raw text, so nothing forces their structure to be serialized and they
+/// take the ordinary raw HTML inline path instead.
 #[test]
 fn an_rcdata_element_is_translated() {
     assert_eq!(
@@ -284,8 +301,6 @@ fn an_rcdata_element_is_translated() {
         r"# <title>a\*b\*c</title>",
         convert_faithful("<h1><title>a*b*c</title></h1>").unwrap()
     );
-    // The walk compresses a line ending to a space rather than escaping it, so
-    // that is the half this path loses.
     assert_eq!(
         "# <textarea>a b</textarea>",
         convert_faithful("<h1><textarea>a\nb</textarea></h1>").unwrap()
@@ -296,24 +311,57 @@ fn an_rcdata_element_is_translated() {
     );
 }
 
-/// A line ending in a raw HTML inline ends the leaf block holding it: a blank
-/// line ends a paragraph, and a single line ending ends an ATX heading or a
-/// table row. Each is therefore written as a character reference.
+/// "All raw HTML inlines will have whitespace collapsed in their contents
+/// (including newlines, which would otherwise be problematic)" — the
+/// "Translating HTML nodes" section of `unsupported_html.md`. Encoding the line
+/// ending instead would need a parser which decodes a character reference
+/// there, and neither a comment nor a raw text element has one.
 #[test]
-fn a_raw_inline_escapes_its_line_endings() {
+fn a_raw_inline_collapses_the_whitespace_of_its_content() {
+    // Type 6.
+    assert_eq!(
+        "# x<div>a b</div>y",
+        convert_faithful("<h1>x<div>a\nb</div>y</h1>").unwrap()
+    );
+    // Type 7.
+    assert_eq!(
+        "a<del> b </del>c",
+        convert_faithful("<p>a<del>\n  b\n</del>c</p>").unwrap()
+    );
+    // Type 1, whose whitespace carries the meaning of the element — the loss
+    // this collapse takes on.
+    assert_eq!(
+        "# <pre>a b</pre>",
+        convert_faithful("<h1><pre>a\n  b</pre></h1>").unwrap()
+    );
+    // Ordinary flow content collapses the same way.
+    assert_eq!("a b", convert_faithful("<p>a\nb</p>").unwrap());
+    assert_eq!("# a b", convert_faithful("<h1>a\n  b</h1>").unwrap());
+}
+
+/// That collapse is scoped to the contents; an attribute value keeps its
+/// whitespace. A bare line ending there would end the leaf block holding the
+/// element, so that alone is encoded — the open tag passes through CommonMark
+/// verbatim, and the HTML parser reading the result decodes it back.
+#[test]
+fn a_raw_inline_escapes_the_line_endings_of_its_attributes() {
     assert_eq!(
         r#"a<em foo="1&#10;&#10;2">y</em>b"#,
         convert_faithful("<p>a<em foo=\"1\n\n2\">y</em>b</p>").unwrap()
     );
+    // Whitespace which is not a line ending is left alone.
     assert_eq!(
-        "# <pre>x&#10;y</pre>",
-        convert_faithful("<h1><pre>x\ny</pre></h1>").unwrap()
+        r#"# a<div title="x  y">z w</div>b"#,
+        convert_faithful("<h1>a<div title=\"x  y\">z  w</div>b</h1>").unwrap()
     );
-    // The parser folds a literal CRLF into a line feed, so the carriage return
-    // has to arrive as a character reference to survive.
+    // A raw HTML inline nested in another one keeps its attribute value too.
     assert_eq!(
-        "# <pre>x&#13;&#10;y</pre>",
-        convert_faithful("<h1><pre>x&#13;&#10;y</pre></h1>").unwrap()
+        r#"# a<div title="p  q"><em foo="r  s">t</em></div>b"#,
+        convert_faithful(r#"<h1>a<div title="p  q"><em foo="r  s">t</em></div>b</h1>"#).unwrap()
+    );
+    assert_eq!(
+        r#"# a<div title="p&#10;q"><em foo="r&#10;s">t</em></div>b"#,
+        convert_faithful("<h1>a<div title=\"p\nq\"><em foo=\"r\ns\">t</em></div>b</h1>").unwrap()
     );
     assert_eq!(
         concat!(
@@ -327,8 +375,8 @@ fn a_raw_inline_escapes_its_line_endings() {
         )
         .unwrap()
     );
-    // Only a blank line ends a type 6 HTML block, so one keeps the rest of its
-    // line structure.
+    // An HTML *block* keeps its line structure: only a blank line ends a type 6
+    // one, so only that is encoded.
     assert_eq!(
         "<div>a\n&#10;b</div>",
         convert_faithful("<div>a\n\nb</div>").unwrap()
@@ -340,13 +388,15 @@ fn a_raw_inline_escapes_its_line_endings() {
 /// or preformatted text itself.
 #[test]
 fn a_type_1_block_keeps_its_blank_lines() {
+    // Without the `<body>`, html5ever files a leading `<script>` or `<style>`
+    // under the `<head>`, whose content is dropped.
     assert_eq!(
         "<script>a\n\nb</script>",
-        convert_faithful("<script>a\n\nb</script>").unwrap()
+        convert_faithful("<body><script>a\n\nb</script></body>").unwrap()
     );
     assert_eq!(
         "<style>a\n\nb</style>",
-        convert_faithful("<style>a\n\nb</style>").unwrap()
+        convert_faithful("<body><style>a\n\nb</style></body>").unwrap()
     );
     assert_eq!(
         "<pre>a\n\nb</pre>",
@@ -356,8 +406,10 @@ fn a_type_1_block_keeps_its_blank_lines() {
         "<textarea>a\n\nb</textarea>",
         convert_faithful("<textarea>a\n\nb</textarea>").unwrap()
     );
+    // In an inline context the same element is a raw HTML inline, whose blank
+    // lines are collapsed with the rest of its whitespace.
     assert_eq!(
-        "# <script>a&#10;&#10;b</script>",
+        "# <script>a b</script>",
         convert_faithful("<h1><script>a\n\nb</script></h1>").unwrap()
     );
 }
@@ -410,7 +462,10 @@ fn a_title_escapes_its_line_endings() {
     );
 }
 
-/// A comment is a type 2 HTML block, which likewise ends at its own `-->`.
+/// A comment is a type 2 HTML block, which likewise ends at its own `-->`. In
+/// an inline context it is a raw HTML inline instead, whose whitespace is
+/// collapsed: no parser decodes a character reference inside a comment, so
+/// encoding the line ending would be no use.
 #[test]
 fn a_comment_follows_its_context() {
     assert_eq!("<!--a\n\nb-->", convert_faithful("<!--a\n\nb-->").unwrap());
@@ -423,12 +478,72 @@ fn a_comment_follows_its_context() {
         convert_faithful("<blockquote><!--c--></blockquote>").unwrap()
     );
     assert_eq!(
-        "# x<!--a&#10;b-->y",
+        "# x<!--a b-->y",
         convert_faithful("<h1>x<!--a\nb-->y</h1>").unwrap()
     );
     assert_eq!(
-        "x<!--a&#10;&#10;b-->y",
+        "x<!--a b-->y",
         convert_faithful("<p>x<!--a\n\nb-->y</p>").unwrap()
+    );
+    assert_eq!(
+        "# x<!--a b-->y",
+        convert_faithful("<h1>x<!--a\r\nb-->y</h1>").unwrap()
+    );
+    // A comment inside a raw HTML inline is a comment still.
+    assert_eq!(
+        "# <div>x<!--a b-->y</div>",
+        convert_faithful("<h1><div>x<!--a\nb-->y</div></h1>").unwrap()
+    );
+}
+
+/// The html5ever tokenizer hands a CDATA section and a processing instruction
+/// back as comments, so both take the type 2 path above rather than the type 5
+/// and type 3 ones they were written as.
+#[test]
+fn a_cdata_section_and_a_processing_instruction_are_comments() {
+    assert_eq!(
+        "<!--[CDATA[x\n\ny]]-->",
+        convert_faithful("<![CDATA[x\n\ny]]>").unwrap()
+    );
+    assert_eq!(
+        "a<!--[CDATA[x y]]-->b",
+        convert_faithful("<p>a<![CDATA[x\ny]]>b</p>").unwrap()
+    );
+    assert_eq!(
+        "a<!--?php echo \"x y\"; ?-->b",
+        convert_faithful("<p>a<?php echo \"x\ny\"; ?>b</p>").unwrap()
+    );
+}
+
+/// What a raw HTML inline holds is an inline context as well, so the rule of
+/// `a_commonmark_block_in_an_inline_context_is_a_raw_inline` holds one element
+/// deeper.
+#[test]
+fn a_commonmark_block_inside_a_raw_inline_is_a_raw_inline() {
+    assert_eq!(
+        "# <div><blockquote>a</blockquote></div>",
+        convert_faithful("<h1><div><blockquote>a</blockquote></div></h1>").unwrap()
+    );
+    assert_eq!(
+        "# <div><ul><li>a</li></ul></div>",
+        convert_faithful("<h1><div><ul><li>a</li></ul></div></h1>").unwrap()
+    );
+    assert_eq!(
+        "# <div><h2>a</h2></div>",
+        convert_faithful("<h1><div><h2>a</h2></div></h1>").unwrap()
+    );
+    assert_eq!(
+        "# <div><hr></div>",
+        convert_faithful("<h1><div><hr></div></h1>").unwrap()
+    );
+    // What CommonMark can write inline is still translated there.
+    assert_eq!(
+        "# <div>a*b*c</div>",
+        convert_faithful("<h1><div>a<em>b</em>c</div></h1>").unwrap()
+    );
+    assert_eq!(
+        r"# <div>a[l\*m](u)b</div>",
+        convert_faithful(r#"<h1><div>a<a href="u">l*m</a>b</div></h1>"#).unwrap()
     );
 }
 

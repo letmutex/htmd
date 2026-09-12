@@ -3,10 +3,7 @@ use markup5ever_rcdom::{Node, NodeData};
 use phf::phf_set;
 use std::{borrow::Cow, cell::RefCell, rc::Rc};
 
-use crate::{
-    Context,
-    element_handler::{ElementHandlers, element_util::escape_inline_line_endings},
-};
+use crate::{Context, element_handler::ElementHandlers};
 
 use super::{
     options::TranslationMode,
@@ -52,7 +49,7 @@ pub(crate) fn walk_node(
             output,
             parent_tag,
             trim_leading_spaces,
-            state.is_pre,
+            state,
         ),
         NodeData::Element { name, attrs, .. } => walk_element(
             node,
@@ -76,25 +73,18 @@ pub(crate) fn walk_node(
 /// A comment is an
 /// [HTML block](https://spec.commonmark.org/0.31.2/#html-blocks) of type 2,
 /// which ends at its own `-->` rather than at a blank line: in a block context
-/// it is framed as a block and its line endings are left as they are. In an
-/// inline context it is a raw HTML inline instead, and its line endings are
-/// escaped.
+/// it is framed as a block and its line endings are left as they are.
 ///
-/// **That escape is an incorrect workaround.** The "Translating HTML nodes"
-/// table of `unsupported_html.md` gives a type 2-5 node in an inline context a
-/// newline encoding of `None`, because encoding works only where the HTML
-/// parser decodes character references and it decodes none inside a comment:
-/// the `&#10;` written here comes back as those five characters rather than as
-/// the line ending it replaced. It is kept because the conforming alternative
-/// is worse — a bare line ending ends the leaf block holding the comment,
-/// splitting a paragraph in two or cutting an ATX heading or a table row short.
-/// Representing this faithfully needs the containing block serialized instead,
-/// which is the "Special case" that document sets aside.
+/// In an inline context it is a raw HTML inline, whose whitespace the
+/// "Translating HTML nodes" section of `unsupported_html.md` collapses.
+/// Encoding the line endings instead would be no use: no parser decodes a
+/// character reference inside a comment.
 fn walk_comment(contents: &str, output: &mut String, state: WalkState) {
     let html = concat_strings!("<!--", contents, "-->");
-    match state.context {
-        Context::Block => append_normalized_content(output, frame_as_block(&html), state.is_pre),
-        Context::Inline => output.push_str(&escape_inline_line_endings(html)),
+    if state.context == Context::Block {
+        append_normalized_content(output, frame_as_block(&html), state.is_pre);
+    } else {
+        output.push_str(&compress_whitespace(&html));
     }
 }
 
@@ -103,9 +93,9 @@ fn walk_text(
     output: &mut String,
     parent_tag: Option<&str>,
     trim_leading_spaces: bool,
-    is_pre: bool,
+    state: WalkState,
 ) -> bool {
-    if is_pre {
+    if state.is_pre {
         let text = if parent_tag == Some("pre") {
             escape_pre_text_if_needed(Cow::Borrowed(text))
         } else {
@@ -290,7 +280,11 @@ pub(crate) fn walk_children(
             _ => false,
         };
 
-        if is_block {
+        // Preformatted content keeps every space it holds, so a block inside
+        // one trims nothing.
+        let trims_spaces = is_block && !state.is_pre;
+
+        if trims_spaces {
             // Trim trailing spaces for the previous element
             trim_output_end_spaces(output);
         }
@@ -301,7 +295,7 @@ pub(crate) fn walk_children(
 
         if output.len() > output_len {
             // Something was appended, update the flag
-            trim_leading_spaces = is_block;
+            trim_leading_spaces = trims_spaces;
         }
 
         index = run_end;
@@ -403,8 +397,8 @@ fn combine_nodes(parent: &Rc<Node>, nodes: &[Rc<Node>]) -> Rc<Node> {
 
 /// Normalizes content before adding to output by:
 /// 1. Collapsing excessive newlines (max 2 consecutive newlines)
-/// 2. Collapsing adjacent spaces between inline elements (when not in pre context)
-fn append_normalized_content(output: &mut String, mut content: String, is_pre: bool) {
+/// 2. Collapsing adjacent spaces between inline elements
+fn append_normalized_content(output: &mut String, mut content: String, preserve_whitespace: bool) {
     if output.is_empty() {
         *output = content;
         return;
@@ -421,8 +415,8 @@ fn append_normalized_content(output: &mut String, mut content: String, is_pre: b
         content.drain(..to_remove);
     }
 
-    // Collapse adjacent spaces between inline elements (not in pre context)
-    let content = if !is_pre
+    // Collapse adjacent spaces between inline elements
+    let content = if !preserve_whitespace
         && last_newlines == 0
         && content_newlines == 0
         && output.ends_with(' ')
