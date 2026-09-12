@@ -1,6 +1,7 @@
 use crate::Context;
-use crate::element_handler::element_util::serialize_element_result;
+use crate::element_handler::anchor::LinkReferenceCheckpoint;
 use crate::element_handler::element_util::serialize_if_extra_attrs_or_inline;
+use crate::element_handler::element_util::serialize_walked_element_when_faithful;
 use crate::element_handler::{Element, HandlerResult, Handlers};
 use crate::node_util::{get_node_tag_name, get_parent_node};
 use crate::options::TranslationMode;
@@ -26,6 +27,9 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: Element) -> Option
         return handlers.fallback(element);
     }
 
+    // The extraction walks every caption, header and cell, and a child which
+    // only HTML can express throws that walk away.
+    let checkpoint = LinkReferenceCheckpoint::new();
     let ExtractedTable {
         captions,
         mut headers,
@@ -33,12 +37,17 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: Element) -> Option
         all_children_translated,
     } = extract_table_content(handlers, element.node);
 
-    if handlers.options().translation_mode == TranslationMode::Faithful && !all_children_translated
-    {
-        return Some(serialize_element_result(handlers, &element));
-    }
+    serialize_walked_element_when_faithful!(
+        handlers,
+        element,
+        !all_children_translated,
+        checkpoint
+    );
 
     if rows.is_empty() && headers.is_empty() {
+        // The walk below covers the same children, so without this every link
+        // reference would reach the end of the document twice.
+        checkpoint.roll_back();
         let content = handlers.walk_children_content(element.node, element.context);
         let content = content.trim_matches('\n');
         if content.is_empty() {
@@ -55,9 +64,7 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: Element) -> Option
     // headerless form: the delimiter row which makes the block a table has to
     // follow a header row. Faithful mode writes HTML rather than invent one;
     // pure mode has no such fallback and writes an empty header row.
-    if handlers.options().translation_mode == TranslationMode::Faithful && headers.is_empty() {
-        return Some(serialize_element_result(handlers, &element));
-    }
+    serialize_walked_element_when_faithful!(handlers, element, headers.is_empty(), checkpoint);
     if headers.is_empty() {
         headers = vec![String::new(); num_columns];
     }

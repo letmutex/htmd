@@ -2,9 +2,10 @@ use crate::{
     Element,
     element_handler::{
         HandlerResult, Handlers,
+        anchor::LinkReferenceCheckpoint,
         element_util::{
-            serialize_element, serialize_element_result, serialize_if_extra_attrs_or_inline,
-            serialize_when_faithful,
+            serialize_element_result, serialize_if_extra_attrs_or_inline,
+            serialize_walked_element_when_faithful,
         },
     },
     node_util::get_node_tag_name,
@@ -34,12 +35,16 @@ pub(super) fn pre_handler(handlers: &dyn Handlers, element: Element) -> Option<H
     };
 
     if handlers.options().translation_mode == TranslationMode::Pure || is_simple_code_block {
+        // The walk is speculative: a child which only HTML can express sends
+        // the whole `<pre>` out as HTML, discarding this content.
+        let checkpoint = LinkReferenceCheckpoint::new();
         let result = handlers.walk_children(element.node, element.context);
 
-        serialize_when_faithful!(
+        serialize_walked_element_when_faithful!(
             handlers,
+            element,
             !result.markdown_translated,
-            serialize_element(handlers, &element)
+            checkpoint
         );
 
         Some(frame_as_block(&result.content).into())

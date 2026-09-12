@@ -244,6 +244,30 @@ macro_rules! serialize_element_when_faithful {
 
 pub(crate) use serialize_element_when_faithful;
 
+/// [`serialize_element_when_faithful!`] for a handler which has already walked
+/// its children. Writing the element as HTML throws that walk away, so the link
+/// reference definitions it buffered are rolled back to `checkpoint` first. See
+/// [`anchor::LinkReferenceCheckpoint`].
+///
+/// [`anchor::LinkReferenceCheckpoint`]:
+///     crate::element_handler::anchor::LinkReferenceCheckpoint
+macro_rules! serialize_walked_element_when_faithful {
+    ($handlers:expr, $element:expr, $condition:expr, $checkpoint:expr) => {
+        if $handlers.options().translation_mode == $crate::options::TranslationMode::Faithful
+            && $condition
+        {
+            $checkpoint.roll_back();
+            return Some(
+                $crate::element_handler::element_util::serialize_element_result(
+                    $handlers, &$element,
+                ),
+            );
+        }
+    };
+}
+
+pub(crate) use serialize_walked_element_when_faithful;
+
 /// Returns from the enclosing handler with `element` written as HTML when it
 /// carries more attributes than its Markdown translation can express.
 /// `num_attrs_allowed` of -1 rejects every attribute set, serializing the
