@@ -141,4 +141,70 @@ mod tests {
         assert!(!is_unicode_punctuation('\u{00AA}'));
         assert!(!is_unicode_punctuation(char::MAX));
     }
+
+    /// Every non-ASCII code point whose general category group is `P` or `S`, as merged inclusive
+    /// ranges: what `unicode_punctuation.rs` is supposed to contain, classified independently of
+    /// it by `unicode-properties` (a dev-dependency, so the crate itself carries no Unicode data
+    /// beyond the table).
+    fn punctuation_or_symbol_from_unicode() -> Vec<(char, char)> {
+        use unicode_properties::{GeneralCategoryGroup, UnicodeGeneralCategory};
+
+        let mut ranges: Vec<(char, char)> = Vec::new();
+        for ch in (0x80..=char::MAX as u32).filter_map(char::from_u32) {
+            if !matches!(
+                ch.general_category_group(),
+                GeneralCategoryGroup::Punctuation | GeneralCategoryGroup::Symbol
+            ) {
+                continue;
+            }
+            match ranges.last_mut() {
+                Some((_, high)) if *high as u32 + 1 == ch as u32 => *high = ch,
+                _ => ranges.push((ch, ch)),
+            }
+        }
+        ranges
+    }
+
+    /// The other tests compare the table against itself, so they pass just as happily on a table
+    /// that dropped or gained a range. Check the data itself against Unicode instead: a
+    /// regeneration that went wrong, or a hand edit of the "do not edit by hand" file, fails here.
+    #[test]
+    fn table_matches_unicode_general_categories() {
+        let expected = punctuation_or_symbol_from_unicode();
+        let missing: Vec<_> = expected
+            .iter()
+            .filter(|range| !PUNCTUATION_OR_SYMBOL.contains(range))
+            .collect();
+        let extra: Vec<_> = PUNCTUATION_OR_SYMBOL
+            .iter()
+            .filter(|range| !expected.contains(range))
+            .collect();
+        assert!(
+            missing.is_empty() && extra.is_empty(),
+            "`PUNCTUATION_OR_SYMBOL` disagrees with the Unicode general categories: \
+             missing {missing:?}, extra {extra:?}. If this is a new Unicode release, \
+             regenerate the table with `cargo test print_punctuation_or_symbol_table \
+             -- --ignored --nocapture`.",
+        );
+    }
+
+    /// The generator for `unicode_punctuation.rs`: prints the table in source form. Run it with
+    /// `cargo test print_punctuation_or_symbol_table -- --ignored --nocapture` and paste the
+    /// output over the old table.
+    #[test]
+    #[ignore = "generates the table rather than checking it"]
+    fn print_punctuation_or_symbol_table() {
+        let ranges = punctuation_or_symbol_from_unicode();
+        println!(
+            "pub(super) static PUNCTUATION_OR_SYMBOL: [(char, char); {}] = [",
+            ranges.len()
+        );
+        for (low, high) in ranges {
+            println!(
+                "    ('\\u{{{:04X}}}', '\\u{{{:04X}}}'),",
+                low as u32, high as u32
+            );
+        }
+        println!("];");
+    }
 }

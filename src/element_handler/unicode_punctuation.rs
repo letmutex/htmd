@@ -1,10 +1,10 @@
 //! The Unicode general categories `P` and `S`, as a table the standard library cannot provide.
 //!
 //! Generated data for Unicode 17.0.0 — do not edit by hand. To refresh it for a newer Unicode
-//! release, walk `0x80..=0x10FFFF`, keep the code points whose general category group is
-//! `Punctuation` or `Symbol` (the `unicode-properties` crate can classify them, or derive it from
-//! field 2 of `UnicodeData.txt`), collapse the survivors into merged inclusive ranges, and print
-//! them in the form below. `emphasis::tests` checks the result is sorted and merged.
+//! release, run the generator that produced it,
+//! `cargo test print_punctuation_or_symbol_table -- --ignored --nocapture`, and paste its output
+//! over the table below. `emphasis::tests` checks that the table is sorted and merged, and that
+//! it still matches the Unicode general categories the generator reads.
 
 /// The non-ASCII code points whose Unicode general category is `P` (punctuation) or `S`
 /// (symbol), as inclusive ranges sorted by start. ASCII is covered by
