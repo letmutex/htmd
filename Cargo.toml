@@ -15,7 +15,6 @@ readme = "README.md"
 html5ever = "0.39"
 markup5ever_rcdom = "0.39"
 phf = { version = "0.14", features = ["macros"] }
-unicode-properties = "0.1"
 
 [dev-dependencies]
 indoc = "2.0.6"

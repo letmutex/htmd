@@ -19,6 +19,7 @@ mod table;
 mod table_section;
 mod td_th;
 mod tr;
+mod unicode_punctuation;
 
 use crate::{
     dom_walker::walk_node,
