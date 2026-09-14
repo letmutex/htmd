@@ -63,13 +63,6 @@ pub struct Element<'a> {
     pub tag: &'a str,
     /// The attribute list.
     pub attrs: &'a [Attribute],
-    /// When true, this element's children were all translated using Markdown,
-    /// not HTML. This is only needed in faithful translation mode (see the
-    /// `Options`): for code blocks, translating a `<pre><code>` sequence to
-    /// Markdown, not HTML, requires a Markdown translated `<code>` block;
-    /// likewise, translating lists ((`<ol>`/`<ul>`)`<li>`) to Markdown requires
-    /// all `<li>` elements are translated to Markdown.
-    pub markdown_translated: bool,
     /// The [`Context`] this element appears in, as recorded by the walk which
     /// produced it. An element which can only be written as HTML uses this to
     /// pick between an HTML block and a raw HTML inline.

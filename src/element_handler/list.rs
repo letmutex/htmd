@@ -20,16 +20,13 @@ pub(super) fn list_handler(handlers: &dyn Handlers, element: Element) -> Option<
             .is_some_and(|attr| &attr.name.local == "start");
         serialize_if_extra_attrs_or_inline!(handlers, element, if has_start { 1 } else { 0 });
 
-        // ...all children must be translated as Markdown, and all children must
-        // be li elements.
-        if !element.markdown_translated
-            || !element.node.children.borrow().iter().all(|node| {
-                let tag_name = get_node_tag_name(node);
-                // In addition to elements, there will be text nodes, generally
-                // with whitespace; these should be ignored.
-                tag_name == Some("li") || tag_name.is_none()
-            })
-        {
+        // ...all children must be li elements.
+        if !element.node.children.borrow().iter().all(|node| {
+            let tag_name = get_node_tag_name(node);
+            // In addition to elements, there will be text nodes, generally
+            // with whitespace; these should be ignored.
+            tag_name == Some("li") || tag_name.is_none()
+        }) {
             return Some(serialize_element_result(handlers, &element));
         }
     }
