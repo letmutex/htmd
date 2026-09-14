@@ -84,7 +84,7 @@ fn try_serialize_element(handlers: &dyn Handlers, element: &Element) -> io::Resu
     // next blank one; a raw HTML inline is what such a tag needs, whatever the
     // context. See the "Translating HTML nodes" section of
     // `unsupported_html.md`.
-    if element.context == Context::Block && is_block_element(element.tag) {
+    if element.context.is_block() && is_block_element(element.tag) {
         serialize_block_element(element)
     } else {
         serialize_inline_element(handlers, element)
@@ -117,7 +117,7 @@ fn serialize_inline_element(handlers: &dyn Handlers, element: &Element) -> io::R
     let open_tag_len = serializer.writer.len();
     serializer.writer.write_all(
         handlers
-            .walk_raw_html_inline_children(element.node)
+            .walk_children_content(element.node, Context::INLINE)
             .as_bytes(),
     )?;
     serializer.end_elem(name.clone())?;

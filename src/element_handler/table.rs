@@ -107,7 +107,7 @@ fn extract_table_content(
         // sections, rows and cells all sit in one.
         match name.local.as_ref() {
             "caption" => {
-                if let Some(result) = handlers.handle(child, Context::Block) {
+                if let Some(result) = handlers.handle(child, Context::BLOCK) {
                     // A caption which only HTML can express takes the whole
                     // table with it: written as an HTML block of its own it
                     // would land outside any table, where the "in body"
@@ -262,7 +262,7 @@ fn extract_row_cells(
         {
             // See `extract_table_content`: a cell of a translated table is
             // always in a block context.
-            let Some(res) = handlers.handle(cell_node, Context::Block) else {
+            let Some(res) = handlers.handle(cell_node, Context::BLOCK) else {
                 continue;
             };
             if !res.markdown_translated {

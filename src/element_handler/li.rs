@@ -13,7 +13,7 @@ pub(super) fn list_item_handler(
 ) -> Option<HandlerResult> {
     serialize_if_extra_attrs_or_inline!(handlers, element, 0);
     // A list item is a container block: its children begin a block context.
-    let mut content = handlers.walk_children_content(element.node, Context::Block);
+    let mut content = handlers.walk_children_content(element.node, Context::BLOCK);
     let start = content.len() - content.trim_start_document_whitespace().len();
     if start > 0 {
         content.drain(..start);

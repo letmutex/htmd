@@ -13,6 +13,6 @@ pub(super) fn caption_handler(handlers: &dyn Handlers, element: Element) -> Opti
     // Only pure mode reaches here. A caption is written as a paragraph above
     // the table, and a paragraph is a leaf block: its children begin an inline
     // context.
-    let content = handlers.walk_children_content(element.node, Context::Inline);
+    let content = handlers.walk_children_content(element.node, Context::INLINE);
     Some(frame_as_block(&content).into())
 }

@@ -7,7 +7,7 @@ pub(crate) mod text_util;
 
 use std::rc::Rc;
 
-use dom_walker::{WalkState, walk_node};
+use dom_walker::walk_node;
 use element_handler::{ElementHandler, ElementHandlers, is_inside_pre};
 use html5ever::tendril::TendrilSink;
 use html5ever::tree_builder::TreeBuilderOpts;
@@ -33,12 +33,9 @@ pub fn convert(html: &str) -> Result<String, std::io::Error> {
     HtmlToMarkdown::new().convert(html)
 }
 
-/// The CommonMark context an element is translated in: the root and a
-/// container block's contents are a block context, a leaf block's and a raw
-/// HTML inline's an inline one. See the "Translating HTML nodes" section of
-/// `unsupported_html.md`.
+/// The CommonMark context an element is translated in: block vs inline phrasing.
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
-pub enum Context {
+pub enum ContextKind {
     /// A block may begin here: the document root and the contents of a
     /// container block.
     Block,
@@ -47,11 +44,35 @@ pub enum Context {
     Inline,
 }
 
+/// The context an element or text node is evaluated in.
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
+pub struct Context {
+    /// The CommonMark syntactic context.
+    pub kind: ContextKind,
+    /// Whether text in this context is literal
+    /// (preserving whitespace without Markdown escaping).
+    pub literal: bool,
+}
+
 impl Context {
+    pub const BLOCK: Self = Self {
+        kind: ContextKind::Block,
+        literal: false,
+    };
+    pub const INLINE: Self = Self {
+        kind: ContextKind::Inline,
+        literal: false,
+    };
+
     /// Whether only inline content may appear here, in which case an element
     /// whose Markdown is a block is written as HTML instead.
     pub fn is_inline(self) -> bool {
-        self == Context::Inline
+        self.kind == ContextKind::Inline
+    }
+
+    /// Whether a block may begin here.
+    pub fn is_block(self) -> bool {
+        self.kind == ContextKind::Block
     }
 }
 
@@ -155,10 +176,9 @@ impl HtmlToMarkdown {
             &self.handlers,
             None,
             true,
-            WalkState {
-                is_pre: is_inside_pre(tree),
-                // The root of the document is a block context.
-                context: Context::Block,
+            Context {
+                kind: ContextKind::Block,
+                literal: is_inside_pre(tree),
             },
         );
 
