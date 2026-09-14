@@ -28,9 +28,7 @@ pub(super) fn pre_handler(handlers: &dyn Handlers, element: Element) -> Option<H
     //     2.  All other cases: produce HTML.
     let is_simple_code_block = {
         let children = element.node.children.borrow();
-        element.markdown_translated
-            && children.len() == 1
-            && get_node_tag_name(&children[0]) == Some("code")
+        children.len() == 1 && get_node_tag_name(&children[0]) == Some("code")
     };
 
     if handlers.options().translation_mode == TranslationMode::Pure || is_simple_code_block {

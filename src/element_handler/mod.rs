@@ -56,7 +56,12 @@ use tr::tr_handler;
 pub struct HandlerResult {
     /// The converted content.
     pub content: String,
-    /// See [`Element::markdown_translated`]
+    /// When true, this element was translated using Markdown,
+    /// not HTML. This is only needed in faithful translation mode (see the
+    /// `Options`): for code blocks, translating a `<pre><code>` sequence to
+    /// Markdown, not HTML, requires a Markdown translated `<code>` block;
+    /// likewise, translating lists ((`<ol>`/`<ul>`)`<li>`) to Markdown requires
+    /// all `<li>` elements are translated to Markdown.
     pub markdown_translated: bool,
 }
 
@@ -252,7 +257,6 @@ impl ElementHandlers {
         node: &Rc<Node>,
         tag: &str,
         attrs: &[Attribute],
-        markdown_translated: bool,
         skipped_handlers: usize,
         context: Context,
     ) -> Option<HandlerResult> {
@@ -260,7 +264,6 @@ impl ElementHandlers {
             node,
             tag,
             attrs,
-            markdown_translated,
             context,
             skipped_handlers,
         };
@@ -324,7 +327,6 @@ impl Handlers for ElementHandlers {
             element.node,
             element.tag,
             element.attrs,
-            element.markdown_translated,
             element.skipped_handlers + 1,
             element.context,
         )

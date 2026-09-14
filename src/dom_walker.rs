@@ -154,7 +154,7 @@ fn walk_element(
         return markdown_translated;
     }
 
-    let Some(result) = handlers.handle(node, tag, attrs, true, 0, state.context) else {
+    let Some(result) = handlers.handle(node, tag, attrs, 0, state.context) else {
         return true;
     };
     if !result.content.is_empty() || tag != "head" {
