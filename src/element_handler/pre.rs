@@ -1,5 +1,5 @@
 use crate::{
-    Element,
+    Context, Element,
     element_handler::{
         HandlerResult, Handlers,
         element_util::{
@@ -32,7 +32,13 @@ pub(super) fn pre_handler(handlers: &dyn Handlers, element: Element) -> Option<H
     };
 
     if handlers.options().translation_mode == TranslationMode::Pure || is_simple_code_block {
-        let result = handlers.walk_children(element.node, element.context);
+        let result = handlers.walk_children(
+            element.node,
+            Context {
+                literal: true,
+                ..element.context
+            },
+        );
 
         serialize_when_faithful!(
             handlers,

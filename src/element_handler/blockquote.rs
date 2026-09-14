@@ -11,7 +11,7 @@ pub(super) fn blockquote_handler(
 ) -> Option<HandlerResult> {
     serialize_if_extra_attrs_or_inline!(handlers, element, 0);
     // A blockquote is a container block: its children begin a block context.
-    let content = handlers.walk_children_content(element.node, Context::Block);
+    let content = handlers.walk_children_content(element.node, Context::BLOCK);
     let content = content.trim_start_matches('\n');
     let content = content
         .trim_end_document_whitespace()

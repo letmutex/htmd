@@ -21,7 +21,7 @@ mod td_th;
 mod tr;
 
 use crate::{
-    dom_walker::{WalkState, walk_node},
+    dom_walker::walk_node,
     element_handler::element_util::serialize_element_result,
     options::{Options, TranslationMode},
     text_util::frame_as_block,
@@ -123,37 +123,19 @@ pub(crate) struct ElementHandlers {
 }
 
 impl ElementHandlers {
-    /// The body [`Handlers::walk_children`] and
-    /// [`Handlers::walk_raw_html_inline_children`] share; they differ only in
-    /// the state they walk under.
     fn walk_children_with(
         &self,
         node: &Rc<Node>,
         is_block: bool,
-        state: WalkState,
+        context: Context,
     ) -> HandlerResult {
         let mut output = String::new();
         let markdown_translated =
-            crate::dom_walker::walk_children(node, &mut output, self, is_block, state);
+            crate::dom_walker::walk_children(node, &mut output, self, is_block, context);
         HandlerResult {
             content: output,
             markdown_translated,
         }
-    }
-
-    /// Whether a walk of `node` writes literal text: the content of a
-    /// CommonMark code span or code block, which goes out with its whitespace
-    /// kept and no escape written. `tag` is the node's own tag name when the
-    /// walk goes inside it, and `None` when the walk starts at the node itself.
-    ///
-    /// The ancestor scan is a pure mode question only. Faithful mode translates
-    /// a `<code>` only when every child of it is a text node, and a `<pre>`
-    /// only when its one child is such a `<code>`, so an element inside either
-    /// means that ancestor is being written as HTML — and a raw HTML inline
-    /// holds CommonMark text rather than literal text.
-    fn is_pre_content(&self, node: &Rc<Node>, tag: Option<&str>) -> bool {
-        tag.is_some_and(is_pre_element)
-            || (self.options.translation_mode == TranslationMode::Pure && is_inside_pre(node))
     }
 
     pub fn new(options: Options) -> Self {
@@ -302,17 +284,7 @@ pub trait Handlers {
     /// status.
     fn walk_children(&self, node: &Rc<Node>, context: Context) -> HandlerResult;
 
-    /// Walks the children of `node` as the content of a raw HTML inline, whose
-    /// tags `element_util::serialize_inline_element` writes around the result.
-    ///
-    /// Unlike [`Handlers::walk_children`] with [`Context::Inline`], `node`
-    /// itself writes no literal text even when it is a `<pre>` or a `<code>`:
-    /// those tags are being written as HTML rather than translated to a code
-    /// block or span, so what sits between them is CommonMark text.
-    fn walk_raw_html_inline_children(&self, node: &Rc<Node>) -> String;
-
-    /// The content of [`Handlers::walk_children`], for the many handlers whose
-    /// own translation status does not depend on their children's.
+    /// The content of [`Handlers::walk_children`]
     fn walk_children_content(&self, node: &Rc<Node>, context: Context) -> String {
         self.walk_children(node, context).content
     }
@@ -334,11 +306,7 @@ impl Handlers for ElementHandlers {
 
     fn handle(&self, node: &Rc<Node>, context: Context) -> Option<HandlerResult> {
         let mut output = String::new();
-        let state = WalkState {
-            is_pre: self.is_pre_content(node, None),
-            context,
-        };
-        let markdown_translated = walk_node(node, &mut output, self, None, true, state);
+        let markdown_translated = walk_node(node, &mut output, self, None, true, context);
         Some(HandlerResult {
             content: output,
             markdown_translated,
@@ -350,25 +318,8 @@ impl Handlers for ElementHandlers {
         self.walk_children_with(
             node,
             tag.is_some_and(crate::dom_walker::is_block_element),
-            WalkState {
-                is_pre: self.is_pre_content(node, tag),
-                context,
-            },
+            context,
         )
-    }
-
-    fn walk_raw_html_inline_children(&self, node: &Rc<Node>) -> String {
-        self.walk_children_with(
-            node,
-            false,
-            WalkState {
-                is_pre: false,
-                // What a raw HTML inline holds is inline content, whatever
-                // context the element itself appears in.
-                context: Context::Inline,
-            },
-        )
-        .content
     }
 
     fn options(&self) -> &Options {

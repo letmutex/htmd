@@ -4,7 +4,7 @@ use html5ever::Attribute;
 use markup5ever_rcdom::{Node, NodeData};
 
 use crate::{
-    Element,
+    Context, Element,
     element_handler::element_util::serialize_if_extra_attrs,
     element_handler::{
         HandlerResult, Handlers,
@@ -51,7 +51,13 @@ fn handle_code_block(
     serialize_element_when_faithful!(handlers, element, element.context.is_inline());
     // `<code>` begins no block of its own, so it passes on its context: the
     // inline context begun by the `<pre>` this is the code block of.
-    let content = handlers.walk_children_content(element.node, element.context);
+    let content = handlers.walk_children_content(
+        element.node,
+        Context {
+            literal: true,
+            ..element.context
+        },
+    );
     let content = content.strip_suffix('\n').unwrap_or(&content);
     if handlers.options().code_block_style == CodeBlockStyle::Fenced {
         let fence = if handlers.options().code_block_fence == CodeBlockFence::Tildes {
@@ -124,7 +130,13 @@ fn handle_inline_code(handlers: &dyn Handlers, element: Element) -> Option<Handl
     serialize_if_extra_attrs!(handlers, element, 0);
     // A code span holds literal text — every child is a text node here, as
     // `code_handler` checked — so the context it is read in doesn't matter.
-    let content = handlers.walk_children_content(element.node, element.context);
+    let content = handlers.walk_children_content(
+        element.node,
+        Context {
+            literal: true,
+            ..element.context
+        },
+    );
     let preserve_boundary_spaces = handlers.options().preformatted_code
         && content.starts_with(' ')
         && content.ends_with(' ')

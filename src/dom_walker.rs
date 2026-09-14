@@ -13,34 +13,17 @@ use super::{
     },
 };
 
-/// The state a walk carries down through a subtree unchanged. `parent_tag` and
-/// `trim_leading_spaces` are deliberately not part of it: [`walk_children`]
-/// recomputes both for every child, while these two describe the surroundings
-/// every descendant shares.
-#[derive(Clone, Copy)]
-pub(crate) struct WalkState {
-    /// Whether the node sits inside a `<pre>` or `<code>`, where whitespace is
-    /// preserved and text goes out unescaped.
-    pub(crate) is_pre: bool,
-    /// The [`Context`] the node appears in.
-    pub(crate) context: Context,
-}
-
 pub(crate) fn walk_node(
     node: &Rc<Node>,
     output: &mut String,
     handlers: &ElementHandlers,
     parent_tag: Option<&str>,
     trim_leading_spaces: bool,
-    state: WalkState,
+    context: Context,
 ) -> bool {
     match &node.data {
         NodeData::Document => {
-            let root = WalkState {
-                is_pre: false,
-                context: Context::Block,
-            };
-            let _ = walk_children(node, output, handlers, true, root);
+            let _ = walk_children(node, output, handlers, true, Context::BLOCK);
             trim_output_end(output);
             true
         }
@@ -49,7 +32,7 @@ pub(crate) fn walk_node(
             output,
             parent_tag,
             trim_leading_spaces,
-            state,
+            context,
         ),
         NodeData::Element { name, attrs, .. } => walk_element(
             node,
@@ -57,11 +40,11 @@ pub(crate) fn walk_node(
             &attrs.borrow(),
             output,
             handlers,
-            state,
+            context,
         ),
         NodeData::Comment { contents } => {
             if handlers.options.translation_mode == TranslationMode::Faithful {
-                walk_comment(contents, output, state);
+                walk_comment(contents, output, context);
             }
             true
         }
@@ -79,10 +62,10 @@ pub(crate) fn walk_node(
 /// "Translating HTML nodes" section of `unsupported_html.md` collapses.
 /// Encoding the line endings instead would be no use: no parser decodes a
 /// character reference inside a comment.
-fn walk_comment(contents: &str, output: &mut String, state: WalkState) {
+fn walk_comment(contents: &str, output: &mut String, context: Context) {
     let html = concat_strings!("<!--", contents, "-->");
-    if state.context == Context::Block {
-        append_normalized_content(output, frame_as_block(&html), state.is_pre);
+    if context.is_block() {
+        append_normalized_content(output, frame_as_block(&html), context.literal);
     } else {
         output.push_str(&compress_whitespace(&html));
     }
@@ -93,9 +76,9 @@ fn walk_text(
     output: &mut String,
     parent_tag: Option<&str>,
     trim_leading_spaces: bool,
-    state: WalkState,
+    context: Context,
 ) -> bool {
-    if state.is_pre {
+    if context.literal {
         let text = if parent_tag == Some("pre") {
             escape_pre_text_if_needed(Cow::Borrowed(text))
         } else {
@@ -133,14 +116,14 @@ fn walk_element(
     attrs: &[html5ever::Attribute],
     output: &mut String,
     handlers: &ElementHandlers,
-    state: WalkState,
+    context: Context,
 ) -> bool {
     if is_passthrough_span(tag, attrs, handlers) {
         let mut content = String::new();
         // A span holds inline content, so its children keep this context.
-        let markdown_translated = walk_children(node, &mut content, handlers, false, state);
+        let markdown_translated = walk_children(node, &mut content, handlers, false, context);
         trim_newlines(&mut content);
-        append_normalized_content(output, content, state.is_pre);
+        append_normalized_content(output, content, context.literal);
         return markdown_translated;
     }
 
@@ -149,16 +132,16 @@ fn walk_element(
     {
         let mut content = String::new();
         let is_block = is_block_element(tag);
-        let markdown_translated = walk_children(node, &mut content, handlers, is_block, state);
-        append_normalized_content(output, content, state.is_pre);
+        let markdown_translated = walk_children(node, &mut content, handlers, is_block, context);
+        append_normalized_content(output, content, context.literal);
         return markdown_translated;
     }
 
-    let Some(result) = handlers.handle(node, tag, attrs, 0, state.context) else {
+    let Some(result) = handlers.handle(node, tag, attrs, 0, context) else {
         return true;
     };
     if !result.content.is_empty() || tag != "head" {
-        append_normalized_content(output, result.content, state.is_pre);
+        append_normalized_content(output, result.content, context.literal);
     }
     result.markdown_translated
 }
@@ -247,12 +230,11 @@ pub(crate) fn walk_children(
     output: &mut String,
     handlers: &ElementHandlers,
     is_parent_block_element: bool,
-    // The state the children are walked in; its context is the one they appear
-    // in.
-    state: WalkState,
+    // The context the children are walked in.
+    context: Context,
     // Return value: `markdown_translated`.
 ) -> bool {
-    let mut trim_leading_spaces = !state.is_pre && is_parent_block_element;
+    let mut trim_leading_spaces = !context.literal && is_parent_block_element;
     let tag = match &node.data {
         NodeData::Document => Some("html"),
         NodeData::Element { name, .. } => Some(name.local.as_ref()),
@@ -282,7 +264,7 @@ pub(crate) fn walk_children(
 
         // Preformatted content keeps every space it holds, so a block inside
         // one trims nothing.
-        let trims_spaces = is_block && !state.is_pre;
+        let trims_spaces = is_block && !context.literal;
 
         if trims_spaces {
             // Trim trailing spaces for the previous element
@@ -291,7 +273,8 @@ pub(crate) fn walk_children(
 
         let output_len = output.len();
 
-        markdown_translated &= walk_node(child, output, handlers, tag, trim_leading_spaces, state);
+        markdown_translated &=
+            walk_node(child, output, handlers, tag, trim_leading_spaces, context);
 
         if output.len() > output_len {
             // Something was appended, update the flag

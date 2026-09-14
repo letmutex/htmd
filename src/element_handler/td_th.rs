@@ -15,6 +15,6 @@ pub(super) fn td_th_handler(handlers: &dyn Handlers, element: Element) -> Option
         // open inside one: an element which only HTML can express becomes a raw
         // HTML inline here, whatever its tag. See the "Translating HTML nodes"
         // section of `unsupported_html.md`.
-        Context::Inline,
+        Context::INLINE,
     )
 }
