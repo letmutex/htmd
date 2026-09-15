@@ -805,6 +805,58 @@ fn round_trip_in_a_block_context() {
     assert_eq!("<br>", round_trip("<br>"));
 }
 
+/// The "Special case for paragraphs" section of `unsupported_html.md`: content
+/// which opens an HTML block dissolves the paragraph or setext heading holding
+/// it, so those two write themselves out whole instead. Each trip below would
+/// otherwise come back without its `<p>` or `<h1>`.
+#[test]
+fn round_trip_of_a_leaf_block_an_html_block_would_dissolve() {
+    // A lone type 7 tag.
+    assert_eq!("<p><br></p>", round_trip("<p><br></p>"));
+    // A type 1-6 tag opening the content. A comment is type 2, `iframe` type 6.
+    assert_eq!("<p><!--c--></p>", round_trip("<p><!--c--></p>"));
+    assert_eq!("<p><!--c-->a</p>", round_trip("<p><!--c-->a</p>"));
+    assert_eq!(
+        r#"<p><iframe src="u">a</iframe></p>"#,
+        round_trip(r#"<p><iframe src="u">a</iframe></p>"#)
+    );
+    // A list item's marker and a blockquote's `>` are stripped before the line
+    // is scanned, so they protect the paragraph no better than the root does.
+    assert_eq!(
+        "<blockquote>\n<p><br></p></blockquote>\n",
+        round_trip("<blockquote><p><br></p></blockquote>")
+    );
+
+    // A second tag keeps the line from being type 7, and a tag which does not
+    // open the content cannot start a block at all: both stay paragraphs.
+    assert_round_trips("<p><br><br></p>");
+    assert_round_trips("<p><br>a</p>");
+    assert_round_trips("<p><del><br></del></p>");
+
+    // A setext heading falls back to ATX, whose `#` the block scan matches
+    // before any HTML block start condition.
+    assert_eq!("<h1><br></h1>\n", round_trip_setext("<h1><br></h1>"));
+    assert_eq!(
+        "<h1><div>a</div></h1>\n",
+        round_trip_setext("<h1><div>a</div></h1>")
+    );
+    // Content which opens no HTML block keeps the setext form.
+    assert_eq!(
+        "<h1><br><br></h1>\n",
+        round_trip_setext("<h1><br><br></h1>")
+    );
+}
+
+/// [`round_trip`] with setext headings, the style whose h1 and h2 leave their
+/// content at the start of a line.
+fn round_trip_setext(html: &str) -> String {
+    let markdown = common::convert_faithful_setext(html).unwrap();
+    let parser = Parser::new_ext(&markdown, CommonMarkOptions::empty());
+    let mut html_output = String::new();
+    pulldown_cmark::html::push_html(&mut html_output, parser);
+    html_output
+}
+
 /// A heading is a leaf block, so each element below is written as a raw HTML
 /// inline. Only its tags are HTML; what sits between them is CommonMark text,
 /// which is what makes the escape of `a\*b` work here — the CommonMark parser

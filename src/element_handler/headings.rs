@@ -2,6 +2,7 @@ use crate::{
     Context, Element,
     element_handler::element_util::serialize_if_extra_attrs_or_inline,
     element_handler::{HandlerResult, Handlers},
+    html_block::starts_html_block,
     options::HeadingStyle,
     util::text::TrimDocumentWhitespace,
 };
@@ -17,9 +18,16 @@ pub(super) fn headings_handler(
     let content = content.trim_document_whitespace();
     let content = content.trim_matches('\n');
 
+    // A setext heading leaves its content at the start of a line, where an HTML
+    // block opening would dissolve the heading; an ATX heading's `#` is leaf
+    // block syntax the block scan matches first, so it is safe. See the
+    // "Special case for paragraphs" section of `unsupported_html.md`.
+    let use_setext = (level == 1 || level == 2)
+        && handlers.options().heading_style == HeadingStyle::Setex
+        && !starts_html_block(content);
+
     let mut result = String::from("\n\n");
-    if (level == 1 || level == 2) && handlers.options().heading_style == HeadingStyle::Setex {
-        // Use the Setext heading style for h1 and h2
+    if use_setext {
         result.push_str(content);
         result.push('\n');
         let ch = if level == 1 { "=" } else { "-" };
