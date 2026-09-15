@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use super::unicode_table::PUNCTUATION_OR_SYMBOL;
+use super::unicode_punctuation::PUNCTUATION_OR_SYMBOL;
 
 /// A [Unicode punctuation character](https://spec.commonmark.org/0.31.2/#unicode-punctuation-character):
 /// a character in a general category of `P` (punctuation) or `S` (symbol).
