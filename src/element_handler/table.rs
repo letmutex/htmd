@@ -123,11 +123,24 @@ fn extract_table_content(
             }
             "thead" => {
                 has_thead = true;
+                table.all_children_translated &= has_no_attributes(child);
                 extract_thead(handlers, child, &mut table);
             }
-            "tbody" | "tfoot" => extract_section_rows(handlers, child, &mut table, &mut has_thead),
+            "tbody" => {
+                table.all_children_translated &= has_no_attributes(child);
+                extract_section_rows(handlers, child, &mut table, &mut has_thead);
+            }
+            // A GFM table has one body, so a `<tfoot>`'s rows can only join it,
+            // which loses the footer. Faithful mode writes the table as HTML
+            // rather than lose it; pure mode has no fallback and takes the join.
+            "tfoot" => {
+                table.all_children_translated = false;
+                extract_section_rows(handlers, child, &mut table, &mut has_thead);
+            }
             "tr" => extract_direct_row(handlers, child, &mut table, &mut has_thead),
-            _ => {}
+            // A `<colgroup>`, its `<col>`s, and anything else a table may hold
+            // have no Markdown spelling at all.
+            _ => table.all_children_translated = false,
         }
     }
 
@@ -212,6 +225,19 @@ fn extract_direct_row(
     }
 }
 
+/// Whether `node` carries no attributes, which a Markdown table has nowhere to
+/// write: a section or row carrying one can only be written as HTML. This is
+/// the `num_attrs_allowed` of 0 which `tr_handler` and `table_section_handler`
+/// pass to `handle_or_serialize_by_parent`, repeated here because a translated
+/// table walks its own sections and rows rather than routing them through those
+/// handlers.
+fn has_no_attributes(node: &Rc<markup5ever_rcdom::Node>) -> bool {
+    match &node.data {
+        NodeData::Element { attrs, .. } => attrs.borrow().is_empty(),
+        _ => true,
+    }
+}
+
 fn has_explicit_headers(node: &Rc<markup5ever_rcdom::Node>) -> bool {
     fn visit(node: &Rc<markup5ever_rcdom::Node>, is_root: bool) -> bool {
         for child in node.children.borrow().iter() {
@@ -256,7 +282,9 @@ fn extract_row_cells(
     cell_tag: &str,
 ) -> (Vec<String>, bool) {
     let mut cells = Vec::new();
-    let mut all_translated = true;
+    // A Markdown table row has nowhere to write an attribute either, so a `<tr>`
+    // carrying one takes the whole table to HTML.
+    let mut all_translated = has_no_attributes(row_node);
 
     for cell_node in row_node.children.borrow().iter() {
         if let NodeData::Element { name, .. } = &cell_node.data

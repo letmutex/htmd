@@ -12,6 +12,7 @@ use crate::{
     },
     options::{CodeBlockFence, CodeBlockStyle, TranslationMode},
     util::{
+        escape::has_line_ending,
         node::{get_node_tag_name, get_parent_node},
         text::{JoinOnStringIterator, TrimDocumentWhitespace, concat_strings},
     },
@@ -148,6 +149,12 @@ fn handle_inline_code(handlers: &dyn Handlers, element: &Element) -> Option<Hand
     } else {
         content.trim_document_whitespace().to_string()
     };
+    // A code span's content is literal text, so a line ending written in one
+    // stays a line ending and ends the leaf block the span sits in; no encoding
+    // of it survives there. The element goes out as a raw HTML inline instead,
+    // whose contents the walk collapses. See the "Code" section of
+    // `unsupported_html.md`.
+    serialize_element_when_faithful!(handlers, element, has_line_ending(&content));
 
     let delimiter = get_inline_code_delimiter(&content);
     let needs_padding =
