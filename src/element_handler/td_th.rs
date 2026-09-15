@@ -4,10 +4,10 @@ use crate::{
     element_handler::{HandlerResult, Handlers},
 };
 
-pub(super) fn td_th_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
+pub(super) fn td_th_handler(handlers: &dyn Handlers, element: &Element) -> Option<HandlerResult> {
     handle_or_serialize_by_parent(
         handlers,
-        &element,
+        element,
         &["tr"],
         0,
         false,

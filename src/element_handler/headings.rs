@@ -6,7 +6,10 @@ use crate::{
     util::text::TrimDocumentWhitespace,
 };
 
-pub(super) fn headings_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
+pub(super) fn headings_handler(
+    handlers: &dyn Handlers,
+    element: &Element,
+) -> Option<HandlerResult> {
     serialize_if_extra_attrs_or_inline!(handlers, element, 0);
     let level = element.tag.chars().nth(1).unwrap() as u32 - '0' as u32;
     // A heading is a leaf block: its children begin an inline context.

@@ -5,7 +5,7 @@ use crate::{
     options::{BrStyle, TranslationMode},
 };
 
-pub(super) fn br_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
+pub(super) fn br_handler(handlers: &dyn Handlers, element: &Element) -> Option<HandlerResult> {
     serialize_if_extra_attrs!(
         handlers,
         element,

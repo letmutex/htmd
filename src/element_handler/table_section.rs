@@ -10,7 +10,7 @@ use crate::{
 /// context on; the cells its rows hold are the leaf blocks.
 pub(super) fn table_section_handler(
     handlers: &dyn Handlers,
-    element: Element,
+    element: &Element,
 ) -> Option<HandlerResult> {
-    handle_or_serialize_by_parent(handlers, &element, &["table"], 0, true, element.context)
+    handle_or_serialize_by_parent(handlers, element, &["table"], 0, true, element.context)
 }

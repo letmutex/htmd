@@ -5,7 +5,7 @@ use crate::{
     util::text::frame_as_block,
 };
 
-pub(super) fn p_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
+pub(super) fn p_handler(handlers: &dyn Handlers, element: &Element) -> Option<HandlerResult> {
     serialize_if_extra_attrs_or_inline!(handlers, element, 0);
     // A paragraph is a leaf block: its children begin an inline context.
     let content = handlers.walk_children_content(element.node, Context::INLINE);

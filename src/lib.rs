@@ -77,7 +77,6 @@ impl Context {
 }
 
 /// The DOM element.
-#[derive(Clone, Copy)]
 pub struct Element<'a> {
     /// The html5ever node of the element.
     pub node: &'a Rc<Node>,
@@ -242,7 +241,7 @@ impl HtmlToMarkdownBuilder {
 
     /// Skip a group of tags when converting.
     pub fn skip_tags(self, tags: Vec<&str>) -> Self {
-        self.add_handler(tags, |_: &dyn Handlers, _: Element| None)
+        self.add_handler(tags, |_: &dyn Handlers, _: &Element| None)
     }
 
     /// Apply a custom element handler for a group of tags.
@@ -253,11 +252,11 @@ impl HtmlToMarkdownBuilder {
     /// use htmd::{Element, HtmlToMarkdownBuilder, element_handler::Handlers};
     ///
     /// let mut handlers = HtmlToMarkdownBuilder::new()
-    ///    .add_handler(vec!["img"], |_handlers: &dyn Handlers, _: Element| {
+    ///    .add_handler(vec!["img"], |_handlers: &dyn Handlers, _: &Element| {
     ///        // Skip the img tag when converting.
     ///        None
     ///    })
-    ///    .add_handler(vec!["video"], |_handlers: &dyn Handlers, element: Element| {
+    ///    .add_handler(vec!["video"], |_handlers: &dyn Handlers, element: &Element| {
     ///        // Handle the video tag.
     ///        todo!("Return some text to represent this video element.")
     ///    });

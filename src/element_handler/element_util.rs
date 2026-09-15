@@ -239,7 +239,7 @@ macro_rules! serialize_element_when_faithful {
         $crate::element_handler::element_util::serialize_when_faithful!(
             $handlers,
             $condition,
-            $crate::element_handler::element_util::serialize_element($handlers, &$element)
+            $crate::element_handler::element_util::serialize_element($handlers, $element)
         )
     };
 }

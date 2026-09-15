@@ -8,7 +8,7 @@ use crate::{
     },
 };
 
-pub(super) fn img_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
+pub(super) fn img_handler(handlers: &dyn Handlers, element: &Element) -> Option<HandlerResult> {
     let mut link: Option<String> = None;
     let mut alt: Option<String> = None;
     let mut title: Option<String> = None;

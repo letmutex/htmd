@@ -11,7 +11,7 @@ use crate::{
     util::{node::get_node_tag_name, text::frame_as_block},
 };
 
-pub(super) fn pre_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
+pub(super) fn pre_handler(handlers: &dyn Handlers, element: &Element) -> Option<HandlerResult> {
     // A code block is a CommonMark block, so it needs a block context. In an
     // inline context this `<pre>` is a raw HTML inline instead, its content
     // walked like that of any other one.
@@ -42,11 +42,11 @@ pub(super) fn pre_handler(handlers: &dyn Handlers, element: Element) -> Option<H
         serialize_when_faithful!(
             handlers,
             !result.markdown_translated,
-            serialize_element(handlers, &element)
+            serialize_element(handlers, element)
         );
 
         Some(frame_as_block(&result.content).into())
     } else {
-        Some(serialize_element_result(handlers, &element))
+        Some(serialize_element_result(handlers, element))
     }
 }

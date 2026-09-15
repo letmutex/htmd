@@ -115,7 +115,7 @@ fn nested_convert_with_referenced_links() {
         })
         .add_handler(
             vec!["widget"],
-            |_handlers: &dyn Handlers, _element: Element| {
+            |_handlers: &dyn Handlers, _element: &Element| {
                 let inner_converter = HtmlToMarkdown::builder()
                     .options(Options {
                         link_style: LinkStyle::Referenced,

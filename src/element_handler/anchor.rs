@@ -120,7 +120,7 @@ impl ElementHandler for AnchorElementHandler {
         })
     }
 
-    fn handle(&self, handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
+    fn handle(&self, handlers: &dyn Handlers, element: &Element) -> Option<HandlerResult> {
         let mut link: Option<String> = None;
         let mut title: Option<String> = None;
         for attr in element.attrs.iter() {
