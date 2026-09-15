@@ -96,6 +96,72 @@ impl HandlerResult {
     }
 }
 
+/// Conversion lifecycle event types.
+///
+/// # Example
+///
+/// ```
+/// use htmd::element_handler::EventTypes;
+///
+/// let types = EventTypes::NONE;
+/// let types = EventTypes::DOC_ENTER;
+/// let types = EventTypes::DOC_ENTER | EventTypes::ELEMENT_ENTER;
+/// let types = EventTypes::ALL - EventTypes::DOC_ENTER;
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct EventTypes(u8);
+
+impl EventTypes {
+    pub const NONE: Self = Self(0);
+    pub const DOC_ENTER: Self = Self(1 << 0);
+    pub const DOC_LEAVE: Self = Self(1 << 1);
+    pub const ELEMENT_ENTER: Self = Self(1 << 2);
+    pub const ELEMENT_LEAVE: Self = Self(1 << 3);
+
+    pub const DOC_EVENTS: Self = Self(Self::DOC_ENTER.0 | Self::DOC_LEAVE.0);
+    pub const ELEMENT_EVENTS: Self = Self(Self::ELEMENT_ENTER.0 | Self::ELEMENT_LEAVE.0);
+    pub const ALL: Self = Self(Self::DOC_EVENTS.0 | Self::ELEMENT_EVENTS.0);
+
+    #[inline(always)]
+    pub fn contains(self, other: Self) -> bool {
+        (self.0 & other.0) == other.0
+    }
+}
+
+impl std::ops::BitOr for EventTypes {
+    type Output = Self;
+
+    #[inline(always)]
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Self(self.0 | rhs.0)
+    }
+}
+
+impl std::ops::Sub for EventTypes {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self(self.0 & !rhs.0)
+    }
+}
+
+/// A declarative, passive event subscription for an [`ElementHandler`].
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct EventSubscription {
+    /// The types of events to be notified.
+    pub events: EventTypes,
+    /// Specific tag names to receive element events for.
+    /// If empty, no element events are received.
+    pub tags: &'static [&'static str],
+}
+
+impl EventSubscription {
+    pub const NONE: Self = Self {
+        events: EventTypes::NONE,
+        tags: &[],
+    };
+}
+
 /// Trait for handling the conversion of a specific HTML element to Markdown.
 pub trait ElementHandler: Send + Sync {
     /// Append additional content to the end of the converted Markdown.
@@ -105,6 +171,26 @@ pub trait ElementHandler: Send + Sync {
 
     /// Handle the conversion of an element.
     fn handle(&self, handlers: &dyn Handlers, element: Element) -> Option<HandlerResult>;
+
+    /// Declare passive event subscriptions.
+    ///
+    /// The default implementation returns [`EventSubscription::NONE`], meaning no events
+    /// are received and conversion runs with no event overhead.
+    fn event_subscription(&self, _options: &Options) -> EventSubscription {
+        EventSubscription::NONE
+    }
+
+    /// Called when starting a document conversion.
+    fn on_doc_enter(&self) {}
+
+    /// Called when finishing a document conversion.
+    fn on_doc_leave(&self) {}
+
+    /// Called before an element matching the subscribed tag names is processed.
+    fn on_element_enter(&self, _element: &Element) {}
+
+    /// Called after an element matching the subscribed tag names has been processed.
+    fn on_element_leave(&self, _element: &Element, _result: Option<&HandlerResult>) {}
 }
 
 impl<F> ElementHandler for F
@@ -116,10 +202,20 @@ where
     }
 }
 
+#[derive(Default)]
+pub(crate) struct TagEntry {
+    pub(crate) handler_indices: Vec<usize>,
+    pub(crate) enter_listeners: Vec<usize>,
+    pub(crate) leave_listeners: Vec<usize>,
+}
+
 /// Builtin element handlers
 pub(crate) struct ElementHandlers {
     pub(crate) handlers: Vec<Box<dyn ElementHandler>>,
-    pub(crate) tag_to_handler_indices: HashMap<String, Vec<usize>>,
+    pub(crate) tag_entries: HashMap<String, TagEntry>,
+    pub(crate) doc_enter_listeners: Vec<usize>,
+    pub(crate) doc_leave_listeners: Vec<usize>,
+    pub(crate) has_element_listeners: bool,
     pub(crate) options: Options,
 }
 
@@ -139,10 +235,74 @@ impl ElementHandlers {
         }
     }
 
+    pub(crate) fn has_tag_handler(&self, tag: &str) -> bool {
+        self.tag_entries
+            .get(tag)
+            .is_some_and(|entry| !entry.handler_indices.is_empty())
+    }
+
+    pub(crate) fn tag_handler_count(&self, tag: &str) -> usize {
+        self.tag_entries
+            .get(tag)
+            .map_or(0, |entry| entry.handler_indices.len())
+    }
+
+    #[inline(always)]
+    pub(crate) fn emit_doc_enter(&self) {
+        for &idx in &self.doc_enter_listeners {
+            self.handlers[idx].on_doc_enter();
+        }
+    }
+
+    #[inline(always)]
+    pub(crate) fn emit_doc_leave(&self) {
+        for &idx in &self.doc_leave_listeners {
+            self.handlers[idx].on_doc_leave();
+        }
+    }
+
+    pub(crate) fn rebuild_subscriptions(&mut self) {
+        self.doc_enter_listeners.clear();
+        self.doc_leave_listeners.clear();
+        for entry in self.tag_entries.values_mut() {
+            entry.enter_listeners.clear();
+            entry.leave_listeners.clear();
+        }
+
+        let mut has_element_listeners = false;
+        for (idx, handler) in self.handlers.iter().enumerate() {
+            let sub = handler.event_subscription(&self.options);
+            if sub.events.contains(EventTypes::DOC_ENTER) {
+                self.doc_enter_listeners.push(idx);
+            }
+            if sub.events.contains(EventTypes::DOC_LEAVE) {
+                self.doc_leave_listeners.push(idx);
+            }
+            if sub.events.contains(EventTypes::ELEMENT_ENTER) {
+                for &tag in sub.tags {
+                    let entry = self.tag_entries.entry(tag.to_owned()).or_default();
+                    entry.enter_listeners.push(idx);
+                    has_element_listeners = true;
+                }
+            }
+            if sub.events.contains(EventTypes::ELEMENT_LEAVE) {
+                for &tag in sub.tags {
+                    let entry = self.tag_entries.entry(tag.to_owned()).or_default();
+                    entry.leave_listeners.push(idx);
+                    has_element_listeners = true;
+                }
+            }
+        }
+        self.has_element_listeners = has_element_listeners;
+    }
+
     pub fn new(options: Options) -> Self {
         let mut handlers = Self {
             handlers: Vec::new(),
-            tag_to_handler_indices: HashMap::new(),
+            tag_entries: HashMap::new(),
+            doc_enter_listeners: Vec::new(),
+            doc_leave_listeners: Vec::new(),
+            has_element_listeners: false,
             options,
         };
 
@@ -210,7 +370,7 @@ impl ElementHandlers {
 
         let unhandled_block_elements = crate::dom_walker::BLOCK_ELEMENTS
             .iter()
-            .filter(|tag| !handlers.tag_to_handler_indices.contains_key(**tag))
+            .filter(|tag| !handlers.has_tag_handler(tag))
             .copied()
             .collect();
         handlers.add_handler(unhandled_block_elements, block_handler);
@@ -225,14 +385,12 @@ impl ElementHandlers {
         assert!(!tags.is_empty(), "tags cannot be empty.");
         let handler_idx = self.handlers.len();
         self.handlers.push(Box::new(handler));
-        // Update tag to handler indices
+        // Update tag entries
         for tag in tags {
-            let indices = self
-                .tag_to_handler_indices
-                .entry(tag.to_owned())
-                .or_default();
-            indices.push(handler_idx);
+            let entry = self.tag_entries.entry(tag.to_owned()).or_default();
+            entry.handler_indices.push(handler_idx);
         }
+        self.rebuild_subscriptions();
     }
 
     pub fn handle(
@@ -250,7 +408,19 @@ impl ElementHandlers {
             context,
             skipped_handlers,
         };
-        match self.find_handler(tag, skipped_handlers) {
+
+        let tag_entry = self.tag_entries.get(tag);
+
+        if self.has_element_listeners
+            && skipped_handlers == 0
+            && let Some(entry) = tag_entry
+        {
+            for &idx in &entry.enter_listeners {
+                self.handlers[idx].on_element_enter(&element);
+            }
+        }
+
+        let result = match self.find_handler_in_entry(tag_entry, skipped_handlers) {
             Some(handler) => handler.handle(self, element),
             None => {
                 if self.options.translation_mode == TranslationMode::Faithful {
@@ -260,12 +430,27 @@ impl ElementHandlers {
                     Some(self.walk_children(node, context))
                 }
             }
+        };
+
+        if self.has_element_listeners
+            && skipped_handlers == 0
+            && let Some(entry) = tag_entry
+        {
+            for &idx in &entry.leave_listeners {
+                self.handlers[idx].on_element_leave(&element, result.as_ref());
+            }
         }
+
+        result
     }
 
-    fn find_handler(&self, tag: &str, skipped_handlers: usize) -> Option<&dyn ElementHandler> {
-        let handler_indices = self.tag_to_handler_indices.get(tag)?;
-        let idx = handler_indices.iter().rev().nth(skipped_handlers)?;
+    fn find_handler_in_entry(
+        &self,
+        entry: Option<&TagEntry>,
+        skipped_handlers: usize,
+    ) -> Option<&dyn ElementHandler> {
+        let entry = entry?;
+        let idx = entry.handler_indices.iter().rev().nth(skipped_handlers)?;
         Some(self.handlers[*idx].as_ref())
     }
 }

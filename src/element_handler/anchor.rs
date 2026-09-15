@@ -1,7 +1,9 @@
 use std::cell::RefCell;
 
 use crate::{
-    Element, ElementHandler,
+    Element, ElementHandler, Options,
+    element_handler::EventSubscription,
+    element_handler::EventTypes,
     element_handler::element_util::serialize_if_extra_attrs,
     element_handler::{HandlerResult, Handlers},
     options::{LinkReferenceStyle, LinkStyle},
@@ -12,41 +14,95 @@ use crate::{
 ///
 /// Converts anchor tags to Markdown links (inlined, autolinks, or reference-style links).
 ///
-/// # State & Limitations
-///
 /// When using [`LinkStyle::Referenced`], link reference definitions (e.g. `[1]: https://...`)
-/// are collected in a thread-local buffer during DOM traversal and drained when [`append`](ElementHandler::append)
-/// is called at the end of the document conversion.
-///
-/// **Limitations:**
-/// - **Thread-local buffering:** State is isolated per-thread, making sharing [`HtmlToMarkdown`](crate::HtmlToMarkdown)
-///   across threads safe. However, nested or re-entrant conversions on the *same* thread (such as invoking
-///   `convert` inside a custom element handler) will share this thread-local buffer if both use
-///   reference-style links.
-/// - **Speculative conversion:** If a container handler (such as a table) converts children speculatively
-///   and then discards the result in faithful mode, any reference-style links inside those children
-///   will remain in the buffer for document-level append unless handled.
+/// are collected in a scoped thread-local buffer during DOM traversal.
+/// Nested conversions enter a new scope frame, and speculative container conversions
+/// (like tables or pre blocks falling back to raw HTML) roll back discarded links.
 pub(super) struct AnchorElementHandler {}
+
+#[derive(Default)]
+struct AnchorScope {
+    references: Vec<String>,
+    checkpoints: Vec<usize>,
+}
 
 impl AnchorElementHandler {
     thread_local! {
-        static LINK_REFERENCES: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+        static SCOPES: RefCell<Vec<AnchorScope>> = const { RefCell::new(Vec::new()) };
     }
 
     pub(super) fn new() -> Self {
         Self {}
     }
+
+    fn with_current_scope_mut<R>(f: impl FnOnce(&mut AnchorScope) -> R) -> R {
+        AnchorElementHandler::SCOPES.with(|scopes| {
+            let mut scopes = scopes.borrow_mut();
+            if scopes.is_empty() {
+                scopes.push(AnchorScope::default());
+            }
+            let last = scopes.last_mut().unwrap();
+            f(last)
+        })
+    }
 }
 
 impl ElementHandler for AnchorElementHandler {
+    fn event_subscription(&self, options: &Options) -> EventSubscription {
+        if options.link_style == LinkStyle::Referenced {
+            EventSubscription {
+                events: EventTypes::DOC_EVENTS | EventTypes::ELEMENT_EVENTS,
+                tags: &["table", "pre", "ol", "ul"],
+            }
+        } else {
+            EventSubscription::NONE
+        }
+    }
+
+    fn on_doc_enter(&self) {
+        AnchorElementHandler::SCOPES.with(|scopes| {
+            scopes.borrow_mut().push(AnchorScope::default());
+        });
+    }
+
+    fn on_doc_leave(&self) {
+        AnchorElementHandler::SCOPES.with(|scopes| {
+            scopes.borrow_mut().pop();
+        });
+    }
+
+    fn on_element_enter(&self, _element: &Element) {
+        AnchorElementHandler::SCOPES.with(|scopes| {
+            let mut scopes = scopes.borrow_mut();
+            if let Some(scope) = scopes.last_mut() {
+                scope.checkpoints.push(scope.references.len());
+            }
+        });
+    }
+
+    fn on_element_leave(&self, _element: &Element, result: Option<&HandlerResult>) {
+        AnchorElementHandler::SCOPES.with(|scopes| {
+            let mut scopes = scopes.borrow_mut();
+            if let Some(scope) = scopes.last_mut()
+                && let Some(checkpoint) = scope.checkpoints.pop()
+            {
+                let is_markdown_translated = result.is_some_and(|r| r.markdown_translated);
+                if !is_markdown_translated {
+                    scope.references.truncate(checkpoint);
+                }
+            }
+        });
+    }
+
     fn append(&self) -> Option<String> {
-        AnchorElementHandler::LINK_REFERENCES.with(|links| {
-            let mut links = links.borrow_mut();
-            if links.is_empty() {
+        AnchorElementHandler::SCOPES.with(|scopes| {
+            let mut scopes = scopes.borrow_mut();
+            let scope = scopes.last_mut()?;
+            if scope.references.is_empty() {
                 return None;
             }
 
-            let links = std::mem::take(&mut *links);
+            let links = std::mem::take(&mut scope.references);
             let content_len: usize = links.iter().map(String::len).sum();
             let mut result = String::with_capacity(content_len + links.len().saturating_add(1));
             result.push_str("\n\n");
@@ -159,9 +215,8 @@ impl AnchorElementHandler {
         title: Option<String>,
         style: &LinkReferenceStyle,
     ) -> String {
-        AnchorElementHandler::LINK_REFERENCES.with(|links| {
-            let mut links = links.borrow_mut();
-            let index = links.len() + 1;
+        AnchorElementHandler::with_current_scope_mut(|scope| {
+            let index = scope.references.len() + 1;
             let title = title
                 .as_deref()
                 .map_or(String::new(), |t| format!(" \"{t}\""));
@@ -179,7 +234,7 @@ impl AnchorElementHandler {
                     concat_strings!("[", content, "]: ", link, title),
                 ),
             };
-            links.push(append);
+            scope.references.push(append);
             current
         })
     }

@@ -127,8 +127,7 @@ fn walk_element(
         return markdown_translated;
     }
 
-    if handlers.options.translation_mode == TranslationMode::Pure
-        && !handlers.tag_to_handler_indices.contains_key(tag)
+    if handlers.options.translation_mode == TranslationMode::Pure && !handlers.has_tag_handler(tag)
     {
         let mut content = String::new();
         let is_block = is_block_element(tag);
@@ -153,10 +152,7 @@ fn is_passthrough_span(
 ) -> bool {
     tag == "span"
         && handlers.options.translation_mode == TranslationMode::Pure
-        && handlers
-            .tag_to_handler_indices
-            .get("span")
-            .is_some_and(|indices| indices.len() == 1)
+        && handlers.tag_handler_count("span") == 1
         && !is_math_span(attrs)
 }
 
