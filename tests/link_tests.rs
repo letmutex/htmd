@@ -64,7 +64,6 @@ fn links_inlined_prefer_autolinks() {
     );
 }
 
-
 /// A line ending in a link destination ends the leaf block holding it: written
 /// literally, `a[t](u⏎⏎v)b` is two paragraphs and no link at all. CommonMark
 /// decodes a character reference in a destination, so it is encoded instead.
@@ -100,5 +99,103 @@ fn a_link_destination_escapes_its_line_endings() {
     assert_eq!(
         r"[t](u\(v\))",
         convert_faithful(r#"<p><a href="u(v)">t</a></p>"#).unwrap()
+    );
+}
+
+#[test]
+fn nested_convert_with_referenced_links() {
+    use htmd::Element;
+    use htmd::element_handler::Handlers;
+    use indoc::indoc;
+
+    let converter = HtmlToMarkdown::builder()
+        .options(Options {
+            link_style: LinkStyle::Referenced,
+            ..Default::default()
+        })
+        .add_handler(
+            vec!["widget"],
+            |_handlers: &dyn Handlers, _element: Element| {
+                let inner_converter = HtmlToMarkdown::builder()
+                    .options(Options {
+                        link_style: LinkStyle::Referenced,
+                        ..Default::default()
+                    })
+                    .build();
+                let inner_md = inner_converter
+                    .convert(r#"<a href="https://inner.com">Inner</a>"#)
+                    .unwrap();
+                Some(inner_md.into())
+            },
+        )
+        .build();
+
+    let html = indoc!(
+        r#"
+        <p><a href="https://outer1.com">Outer 1</a></p>
+        <widget></widget>
+        <p><a href="https://outer2.com">Outer 2</a></p>
+        "#
+    );
+    let md = converter.convert(html).unwrap();
+
+    assert_eq!(
+        indoc!(
+            r#"
+            [Outer 1][1]
+
+            [Inner][1]
+
+            [1]: https://inner.com
+
+            [Outer 2][2]
+
+            [1]: https://outer1.com
+            [2]: https://outer2.com"#
+        ),
+        md
+    );
+}
+
+#[test]
+fn discard_links_in_table_falling_back_to_raw_html() {
+    use indoc::indoc;
+
+    let converter = HtmlToMarkdown::builder()
+        .options(Options {
+            link_style: LinkStyle::Referenced,
+            translation_mode: TranslationMode::Faithful,
+            ..Default::default()
+        })
+        .build();
+
+    let html = indoc!(
+        r#"
+        <table>
+            <tr>
+                <td><a href="https://discarded.com">Discarded</a></td>
+                <td><custom-unsupported>test</custom-unsupported></td>
+            </tr>
+        </table>
+        <p><a href="https://kept.com">Kept</a></p>
+        "#
+    );
+    let md = converter.convert(html).unwrap();
+
+    assert_eq!(
+        indoc!(
+            r#"
+            <table>
+                <tbody><tr>
+                    <td><a href="https://discarded.com">Discarded</a></td>
+                    <td><custom-unsupported>test</custom-unsupported></td>
+                </tr>
+            </tbody></table>
+
+            [Kept][1]
+
+            [1]: https://kept.com"#
+        ),
+        md
     );
 }

@@ -128,7 +128,7 @@ fn walk_element(
     }
 
     if handlers.options.translation_mode == TranslationMode::Pure
-        && !handlers.tag_to_handler_indices.contains_key(tag)
+        && !handlers.has_tag_handler_or_listeners(tag)
     {
         let mut content = String::new();
         let is_block = is_block_element(tag);
@@ -151,13 +151,7 @@ fn is_passthrough_span(
     attrs: &[html5ever::Attribute],
     handlers: &ElementHandlers,
 ) -> bool {
-    tag == "span"
-        && handlers.options.translation_mode == TranslationMode::Pure
-        && handlers
-            .tag_to_handler_indices
-            .get("span")
-            .is_some_and(|indices| indices.len() == 1)
-        && !is_math_span(attrs)
+    tag == "span" && handlers.can_passthrough_span && !is_math_span(attrs)
 }
 
 fn trim_newlines(content: &mut String) {

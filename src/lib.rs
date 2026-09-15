@@ -8,11 +8,12 @@ pub(crate) mod text_util;
 use std::rc::Rc;
 
 use dom_walker::walk_node;
-use element_handler::{ElementHandler, ElementHandlers, is_inside_pre};
+use element_handler::{ElementHandlers, is_inside_pre};
 use html5ever::tendril::TendrilSink;
 use html5ever::tree_builder::TreeBuilderOpts;
 use html5ever::{Attribute, ParseOpts, parse_document};
 // Export publicly, providing an interface to the
+pub use element_handler::{ElementHandler, EventSubscription, EventTypes};
 pub use markup5ever_rcdom::Node;
 use markup5ever_rcdom::RcDom;
 use options::Options;
@@ -77,6 +78,7 @@ impl Context {
 }
 
 /// The DOM element.
+#[derive(Clone, Copy)]
 pub struct Element<'a> {
     /// The html5ever node of the element.
     pub node: &'a Rc<Node>,
@@ -168,6 +170,7 @@ impl HtmlToMarkdown {
     /// Convert a DOM tree to Markdown. For convenience, `Node` is re-exported;
     /// simply `use htmd::Node;` to access this type.
     pub fn tree_to_markdown(&self, tree: &Rc<Node>) -> String {
+        self.handlers.emit_doc_enter();
         let mut content = String::new();
 
         walk_node(
@@ -198,6 +201,7 @@ impl HtmlToMarkdown {
         }
         content.truncate(content.trim_end_matches('\n').len());
 
+        self.handlers.emit_doc_leave();
         content
     }
 
@@ -233,6 +237,7 @@ impl HtmlToMarkdownBuilder {
     /// Set converting options.
     pub fn options(mut self, options: Options) -> Self {
         self.handlers.options = options;
+        self.handlers.rebuild_subscriptions();
         self
     }
 
