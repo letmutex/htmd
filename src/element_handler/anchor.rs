@@ -7,7 +7,10 @@ use crate::{
     element_handler::element_util::serialize_if_extra_attrs,
     element_handler::{HandlerResult, Handlers},
     options::{LinkReferenceStyle, LinkStyle},
-    text_util::{StripWhitespace, concat_strings, escape_link_destination, normalize_title},
+    util::{
+        escape::{escape_link_destination, normalize_title},
+        text::{StripWhitespace, concat_strings},
+    },
 };
 
 /// Handler for HTML `<a>` (anchor) elements.

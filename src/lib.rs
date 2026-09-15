@@ -1,17 +1,16 @@
 mod dom_walker;
 pub mod element_handler;
-mod html_escape;
-pub(crate) mod node_util;
 pub mod options;
-pub(crate) mod text_util;
+pub(crate) mod util;
 
 use std::rc::Rc;
 
 use dom_walker::walk_node;
-use element_handler::{ElementHandlers, is_inside_pre};
+use element_handler::ElementHandlers;
 use html5ever::tendril::TendrilSink;
 use html5ever::tree_builder::TreeBuilderOpts;
 use html5ever::{Attribute, ParseOpts, parse_document};
+use util::node::is_inside_pre;
 // Export publicly, providing an interface to the
 pub use element_handler::{ElementHandler, EventSubscription, EventTypes};
 pub use markup5ever_rcdom::Node;

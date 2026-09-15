@@ -1,15 +1,15 @@
 use html5ever::tendril::{Tendril, fmt::UTF8};
 use markup5ever_rcdom::{Node, NodeData};
-use phf::phf_set;
 use std::{borrow::Cow, cell::RefCell, rc::Rc};
 
 use crate::{Context, element_handler::ElementHandlers};
 
 use super::{
     options::TranslationMode,
-    text_util::{
-        TrimDocumentWhitespace, compress_whitespace, concat_strings, frame_as_block,
-        index_of_markdown_ordered_item_dot, is_markdown_atx_heading,
+    util::{
+        escape::{escape_html, index_of_markdown_ordered_item_dot, is_markdown_atx_heading},
+        node::is_block_element,
+        text::{TrimDocumentWhitespace, compress_whitespace, concat_strings, frame_as_block},
     },
 };
 
@@ -441,7 +441,7 @@ fn escape_if_needed(text: Cow<'_, str>) -> Cow<'_, str> {
     }
 
     if !need_escape {
-        return crate::html_escape::escape_html(text);
+        return escape_html(text);
     }
 
     // Decide structural leading escapes on the raw input before rewriting
@@ -479,7 +479,7 @@ fn escape_if_needed(text: Cow<'_, str>) -> Cow<'_, str> {
 
     // Perform the HTML escape after the other escapes, so that the \\
     // characters inserted here don't get escaped again.
-    crate::html_escape::escape_html(escaped.into())
+    escape_html(escaped.into())
 }
 
 /// Cases:
@@ -498,38 +498,4 @@ fn escape_pre_text_if_needed(text: Cow<'_, str>) -> Cow<'_, str> {
         }
         _ => text,
     }
-}
-
-/// CommonMark's [HTML block](https://spec.commonmark.org/0.31.2/#html-blocks)
-/// type 1 tag list, the block-level half of [`BLOCK_ELEMENTS`] which ends at
-/// the line holding its closing tag rather than at a blank line.
-pub(crate) static TYPE_1_ELEMENTS: phf::Set<&'static str> = phf_set! {
-    "pre", "script", "style", "textarea",
-};
-
-pub(crate) fn is_type_1_element(tag: &str) -> bool {
-    TYPE_1_ELEMENTS.contains(tag)
-}
-
-/// The tags which frame their content as a block rather than an inline run.
-///
-/// This is exactly CommonMark's
-/// [HTML block](https://spec.commonmark.org/0.31.2/#html-blocks)
-/// [type 1 list](TYPE_1_ELEMENTS) plus its type 6 list, and
-/// `element_util::try_serialize_element` relies on that: a tag outside both
-/// lists could only open a type 7 block, so it has to be written as a raw HTML
-/// inline instead. Keep this set in step with the spec — adding a tag here
-/// because it reads as block-like would silently change that classification.
-pub(crate) static BLOCK_ELEMENTS: phf::Set<&'static str> = phf_set! {
-    "address", "article", "aside", "base", "basefont", "blockquote", "body", "caption",
-    "center", "col", "colgroup", "dd", "details", "dialog", "dir", "div", "dl", "dt",
-    "fieldset", "figcaption", "figure", "footer", "form", "frame", "frameset", "h1", "h2",
-    "h3", "h4", "h5", "h6", "head", "header", "hr", "html", "iframe", "legend", "li",
-    "link", "main", "menu", "menuitem", "nav", "noframes", "ol", "optgroup", "option", "p",
-    "param", "pre", "script", "search", "section", "style", "summary", "table", "tbody", "td",
-    "textarea", "tfoot", "th", "thead", "title", "tr", "track", "ul",
-};
-
-pub(crate) fn is_block_element(tag: &str) -> bool {
-    BLOCK_ELEMENTS.contains(tag)
 }

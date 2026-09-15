@@ -7,9 +7,8 @@ use crate::{
             serialize_when_faithful,
         },
     },
-    node_util::get_node_tag_name,
     options::TranslationMode,
-    text_util::frame_as_block,
+    util::{node::get_node_tag_name, text::frame_as_block},
 };
 
 pub(super) fn pre_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {

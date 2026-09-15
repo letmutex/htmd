@@ -3,7 +3,7 @@ use crate::{
     element_handler::element_util::serialize_if_extra_attrs_or_inline,
     element_handler::{HandlerResult, Handlers},
     options::HeadingStyle,
-    text_util::TrimDocumentWhitespace,
+    util::text::TrimDocumentWhitespace,
 };
 
 pub(super) fn headings_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {

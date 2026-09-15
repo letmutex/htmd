@@ -2,9 +2,11 @@ use crate::{
     Context, Element,
     element_handler::element_util::serialize_if_extra_attrs_or_inline,
     element_handler::{HandlerResult, Handlers},
-    node_util::{get_node_tag_name, get_parent_node},
     options::BulletListMarker,
-    text_util::{TrimDocumentWhitespace, concat_strings, indent_text_except_first_line},
+    util::{
+        node::{get_node_tag_name, get_parent_node},
+        text::{TrimDocumentWhitespace, concat_strings, indent_text_except_first_line},
+    },
 };
 
 pub(super) fn list_item_handler(

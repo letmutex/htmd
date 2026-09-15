@@ -2,7 +2,7 @@ use crate::{
     Context, Element,
     element_handler::element_util::serialize_if_extra_attrs,
     element_handler::{HandlerResult, Handlers},
-    text_util::frame_as_block,
+    util::text::frame_as_block,
 };
 
 pub(super) fn caption_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {

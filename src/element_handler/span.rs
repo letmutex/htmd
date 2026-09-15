@@ -4,7 +4,7 @@ use crate::{
     Element,
     element_handler::element_util::serialize_if_extra_attrs,
     element_handler::{HandlerResult, Handlers},
-    text_util::concat_strings,
+    util::text::concat_strings,
 };
 
 pub(super) fn span_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
