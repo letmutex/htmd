@@ -106,6 +106,39 @@ fn code_span_holding_a_line_ending() {
     );
 }
 
+/// A code span holding nothing. The "Code" section's special case again: the
+/// backticks meant to open an empty span close it instead, so CommonMark has no
+/// spelling for one and the `<code>` goes out as a raw HTML inline. The walk
+/// collapses its contents, which turns the whitespace-only spans below into the
+/// single space of the first row.
+#[test]
+fn empty_code_span() {
+    assert_eq!(
+        "a<code></code>b",
+        convert_faithful("<p>a<code></code>b</p>").unwrap()
+    );
+    assert_eq!(
+        "a<code> </code>b",
+        convert_faithful("<p>a<code> </code>b</p>").unwrap()
+    );
+    // Whitespace-only content reaches the emptiness test only after the trim,
+    // so a line ending here is caught as an empty span rather than as the
+    // line ending of [`code_span_holding_a_line_ending`].
+    assert_eq!(
+        "a<code> </code>b",
+        convert_faithful("<p>a<code>\n</code>b</p>").unwrap()
+    );
+
+    // Pure mode has no fallback and drops the span, rather than write the bare
+    // backticks CommonMark reads as literal text.
+    assert_eq!(
+        "ab",
+        htmd::HtmlToMarkdown::new()
+            .convert("<p>a<code></code>b</p>")
+            .unwrap()
+    );
+}
+
 /// The "Inline elements" table. An emphasis delimiter placed against a raw
 /// `<br>` would not flank, so rows 1, 2 and 4 write the element as HTML.
 #[test]
@@ -347,52 +380,29 @@ fn table_cells() {
 /// `tr_handler` and `table_section_handler`, so it repeats their checks.
 #[test]
 fn table_children_which_only_html_can_express() {
-    // The case which already works, for contrast with the rows below.
-    let cell_with_attribute = "<table><thead><tr><th scope=\"col\">h</th></tr></thead>\
-                               <tbody><tr><td>a</td></tr></tbody></table>";
-    assert_eq!(
-        cell_with_attribute,
-        convert_faithful(cell_with_attribute).unwrap()
-    );
-
-    let body_row_with_attribute = "<table><thead><tr><th>h</th></tr></thead>\
-                                   <tbody><tr id=\"r\"><td>a</td></tr></tbody></table>";
-    assert_eq!(
-        body_row_with_attribute,
-        convert_faithful(body_row_with_attribute).unwrap()
-    );
-
-    let header_row_with_attribute = "<table><thead><tr id=\"r\"><th>h</th></tr></thead>\
-                                     <tbody><tr><td>a</td></tr></tbody></table>";
-    assert_eq!(
-        header_row_with_attribute,
-        convert_faithful(header_row_with_attribute).unwrap()
-    );
-
-    let thead_with_attribute = "<table><thead id=\"t\"><tr><th>h</th></tr></thead>\
-                                <tbody><tr><td>a</td></tr></tbody></table>";
-    assert_eq!(
-        thead_with_attribute,
-        convert_faithful(thead_with_attribute).unwrap()
-    );
-
-    let tbody_with_attribute = "<table><thead><tr><th>h</th></tr></thead>\
-                                <tbody id=\"b\"><tr><td>a</td></tr></tbody></table>";
-    assert_eq!(
-        tbody_with_attribute,
-        convert_faithful(tbody_with_attribute).unwrap()
-    );
-
-    // A GFM table has one body, so a `<tfoot>`'s rows could only join it,
-    // losing the footer.
-    let with_tfoot = "<table><thead><tr><th>h</th></tr></thead>\
-                      <tbody><tr><td>a</td></tr></tbody>\
-                      <tfoot><tr><td>f</td></tr></tfoot></table>";
-    assert_eq!(with_tfoot, convert_faithful(with_tfoot).unwrap());
-
-    // A `<colgroup>` has no Markdown spelling at all.
-    let with_colgroup = "<table><colgroup><col span=\"2\"></colgroup>\
-                         <thead><tr><th>h</th></tr></thead>\
-                         <tbody><tr><td>a</td></tr></tbody></table>";
-    assert_eq!(with_colgroup, convert_faithful(with_colgroup).unwrap());
+    for html in [
+        // The cell carrying an attribute, the case the rule names.
+        "<table><thead><tr><th scope=\"col\">h</th></tr></thead>\
+         <tbody><tr><td>a</td></tr></tbody></table>",
+        // A body row, a header row, a `<thead>` and a `<tbody>` carrying one.
+        "<table><thead><tr><th>h</th></tr></thead>\
+         <tbody><tr id=\"r\"><td>a</td></tr></tbody></table>",
+        "<table><thead><tr id=\"r\"><th>h</th></tr></thead>\
+         <tbody><tr><td>a</td></tr></tbody></table>",
+        "<table><thead id=\"t\"><tr><th>h</th></tr></thead>\
+         <tbody><tr><td>a</td></tr></tbody></table>",
+        "<table><thead><tr><th>h</th></tr></thead>\
+         <tbody id=\"b\"><tr><td>a</td></tr></tbody></table>",
+        // A GFM table has one body, so a `<tfoot>`'s rows could only join it,
+        // losing the footer.
+        "<table><thead><tr><th>h</th></tr></thead>\
+         <tbody><tr><td>a</td></tr></tbody>\
+         <tfoot><tr><td>f</td></tr></tfoot></table>",
+        // A `<colgroup>` has no Markdown spelling at all.
+        "<table><colgroup><col span=\"2\"></colgroup>\
+         <thead><tr><th>h</th></tr></thead>\
+         <tbody><tr><td>a</td></tr></tbody></table>",
+    ] {
+        assert_eq!(html, convert_faithful(html).unwrap());
+    }
 }

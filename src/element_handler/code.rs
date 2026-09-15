@@ -151,10 +151,22 @@ fn handle_inline_code(handlers: &dyn Handlers, element: &Element) -> Option<Hand
     };
     // A code span's content is literal text, so a line ending written in one
     // stays a line ending and ends the leaf block the span sits in; no encoding
-    // of it survives there. The element goes out as a raw HTML inline instead,
-    // whose contents the walk collapses. See the "Code" section of
-    // `unsupported_html.md`.
-    serialize_element_when_faithful!(handlers, element, has_line_ending(&content));
+    // of it survives there. Neither has CommonMark an empty code span: the
+    // backticks meant to open one close it instead, leaving them literal text
+    // and the element gone. Either way it goes out as a raw HTML inline, whose
+    // contents the walk collapses. See the "Code" section of
+    // `unsupported_html.md`. The trim above can empty the content, so this runs
+    // after it.
+    serialize_element_when_faithful!(
+        handlers,
+        element,
+        has_line_ending(&content) || content.is_empty()
+    );
+    // Pure mode has no fallback, and drops the span rather than write the bare
+    // backticks CommonMark reads as literal text.
+    if content.is_empty() {
+        return None;
+    }
 
     let delimiter = get_inline_code_delimiter(&content);
     let needs_padding =

@@ -218,7 +218,7 @@ mod table_tests_1 {
         );
 
         assert_eq!(
-            "Sample Table\n| h    |\n| ---- |\n| John |",
+            "Sample Table\n\n| h    |\n| ---- |\n| John |",
             htmd::HtmlToMarkdown::new().convert(html).unwrap()
         );
         // A `<caption>` is only valid inside a `<table>`, so the whole table is
@@ -256,38 +256,42 @@ mod table_tests_1 {
         assert_eq!(html, convert_faithful(html).unwrap());
     }
 
-    /// A GFM table has one header row, so only the first `<tr>` of a `<thead>`
-    /// reaches the Markdown; the rest would be dropped.
-    #[test]
-    fn extra_header_rows_are_written_as_html() {
-        let html = concat!(
-            "<table><thead><tr><th>A</th></tr><tr><th>B</th></tr></thead>",
-            "<tbody><tr><td>c</td></tr></tbody></table>"
-        );
+    /// Asserts that faithful mode writes `html` back as it stands — the
+    /// fallback for a table holding what a Markdown one cannot — and that pure
+    /// mode, which has no fallback, writes `pure_markdown` instead.
+    fn assert_html_fallback(html: &str, pure_markdown: &str) {
         assert_eq!(html, convert_faithful(html).unwrap());
-
-        // Pure mode has no fallback and drops the second header row.
         assert_eq!(
-            "| A |\n| - |\n| c |",
+            pure_markdown,
             htmd::HtmlToMarkdown::new().convert(html).unwrap()
         );
     }
 
+    /// A GFM table has one header row, so only the first `<tr>` of a `<thead>`
+    /// reaches the Markdown; the rest would be dropped. Pure mode drops the
+    /// second header row.
+    #[test]
+    fn extra_header_rows_are_written_as_html() {
+        assert_html_fallback(
+            concat!(
+                "<table><thead><tr><th>A</th></tr><tr><th>B</th></tr></thead>",
+                "<tbody><tr><td>c</td></tr></tbody></table>"
+            ),
+            "| A |\n| - |\n| c |",
+        );
+    }
+
     /// A GFM row is all header cells or all body cells, so a `<th>` among a body
-    /// row's `<td>`s would be dropped.
+    /// row's `<td>`s would be dropped. Pure mode drops it, which leaves the
+    /// row's `<td>` in the first column.
     #[test]
     fn a_header_cell_in_a_body_row_is_written_as_html() {
-        let html = concat!(
-            "<table><tbody><tr><th>A</th><th>B</th></tr>",
-            "<tr><th>r</th><td>c</td></tr></tbody></table>"
-        );
-        assert_eq!(html, convert_faithful(html).unwrap());
-
-        // Pure mode has no fallback and drops the row's `<th>`, which leaves its
-        // `<td>` in the first column.
-        assert_eq!(
+        assert_html_fallback(
+            concat!(
+                "<table><tbody><tr><th>A</th><th>B</th></tr>",
+                "<tr><th>r</th><td>c</td></tr></tbody></table>"
+            ),
             "| A | B |\n| - | - |\n| c |   |",
-            htmd::HtmlToMarkdown::new().convert(html).unwrap()
         );
     }
 
@@ -309,12 +313,241 @@ mod table_tests_1 {
                 "<tbody><tr><td>c</td></tr><tr></tr></tbody></table>"
             ),
         ] {
-            assert_eq!(html, convert_faithful(html).unwrap());
-            assert_eq!(
-                "| A |\n| - |\n| c |",
-                htmd::HtmlToMarkdown::new().convert(html).unwrap()
-            );
+            assert_html_fallback(html, "| A |\n| - |\n| c |");
         }
+    }
+
+    /// The cells of a GFM header row are header cells, so a `<thead>` of `<td>`
+    /// reaches the Markdown promoted to `<th>`. Pure mode takes the promotion.
+    #[test]
+    fn a_thead_of_data_cells_is_written_as_html() {
+        assert_html_fallback(
+            concat!(
+                "<table><thead><tr><td>A</td><td>B</td></tr></thead>",
+                "<tbody><tr><td>c</td><td>d</td></tr></tbody></table>"
+            ),
+            "| A | B |\n| - | - |\n| c | d |",
+        );
+    }
+
+    /// A GFM table has one body, so a second `<tbody>`'s rows join the first and
+    /// the split between them is lost. Pure mode takes the join.
+    #[test]
+    fn a_second_tbody_is_written_as_html() {
+        assert_html_fallback(
+            concat!(
+                "<table><thead><tr><th>h</th></tr></thead>",
+                "<tbody><tr><td>a</td></tr></tbody>",
+                "<tbody><tr><td>b</td></tr></tbody></table>"
+            ),
+            "| h |\n| - |\n| a |\n| b |",
+        );
+    }
+
+    /// A GFM table has one header row, so a second `<thead>` overwrites the
+    /// header the first one gave and that header is lost. Pure mode takes the
+    /// overwrite.
+    #[test]
+    fn a_second_thead_is_written_as_html() {
+        assert_html_fallback(
+            concat!(
+                "<table><thead><tr><th>A</th></tr></thead>",
+                "<thead><tr><th>B</th></tr></thead>",
+                "<tbody><tr><td>c</td></tr></tbody></table>"
+            ),
+            "| B |\n| - |\n| c |",
+        );
+    }
+
+    /// A GFM table's header row comes first, so a `<thead>` following body rows
+    /// can only become one by moving ahead of the rows it followed. A `<tbody>`
+    /// opening with a `<th>` row supplies the header just as a `<thead>` does,
+    /// which leaves the `<thead>` after it the second of two. Pure mode takes
+    /// the reordering.
+    #[test]
+    fn a_thead_after_a_body_row_is_written_as_html() {
+        for html in [
+            concat!(
+                "<table><tbody><tr><td>c</td></tr></tbody>",
+                "<thead><tr><th>B</th></tr></thead></table>"
+            ),
+            concat!(
+                "<table><tbody><tr><th>A</th></tr><tr><td>c</td></tr></tbody>",
+                "<thead><tr><th>B</th></tr></thead></table>"
+            ),
+        ] {
+            assert_html_fallback(html, "| B |\n| - |\n| c |");
+        }
+    }
+
+    /// A GFM table's header row comes first, so a row of `<th>` following a body
+    /// row can only become one by moving ahead of the rows it followed. Pure
+    /// mode drops the row, as it drops a `<th>` among a body row's `<td>`s; the
+    /// header it leaves empty is the one
+    /// `pure_mode_writes_an_empty_header_row_for_a_headerless_table` covers.
+    #[test]
+    fn a_header_row_after_a_body_row_is_written_as_html() {
+        assert_html_fallback(
+            "<table><tbody><tr><td>1</td></tr><tr><th>H</th></tr></tbody></table>",
+            "|   |\n| - |\n| 1 |",
+        );
+    }
+
+    /// Every row of a GFM table holds the columns its header declares, so a row
+    /// of a different width gains cells the HTML never held, or gives the table
+    /// a header column the HTML never declared.
+    #[test]
+    fn a_row_wider_or_narrower_than_the_header_is_written_as_html() {
+        assert_html_fallback(
+            concat!(
+                "<table><thead><tr><th>A</th></tr></thead>",
+                "<tbody><tr><td>c</td><td>d</td></tr></tbody></table>"
+            ),
+            "| A |   |\n| - | - |\n| c | d |",
+        );
+        assert_html_fallback(
+            concat!(
+                "<table><thead><tr><th>A</th><th>B</th></tr></thead>",
+                "<tbody><tr><td>c</td></tr></tbody></table>"
+            ),
+            "| A | B |\n| - | - |\n| c |   |",
+        );
+    }
+
+    /// A Markdown table is built from its cells' content, which leaves a comment
+    /// between them nowhere to go. Stray text is not the same case: the parser
+    /// foster-parents it out of the table, ahead of the table's own output.
+    #[test]
+    fn a_comment_in_a_table_is_written_as_html() {
+        for html in [
+            concat!(
+                "<table><!-- c --><thead><tr><th>A</th></tr></thead>",
+                "<tbody><tr><td>c</td></tr></tbody></table>"
+            ),
+            concat!(
+                "<table><thead><tr><th>A</th></tr></thead>",
+                "<tbody><!-- c --><tr><td>c</td></tr></tbody></table>"
+            ),
+            concat!(
+                "<table><thead><tr><th>A</th></tr></thead>",
+                "<tbody><tr><!-- c --><td>c</td></tr></tbody></table>"
+            ),
+        ] {
+            assert_html_fallback(html, "| A |\n| - |\n| c |");
+        }
+
+        let with_stray_text = concat!(
+            "<table><thead><tr><th>A</th></tr></thead>",
+            "<tbody>stray<tr><td>c</td></tr></tbody></table>"
+        );
+        assert_eq!(
+            "stray\n\n| A |\n| - |\n| c |",
+            convert_faithful(with_stray_text).unwrap()
+        );
+    }
+
+    /// A `|` in a cell is escaped as `\|`, but a backslash escape written
+    /// inside a tag stays the two characters it is. A `|` in a raw HTML
+    /// inline's open tag is encoded as the character reference the HTML parser
+    /// reading the result decodes back.
+    #[test]
+    fn a_pipe_in_an_open_tag_is_encoded() {
+        let in_a_body_cell = concat!(
+            "<table><thead><tr><th>A</th></tr></thead>",
+            "<tbody><tr><td><span title=\"a|b\">c</span></td></tr></tbody></table>"
+        );
+        assert_eq!(
+            concat!(
+                "| A                               |\n",
+                "| ------------------------------- |\n",
+                "| <span title=\"a&#124;b\">c</span> |"
+            ),
+            convert_faithful(in_a_body_cell).unwrap()
+        );
+
+        let in_a_header_cell = concat!(
+            "<table><thead><tr><th><span title=\"a|b\">c</span></th></tr></thead>",
+            "<tbody><tr><td>c</td></tr></tbody></table>"
+        );
+        assert_eq!(
+            concat!(
+                "| <span title=\"a&#124;b\">c</span> |\n",
+                "| ------------------------------- |\n",
+                "| c                               |"
+            ),
+            convert_faithful(in_a_header_cell).unwrap()
+        );
+
+        // Pure mode drops the `<span>`, and the attribute with it.
+        assert_eq!(
+            "| A |\n| - |\n| c |",
+            htmd::HtmlToMarkdown::new().convert(in_a_body_cell).unwrap()
+        );
+    }
+
+    /// Neither escape for a `|` reaches inside a comment, so a comment holding
+    /// one takes the whole table to HTML. A nested table's comment is written
+    /// into the outer row too, so it takes the outer table with it.
+    #[test]
+    fn a_comment_holding_a_pipe_is_written_as_html() {
+        // Pure mode drops every comment, so none of these reaches a row.
+        assert_html_fallback(
+            concat!(
+                "<table><tbody><tr><th>A</th></tr>",
+                "<tr><td><!-- a|b --></td></tr></tbody></table>"
+            ),
+            "| A |\n| - |\n|   |",
+        );
+        for html in [
+            concat!(
+                "<table><tbody><tr><th><!-- a|b --></th></tr>",
+                "<tr><td>c</td></tr></tbody></table>"
+            ),
+            concat!(
+                "<table><tbody><tr><th>A</th></tr><tr><td>",
+                "<table><tbody><tr><td><!-- a|b --></td></tr></tbody></table>",
+                "</td></tr></tbody></table>"
+            ),
+        ] {
+            assert_eq!(html, convert_faithful(html).unwrap());
+        }
+
+        // A comment holding no `|` still translates, as
+        // `a_comment_in_a_table_is_written_as_html` shows for one outside a
+        // cell.
+        let without_a_pipe = concat!(
+            "<table><thead><tr><th>A</th></tr></thead>",
+            "<tbody><tr><td>a<!-- c -->b</td></tr></tbody></table>"
+        );
+        assert_eq!(
+            "| A            |\n| ------------ |\n| a<!-- c -->b |",
+            convert_faithful(without_a_pipe).unwrap()
+        );
+    }
+
+    /// A column whose every cell is empty measures zero, but a delimiter cell
+    /// holding no `-` stops the row being a delimiter row. Every column is at
+    /// least one wide so that the delimiter row stays aligned with the rows
+    /// around it.
+    #[test]
+    fn an_empty_column_is_one_wide() {
+        let only_column = concat!(
+            "<table><thead><tr><th></th></tr></thead>",
+            "<tbody><tr><td></td></tr></tbody></table>"
+        );
+        assert_eq!(
+            "|   |\n| - |\n|   |",
+            convert_faithful(only_column).unwrap()
+        );
+
+        let among_others = concat!(
+            "<table><thead><tr><th></th><th>B</th></tr></thead>",
+            "<tbody><tr><td></td><td>d</td></tr></tbody></table>"
+        );
+        assert_eq!(
+            "|   | B |\n| - | - |\n|   | d |",
+            convert_faithful(among_others).unwrap()
+        );
     }
 
     #[test]
@@ -541,6 +774,73 @@ mod table_tests_1 {
         let markdown = htmd::HtmlToMarkdown::new().convert(html).unwrap();
 
         assert_eq!(expected, markdown);
+    }
+
+    /// The parser wraps a stray `<tr>` in a `<tbody>`, so a `<table>` holds one
+    /// as a direct child only in a tree built elsewhere and handed to the public
+    /// `HtmlToMarkdown::tree_to_markdown`. Reading such a row as the body row
+    /// the parser would have made of it keeps that entry point from panicking on
+    /// a tree it did not parse itself.
+    #[test]
+    fn a_row_directly_under_a_table_is_read_as_a_body_row() {
+        use htmd::{
+            Node,
+            options::{Options, TranslationMode},
+        };
+        use html5ever::{LocalName, QualName, ns};
+        use markup5ever_rcdom::NodeData;
+        use std::{cell::RefCell, rc::Rc};
+
+        fn append(parent: &Rc<Node>, child: Rc<Node>) {
+            child.parent.set(Some(Rc::downgrade(parent)));
+            parent.children.borrow_mut().push(child);
+        }
+
+        fn element(tag: &str, children: Vec<Rc<Node>>) -> Rc<Node> {
+            let node = Node::new(NodeData::Element {
+                name: QualName::new(None, ns!(html), LocalName::from(tag)),
+                attrs: RefCell::new(Vec::new()),
+                template_contents: RefCell::new(None),
+                mathml_annotation_xml_integration_point: false,
+            });
+            for child in children {
+                append(&node, child);
+            }
+            node
+        }
+
+        fn text(contents: &str) -> Rc<Node> {
+            Node::new(NodeData::Text {
+                contents: RefCell::new(contents.into()),
+            })
+        }
+
+        let tree = Node::new(NodeData::Document);
+        append(
+            &tree,
+            element(
+                "table",
+                vec![
+                    element("tr", vec![element("th", vec![text("A")])]),
+                    element("tr", vec![element("td", vec![text("c")])]),
+                ],
+            ),
+        );
+
+        let markdown = htmd::HtmlToMarkdown::builder()
+            .options(Options {
+                translation_mode: TranslationMode::Faithful,
+                ..Default::default()
+            })
+            .build()
+            .tree_to_markdown(&tree);
+
+        assert_eq!(
+            "| A |
+| - |
+| c |",
+            markdown
+        );
     }
 
     #[test]
