@@ -72,11 +72,8 @@ following logic.
 
 | HTML node | Context | CommonMark translation |
 | --------- | ------- | ---------------------- |
-| Type 1-5  | Block   | HTML block             |
-| Type 1    | Inline  | Raw HTML inline        |
-| Type 2-5  | Inline  | Raw HTML inline        |
-| Type 6    | Block   | HTML block             |
-| Type 6    | Inline  | Raw HTML inline        |
+| Type 1-6  | Block   | HTML block             |
+| Type 1-6  | Inline  | Raw HTML inline        |
 | Type 7    | Any     | Raw HTML inline        |
 
 Type 6 HTML blocks cannot contain blank lines; these must be encoded by
@@ -164,17 +161,18 @@ context; in an inline context, they should emit raw HTML inlines. For example:
 Special case for paragraphs
 ---------------------------
 
-Classification alone is not enough: a paragraph containing only a raw HTML
-inline or only an HTML block dissolves the paragraph containing it. Of the
-containers above, only a paragraph and a setext heading are exposed. An ATX
-heading's `#` is leaf-block syntax the block scan matches before any HTML block
-start condition; a table cell's contents are parsed as inline content, so no
-block scan runs inside one at all; and a blockquote's `>` and a list item's
-marker are stripped before that scan and so protect nothing. Therefore, where a
-paragraph's content would be replaced by an HTML block, serialize the entire
-paragraph instead of its content; a setext heading falls back to ATX instead
-(see the headings section). See row 1 of the paragraphs section and row 2 of the
-blockquotes section in addition to the following table.
+Classification alone is not enough: a paragraph containing only a lone type 7
+raw HTML inline or beginning with a type 1-6 raw HTML inline dissolves the
+paragraph containing it. Of the containers above, only a paragraph and a setext
+heading are exposed. An ATX heading's `#` is leaf-block syntax the block scan
+matches before any HTML block start condition; a table cell's contents are
+parsed as inline content, so no block scan runs inside one at all; and a
+blockquote's `>` and a list item's marker are stripped before that scan and so
+protect nothing. Therefore, where a paragraph's content would be replaced by an
+HTML block, serialize the entire paragraph instead of its content; a setext
+heading falls back to ATX instead (see the headings section). See row 1 of the
+paragraphs section and row 2 of the blockquotes section in addition to the
+following table.
 
 | Description                          | HTML in                             | Faithful expected                   |
 | ------------------------------------ | ----------------------------------- | ----------------------------------- |
@@ -194,55 +192,48 @@ Code
 [code span](https://spec.commonmark.org/0.31.2/#code-spans) or a
 [fenced code block](https://spec.commonmark.org/0.31.2/#fenced-code-blocks) is
 literal text: a `<br>` written inside one is four characters, not a break. No
-encoding of a break survives there, which is why all rows of the table are HTML.
+encoding of a break survives there, which is why all rows of the table use HTML
+blocks or raw HTML inlines instead of inline code spans.
 
 Inline elements
 ---------------
 
-**Important**: This section is under development. Ignore it.
-
 The principles derived in this section apply to all the following sections,
 since they are containers for inline elements. Notation: *text*, represented
-below as the characters `a`-`d`, stands for a character that is neither Unicode
+below as the characters `a`-`b`, stands for a character that is neither Unicode
 whitespace nor Unicode punctuation.
 
-| Description                                     | HTML in                                              | Faithful expected                |
-| ----------------------------------------------- | ---------------------------------------------------- | -------------------------------- |
-| `<br>`s alone in emphasis with surrounding text | `<p>a<em><br><br>...<br></em>b</p>`                  | `a<em><br><br>...<br></em>b`     |
-| `<br>`s alone in a whole paragraph of emphasis  | `<p><em><br><br>...<br></em></p>`                    | `*<br><br>...<br>*`              |
-| `<br>`s starting an emphasis                    | `<p><em><br><br>...<br>a</em></p>`                   | `*<br><br>...<br>a*`             |
-| `<br>`s ending an emphasis                      | `<p><em>a<br><br>...<br></em></p>`                   | `*a<br><br>...<br>*`             |
-| `<br>`s starting an emphasis, text before       | `<p>a<em><br><br>...<br>b</em>c</p>`                 | `a<em><br><br>...<br>b</em>c`    |
-| `<br>`s ending an emphasis, text after          | `<p>a<em>b<br><br>...<br></em>c</p>`                 | `a<em>b<br><br>...<br></em>c`    |
-| `<br>`s inside an emphasis                      | `<p>a<em>b<br><br>...<br>c</em>d</p>`                | `a*b<br><br>...<br>c*d`          |
-| `<br>`s alone in nested emphasis                | `<p>a<em><strong><br><br>...<br></strong></em>b</p>` | `a<em>**<br><br>...<br>**</em>b` |
-| `<br>`s alone in an untranslated element        | `<p>a<del><br><br>...<br></del>b</p>`                | `a<del><br><br>...<br></del>b`   |
-| `<br>`s alone in a `<span>`                     | `<p>a<span><br><br>...<br></span>b</p>`              | `a<span><br><br>...<br></span>b` |
+| Description                                     | HTML in                                 | Faithful expected                |
+| ----------------------------------------------- | --------------------------------------- | -------------------------------- |
+| `<br>`s starting emphasis                       | `<p><em><br><br>...<br>a</em></p>`      | `<em><br><br>...<br>a</em>`      |
+| `<br>`s ending emphasis                         | `<p><em>a<br><br>...<br></em></p>`      | `<em>a<br><br>...<br></em>`      |
+| `<br>`s inside emphasis                         | `<p><em>a<br><br>...<br>b</em></p>`     | `*a<br><br>...<br>b*`            |
+| `<br>`s alone in emphasis with surrounding text | `<p>a<em><br><br>...<br></em>b</p>`     | `a<em><br><br>...<br></em>b`     |
+| `<br>`s alone in an untranslated element        | `<p>a<del><br><br>...<br></del>b</p>`   | `a<del><br><br>...<br></del>b`   |
+| `<br>`s alone in a `<span>`                     | `<p>a<span><br><br>...<br></span>b</p>` | `a<span><br><br>...<br></span>b` |
 
 An emphasis [delimiter run](https://spec.commonmark.org/0.31.2/#delimiter-run)
 opens emphasis only if it is
 [left-flanking](https://spec.commonmark.org/0.31.2/#left-flanking-delimiter-run)
 and closes emphasis only if it is
 [right-flanking](https://spec.commonmark.org/0.31.2/#right-flanking-delimiter-run).
-`<` and `>` are Unicode punctuation characters, so an emphasis delimiter placed
-against a raw `<br>` dies whenever the character on its far side is neither
-whitespace nor Unicode punctuation: `a*<br>*b` is the literal text `a*`, a
-break, and `*b`. Because there is no Markdown encoding for that shape, the
-faithful expected cell is HTML.
+`<` and `>` are
+[Unicode punctuation characters](https://spec.commonmark.org/0.31.2/#unicode-punctuation-character),
+so an emphasis delimiter placed against a raw `<br>` dies whenever the character
+on its far side is neither whitespace nor Unicode punctuation: `a*<br>*b` is the
+literal text `a*`, a break, and `*b`. Rows 1-2 show the conservative algorithm
+below at work; while these do have a CommonMark encoding, it is not used for
+simplicity.
 
 Approach:
 
-* If the first character of the emphasis string is Unicode whitespace, serialize
-  it.
-* If the first character of the emphasis string is a Unicode punctuation
-  character and the emphasis string is preceded by content and the last
-  character of this content before the emphasis string is neither Unicode
-  whitespace nor Unicode punctuation, serialize it.
-* If the last character of the emphasis string is Unicode whitespace, serialize
-  it.
-* If the last character of the emphasis string is a Unicode punctuation
-  character, serialize it. This is overly conservative; the implementation has
-  no easy way to determine the character following the emphasis string.
+1. If the first or last character of the emphasis string, after removing leading
+   and trailing whitespace, is a Unicode punctuation character, serialize the
+   entire element as HTML. (This is conservative; if the emphasis was preceded
+   or followed by Unicode whitespace, serialization isn't needed. However, the
+   current implementation makes this difficult to determine.)
+2. Move leading and trailing whitespace outside the emphasis string; surround
+   the string with the appropriate delimiters.
 
 Links
 -----
@@ -260,19 +251,19 @@ makes this encoding straightforward.
 At the document root
 --------------------
 
-| Description                | HTML in                      | Faithful expected            |
-| -------------------------- | ---------------------------- | ---------------------------- |
-| Lone `<br>`                | `<br>`                       | `<br>`                       |
-| Lone `<br>`s (two or more) | `<br><br>...<br>`            | `<br><br>...<br>`            |
-| `<br>` before a block      | `<br><p>a</p>`               | `<br>⏎⏎a`                    |
-| `<br>` after a block       | `<p>a</p><br>`               | `a⏎⏎<br>`                    |
-| `<br>`s-only `<div>`       | `<div><br><br>...<br></div>` | `<div><br><br>...<br></div>` |
+| Description           | HTML in                      | Faithful expected            |
+| --------------------- | ---------------------------- | ---------------------------- |
+| Lone `<br>`s          | `<br><br>...<br>`            | `<br><br>...<br>`            |
+| `<br>` before a block | `<br><p>a</p>`               | `<br>⏎⏎a`                    |
+| `<br>` after a block  | `<p>a</p><br>`               | `a⏎⏎<br>`                    |
+| `<br>`s-only `<div>`  | `<div><br><br>...<br></div>` | `<div><br><br>...<br></div>` |
 
-Note that row 2 wraps the result in a paragraph per the discussion in the
-translating HTML nodes section, a lossy translation. The `<div>` row needs no
-special case at all: `div` *is* a block-level tag name, so the whole element is
-an HTML block of [type 6](https://spec.commonmark.org/0.31.2/#html-blocks) and
-round-trips verbatim, however many `<br>`s it holds.
+Note that the row 1 translation is lossy: a `<p>` will be inserted when the
+CommonMark is translated back to HTML when there are two or more `<br>`s. The
+`<div>` row needs no special case at all: `div` *is* a block-level tag name, so
+the whole element is an HTML block of
+[type 6](https://spec.commonmark.org/0.31.2/#html-blocks) and round-trips
+verbatim, however many `<br>`s it holds.
 
 Headings
 --------
@@ -287,12 +278,12 @@ level 1 or level 2 heading (the only headings expressible using setext) meets
 these criteria, it must instead be encoded as an ATX heading as shown in the
 first row below.
 
-| Description                        | HTML in                    | Faithful expected         |
-| ---------------------------------- | -------------------------- | ------------------------- |
-| `<br>`-only heading (one `<br>`)   | `<h1><br></h1>`            | `#␣<br>`                  |
-| `<br>`s-only heading (two or more) | `<h1><br><br>...<br></h1>` | `<br><br>...<br>⏎=======` |
-| `<br>` starting a heading          | `<h1><br><em>b</em></h1>`  | `<br>*b*⏎=======`         |
-| `<br>` ending a heading            | `<h1><em>a</em><br></h1>`  | `*a*<br>⏎=======`         |
+| Description                        | HTML in                    | Faithful expected                 |
+| ---------------------------------- | -------------------------- | --------------------------------- |
+| `<br>`-only heading (one `<br>`)   | `<h1><br></h1>`            | `#␣<br>`                          |
+| `<br>`s-only heading (two or more) | `<h1><br><br>...<br></h1>` | `<br><br>...<br>⏎===============` |
+| `<br>` starting a heading          | `<h1><br><em>b</em></h1>`  | `<br>*b*⏎=======`                 |
+| `<br>` ending a heading            | `<h1><em>a</em><br></h1>`  | `*a*<br>⏎=======`                 |
 
 An [ATX heading](https://spec.commonmark.org/0.31.2/#atx-headings) is a single
 line. The `#` has already opened the line, so a raw `<br>` is safe anywhere in
@@ -334,15 +325,15 @@ Blockquotes
 | `<br>` starting a blockquote     | `<blockquote><p><br><em>b</em></p></blockquote>` | `>␣<br>*b*`         |
 | `<br>` ending a blockquote       | `<blockquote><p><em>a</em><br></p></blockquote>` | `>␣*a*<br>`         |
 
-Note that the line 1 translation is lossy: a `<p>` will be inserted when the
-CommonMark is translated back to HTML.
+Note that the row 1 translation is lossy: a `<p>` will be inserted when the
+CommonMark is translated back to HTML when there are two or more `<br>`s.
 
 **Special case**: the blank line rule from the analysis section that puts a
-blank line on either side of an HTML block, such as a lone `<br>`, is written as
-a blank `>` line here. The first row is the root-level row one container down,
-and holds for the same reason. The second row is the paragraph row one container
-down: the `>` is stripped before the line is scanned, so the bare tag would
-re-open as an HTML block exactly as it does at the root.
+blank line on either side of an HTML block, such as a `<div></div>`, is written
+as a blank `>` line here. The first row is the root-level row one container
+down, and holds for the same reason. The second row is the paragraph row one
+container down: the `>` is stripped before the line is scanned, so the bare tag
+would re-open as an HTML block exactly as it does at the root.
 
 Math
 ----

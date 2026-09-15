@@ -173,6 +173,15 @@ fn italic_inside_word() {
 }
 
 #[test]
+fn italic_with_br() {
+    let html = "a<i>b<br></i>c d<b><br>e</b>f";
+    assert_eq!(
+        "a<i>b<br></i>c d<b><br>e</b>f",
+        convert_faithful(html).unwrap()
+    );
+}
+
+#[test]
 fn inline_raw_html_escaping() {
     let html = r#"Test &lt;code&gt;tags&lt;/code&gt;, &lt;!-- comments --&gt;, &lt;?processing instructions?&gt;, &lt;!A declaration&gt;, and &lt;![CDATA[character data]]&gt;."#;
     assert_eq!(
