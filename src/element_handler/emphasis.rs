@@ -13,7 +13,7 @@ use crate::{
 
 pub(super) fn emphasis_handler(
     handlers: &dyn Handlers,
-    element: Element,
+    element: &Element,
     marker: &str,
 ) -> Option<HandlerResult> {
     serialize_if_extra_attrs!(handlers, element, 0);
@@ -33,7 +33,7 @@ pub(super) fn emphasis_handler(
         && (content.starts_with(is_unicode_punctuation)
             || content.ends_with(is_unicode_punctuation))
     {
-        return Some(HandlerResult::html(serialize_element(handlers, &element)));
+        return Some(HandlerResult::html(serialize_element(handlers, element)));
     }
 
     let content = concat_strings!(

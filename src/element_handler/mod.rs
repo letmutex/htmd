@@ -169,7 +169,7 @@ pub trait ElementHandler: Send + Sync {
     }
 
     /// Handle the conversion of an element.
-    fn handle(&self, handlers: &dyn Handlers, element: Element) -> Option<HandlerResult>;
+    fn handle(&self, handlers: &dyn Handlers, element: &Element) -> Option<HandlerResult>;
 
     /// Declare passive event subscriptions.
     ///
@@ -194,9 +194,9 @@ pub trait ElementHandler: Send + Sync {
 
 impl<F> ElementHandler for F
 where
-    F: (Fn(&dyn Handlers, Element) -> Option<HandlerResult>) + Send + Sync,
+    F: (Fn(&dyn Handlers, &Element) -> Option<HandlerResult>) + Send + Sync,
 {
-    fn handle(&self, handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
+    fn handle(&self, handlers: &dyn Handlers, element: &Element) -> Option<HandlerResult> {
         self(handlers, element)
     }
 }
@@ -436,7 +436,7 @@ impl ElementHandlers {
         }
 
         let result = match self.find_handler_in_entry(tag_entry, skipped_handlers) {
-            Some(handler) => handler.handle(self, element),
+            Some(handler) => handler.handle(self, &element),
             None => {
                 if self.options.translation_mode == TranslationMode::Faithful {
                     Some(serialize_element_result(self, &element))
@@ -475,7 +475,7 @@ impl ElementHandlers {
 /// Handlers can use this to delegate to other handlers or recursively process child nodes.
 pub trait Handlers {
     /// Skip the current handler and fall back to the previous handler (earlier in registration order).
-    fn fallback(&self, element: Element) -> Option<HandlerResult>;
+    fn fallback(&self, element: &Element) -> Option<HandlerResult>;
 
     /// Process a `markup5ever` node through the handlers. `context` is the
     /// [`Context`] the node appears in.
@@ -495,7 +495,7 @@ pub trait Handlers {
 }
 
 impl Handlers for ElementHandlers {
-    fn fallback(&self, element: Element) -> Option<HandlerResult> {
+    fn fallback(&self, element: &Element) -> Option<HandlerResult> {
         self.handle(
             element.node,
             element.tag,
@@ -528,19 +528,19 @@ impl Handlers for ElementHandlers {
     }
 }
 
-fn block_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
+fn block_handler(handlers: &dyn Handlers, element: &Element) -> Option<HandlerResult> {
     if handlers.options().translation_mode == TranslationMode::Pure {
         let content = handlers.walk_children_content(element.node, element.context);
         Some(frame_as_block(&content).into())
     } else {
-        Some(serialize_element_result(handlers, &element))
+        Some(serialize_element_result(handlers, element))
     }
 }
 
-fn bold_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
+fn bold_handler(handlers: &dyn Handlers, element: &Element) -> Option<HandlerResult> {
     emphasis_handler(handlers, element, "**")
 }
 
-fn italic_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
+fn italic_handler(handlers: &dyn Handlers, element: &Element) -> Option<HandlerResult> {
     emphasis_handler(handlers, element, "*")
 }

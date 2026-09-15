@@ -5,7 +5,7 @@ use crate::{
     util::text::frame_as_block,
 };
 
-pub(super) fn caption_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
+pub(super) fn caption_handler(handlers: &dyn Handlers, element: &Element) -> Option<HandlerResult> {
     // CommonMark has no caption, so faithful mode always writes the element as
     // HTML. A `<caption>` is only valid inside a `<table>`, so `table_handler`
     // serializes the whole table around it.

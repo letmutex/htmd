@@ -6,11 +6,11 @@ use crate::{
 
 pub(super) fn head_body_handler(
     handlers: &dyn Handlers,
-    element: Element,
+    element: &Element,
 ) -> Option<HandlerResult> {
     handle_or_serialize_by_parent(
         handlers,
-        &element,
+        element,
         &["html"],
         i64::MAX,
         false,

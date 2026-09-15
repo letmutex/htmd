@@ -39,7 +39,7 @@ fn test_element_events_skip_on_handler_fallback() {
                 .push(format!("leave:{}:{}", element.tag, translated));
         }
 
-        fn handle(&self, _handlers: &dyn Handlers, _element: Element) -> Option<HandlerResult> {
+        fn handle(&self, _handlers: &dyn Handlers, _element: &Element) -> Option<HandlerResult> {
             None
         }
     }
@@ -49,11 +49,14 @@ fn test_element_events_skip_on_handler_fallback() {
 
     let converter = HtmlToMarkdown::builder()
         .add_handler(vec!["watcher"], listener)
-        .add_handler(vec!["div"], |_handlers: &dyn Handlers, element: Element| {
-            let content = _handlers.walk_children_content(element.node, element.context);
-            Some(format!("fallback:{content}").into())
-        })
-        .add_handler(vec!["div"], |handlers: &dyn Handlers, element: Element| {
+        .add_handler(
+            vec!["div"],
+            |_handlers: &dyn Handlers, element: &Element| {
+                let content = _handlers.walk_children_content(element.node, element.context);
+                Some(format!("fallback:{content}").into())
+            },
+        )
+        .add_handler(vec!["div"], |handlers: &dyn Handlers, element: &Element| {
             handlers.fallback(element)
         })
         .build();
@@ -92,7 +95,7 @@ fn test_passive_tag_filtering() {
                 .push(element.tag.to_string());
         }
 
-        fn handle(&self, _handlers: &dyn Handlers, _element: Element) -> Option<HandlerResult> {
+        fn handle(&self, _handlers: &dyn Handlers, _element: &Element) -> Option<HandlerResult> {
             None
         }
     }
@@ -144,7 +147,7 @@ fn test_doc_lifecycle_events_with_nesting() {
             self.lifecycle.lock().unwrap().push("doc_leave".to_string());
         }
 
-        fn handle(&self, _handlers: &dyn Handlers, _element: Element) -> Option<HandlerResult> {
+        fn handle(&self, _handlers: &dyn Handlers, _element: &Element) -> Option<HandlerResult> {
             None
         }
     }
@@ -160,7 +163,7 @@ fn test_doc_lifecycle_events_with_nesting() {
         .add_handler(vec!["watcher"], listener)
         .add_handler(
             vec!["nested"],
-            move |_handlers: &dyn Handlers, _element: Element| {
+            move |_handlers: &dyn Handlers, _element: &Element| {
                 let inner_conv = HtmlToMarkdown::builder()
                     .add_handler(vec!["watcher"], inner_listener.clone())
                     .build();
@@ -217,7 +220,7 @@ fn test_span_events_dispatched_in_pure_mode() {
                 .push(format!("leave:{}:{}", element.tag, translated));
         }
 
-        fn handle(&self, _handlers: &dyn Handlers, _element: Element) -> Option<HandlerResult> {
+        fn handle(&self, _handlers: &dyn Handlers, _element: &Element) -> Option<HandlerResult> {
             None
         }
     }
@@ -271,7 +274,7 @@ fn test_unhandled_tag_events_dispatched_in_pure_mode() {
                 .push(format!("leave:{}:{}", element.tag, translated));
         }
 
-        fn handle(&self, _handlers: &dyn Handlers, _element: Element) -> Option<HandlerResult> {
+        fn handle(&self, _handlers: &dyn Handlers, _element: &Element) -> Option<HandlerResult> {
             None
         }
     }
@@ -325,7 +328,7 @@ fn test_span_and_unhandled_tag_events_in_faithful_mode() {
                 .push(format!("leave:{}:{}", element.tag, translated));
         }
 
-        fn handle(&self, _handlers: &dyn Handlers, _element: Element) -> Option<HandlerResult> {
+        fn handle(&self, _handlers: &dyn Handlers, _element: &Element) -> Option<HandlerResult> {
             None
         }
     }

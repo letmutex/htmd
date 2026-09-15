@@ -17,7 +17,7 @@ use crate::{
     },
 };
 
-pub(super) fn code_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
+pub(super) fn code_handler(handlers: &dyn Handlers, element: &Element) -> Option<HandlerResult> {
     // In faithful mode, all children of a code tag must be text to translate
     // as markdown.
     if handlers.options().translation_mode == TranslationMode::Faithful
@@ -28,7 +28,7 @@ pub(super) fn code_handler(handlers: &dyn Handlers, element: Element) -> Option<
             .iter()
             .all(|node| matches!(node.data, NodeData::Text { .. }))
     {
-        return Some(serialize_element_result(handlers, &element));
+        return Some(serialize_element_result(handlers, element));
     }
 
     // Determine the type: inline code or a code block.
@@ -46,7 +46,7 @@ pub(super) fn code_handler(handlers: &dyn Handlers, element: Element) -> Option<
 
 fn handle_code_block(
     handlers: &dyn Handlers,
-    element: Element,
+    element: &Element,
     parent: &Rc<Node>,
 ) -> Option<HandlerResult> {
     // A code block is a CommonMark block, so it needs a block context.
@@ -128,7 +128,7 @@ fn find_language_from_attrs(attrs: &[Attribute]) -> Option<String> {
         .map(str::to_owned)
 }
 
-fn handle_inline_code(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
+fn handle_inline_code(handlers: &dyn Handlers, element: &Element) -> Option<HandlerResult> {
     serialize_if_extra_attrs!(handlers, element, 0);
     // A code span holds literal text — every child is a text node here, as
     // `code_handler` checked — so the context it is read in doesn't matter.

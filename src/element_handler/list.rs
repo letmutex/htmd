@@ -11,7 +11,7 @@ use crate::{
     },
 };
 
-pub(super) fn list_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
+pub(super) fn list_handler(handlers: &dyn Handlers, element: &Element) -> Option<HandlerResult> {
     // In faithful mode, ...
     if handlers.options().translation_mode == TranslationMode::Faithful {
         // ...a list is a CommonMark block, so it needs a block context, and
@@ -29,7 +29,7 @@ pub(super) fn list_handler(handlers: &dyn Handlers, element: Element) -> Option<
             // with whitespace; these should be ignored.
             tag_name == Some("li") || tag_name.is_none()
         }) {
-            return Some(serialize_element_result(handlers, &element));
+            return Some(serialize_element_result(handlers, element));
         }
     }
     let parent = get_parent_node(element.node);
@@ -38,7 +38,7 @@ pub(super) fn list_handler(handlers: &dyn Handlers, element: Element) -> Option<
         .unwrap_or(false);
 
     let result = if element.tag == "ol" {
-        let (content, translated) = get_ol_content(handlers, &element);
+        let (content, translated) = get_ol_content(handlers, element);
         HandlerResult {
             content,
             markdown_translated: translated,
@@ -52,7 +52,7 @@ pub(super) fn list_handler(handlers: &dyn Handlers, element: Element) -> Option<
     if handlers.options().translation_mode == TranslationMode::Faithful
         && !result.markdown_translated
     {
-        return Some(serialize_element_result(handlers, &element));
+        return Some(serialize_element_result(handlers, element));
     }
 
     let trimmed = result.content.trim_matches(|ch| ch == '\n');

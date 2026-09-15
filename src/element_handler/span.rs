@@ -7,7 +7,7 @@ use crate::{
     util::text::concat_strings,
 };
 
-pub(super) fn span_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
+pub(super) fn span_handler(handlers: &dyn Handlers, element: &Element) -> Option<HandlerResult> {
     // See if this contains math: `<span class="math math-inline/display>text-only content</span>`.
     if element.attrs.len() == 1
         && let attr = &element.attrs[0]

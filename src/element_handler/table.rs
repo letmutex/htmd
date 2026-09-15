@@ -18,7 +18,7 @@ use std::rc::Rc;
 /// | ------- | ------- |
 /// | Cell1   | Cell2   |
 /// ```
-pub(crate) fn table_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
+pub(crate) fn table_handler(handlers: &dyn Handlers, element: &Element) -> Option<HandlerResult> {
     // A GFM table is a CommonMark block, so the extraction below always runs in
     // a block context.
     serialize_if_extra_attrs_or_inline!(handlers, element, 0);
@@ -37,7 +37,7 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: Element) -> Option
 
     if handlers.options().translation_mode == TranslationMode::Faithful && !all_children_translated
     {
-        return Some(serialize_element_result(handlers, &element));
+        return Some(serialize_element_result(handlers, element));
     }
 
     if rows.is_empty() && headers.is_empty() {
@@ -58,7 +58,7 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: Element) -> Option
     // follow a header row. Faithful mode writes HTML rather than invent one;
     // pure mode has no such fallback and writes an empty header row.
     if handlers.options().translation_mode == TranslationMode::Faithful && headers.is_empty() {
-        return Some(serialize_element_result(handlers, &element));
+        return Some(serialize_element_result(handlers, element));
     }
     if headers.is_empty() {
         headers = vec![String::new(); num_columns];

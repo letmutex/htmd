@@ -7,7 +7,7 @@ use crate::{
 
 pub(super) fn blockquote_handler(
     handlers: &dyn Handlers,
-    element: Element,
+    element: &Element,
 ) -> Option<HandlerResult> {
     serialize_if_extra_attrs_or_inline!(handlers, element, 0);
     // A blockquote is a container block: its children begin a block context.
