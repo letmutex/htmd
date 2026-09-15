@@ -216,6 +216,7 @@ pub(crate) struct ElementHandlers {
     pub(crate) doc_enter_listeners: Vec<usize>,
     pub(crate) doc_leave_listeners: Vec<usize>,
     pub(crate) has_element_listeners: bool,
+    pub(crate) can_passthrough_span: bool,
     pub(crate) options: Options,
 }
 
@@ -239,6 +240,15 @@ impl ElementHandlers {
         self.tag_entries
             .get(tag)
             .is_some_and(|entry| !entry.handler_indices.is_empty())
+    }
+
+    pub(crate) fn has_tag_handler_or_listeners(&self, tag: &str) -> bool {
+        let Some(entry) = self.tag_entries.get(tag) else {
+            return false;
+        };
+        !entry.handler_indices.is_empty()
+            || (self.has_element_listeners
+                && (!entry.enter_listeners.is_empty() || !entry.leave_listeners.is_empty()))
     }
 
     pub(crate) fn tag_handler_count(&self, tag: &str) -> usize {
@@ -294,6 +304,11 @@ impl ElementHandlers {
             }
         }
         self.has_element_listeners = has_element_listeners;
+        self.can_passthrough_span = self.options.translation_mode == TranslationMode::Pure
+            && self.tag_handler_count("span") == 1
+            && self.tag_entries.get("span").is_none_or(|entry| {
+                entry.enter_listeners.is_empty() && entry.leave_listeners.is_empty()
+            });
     }
 
     pub fn new(options: Options) -> Self {
@@ -303,6 +318,7 @@ impl ElementHandlers {
             doc_enter_listeners: Vec::new(),
             doc_leave_listeners: Vec::new(),
             has_element_listeners: false,
+            can_passthrough_span: false,
             options,
         };
 

@@ -127,7 +127,8 @@ fn walk_element(
         return markdown_translated;
     }
 
-    if handlers.options.translation_mode == TranslationMode::Pure && !handlers.has_tag_handler(tag)
+    if handlers.options.translation_mode == TranslationMode::Pure
+        && !handlers.has_tag_handler_or_listeners(tag)
     {
         let mut content = String::new();
         let is_block = is_block_element(tag);
@@ -150,10 +151,7 @@ fn is_passthrough_span(
     attrs: &[html5ever::Attribute],
     handlers: &ElementHandlers,
 ) -> bool {
-    tag == "span"
-        && handlers.options.translation_mode == TranslationMode::Pure
-        && handlers.tag_handler_count("span") == 1
-        && !is_math_span(attrs)
+    tag == "span" && handlers.can_passthrough_span && !is_math_span(attrs)
 }
 
 fn trim_newlines(content: &mut String) {
