@@ -3,9 +3,8 @@ use markup5ever_rcdom::NodeData;
 use crate::{
     Element,
     element_handler::{HandlerResult, Handlers, element_util::serialize_element_result},
-    node_util::get_parent_node,
     options::TranslationMode,
-    text_util::frame_as_block,
+    util::{node::get_parent_node, text::frame_as_block},
 };
 
 pub(super) fn html_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {

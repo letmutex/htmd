@@ -19,13 +19,12 @@ mod table;
 mod table_section;
 mod td_th;
 mod tr;
-mod unicode_punctuation;
 
 use crate::{
     dom_walker::walk_node,
     element_handler::element_util::serialize_element_result,
     options::{Options, TranslationMode},
-    text_util::frame_as_block,
+    util::text::frame_as_block,
 };
 
 use super::{Context, Element};
@@ -384,7 +383,7 @@ impl ElementHandlers {
 
         handlers.add_handler(vec!["span"], span_handler);
 
-        let unhandled_block_elements = crate::dom_walker::BLOCK_ELEMENTS
+        let unhandled_block_elements = crate::util::node::BLOCK_ELEMENTS
             .iter()
             .filter(|tag| !handlers.has_tag_handler(tag))
             .copied()
@@ -516,10 +515,10 @@ impl Handlers for ElementHandlers {
     }
 
     fn walk_children(&self, node: &Rc<Node>, context: Context) -> HandlerResult {
-        let tag = crate::node_util::get_node_tag_name(node);
+        let tag = crate::util::node::get_node_tag_name(node);
         self.walk_children_with(
             node,
-            tag.is_some_and(crate::dom_walker::is_block_element),
+            tag.is_some_and(crate::util::node::is_block_element),
             context,
         )
     }
@@ -527,22 +526,6 @@ impl Handlers for ElementHandlers {
     fn options(&self) -> &Options {
         &self.options
     }
-}
-
-/// Whether `tag` preserves whitespace and holds text which goes out unescaped.
-fn is_pre_element(tag: &str) -> bool {
-    tag == "pre" || tag == "code"
-}
-
-pub(crate) fn is_inside_pre(node: &Rc<Node>) -> bool {
-    let mut current = crate::node_util::get_parent_node(node);
-    while let Some(parent) = current {
-        if crate::node_util::get_node_tag_name(&parent).is_some_and(is_pre_element) {
-            return true;
-        }
-        current = crate::node_util::get_parent_node(&parent);
-    }
-    false
 }
 
 fn block_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {

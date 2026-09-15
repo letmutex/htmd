@@ -4,9 +4,11 @@ use crate::{
     Element,
     element_handler::element_util::serialize_if_extra_attrs_or_inline,
     element_handler::{HandlerResult, Handlers, element_util::serialize_element_result},
-    node_util::{get_node_tag_name, get_parent_node},
     options::{Options, TranslationMode},
-    text_util::{append_block, concat_strings, frame_as_block, indent_text_except_first_line},
+    util::{
+        node::{get_node_tag_name, get_parent_node},
+        text::{append_block, concat_strings, frame_as_block, indent_text_except_first_line},
+    },
 };
 
 pub(super) fn list_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {

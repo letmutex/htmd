@@ -3,7 +3,7 @@
 //! Generated data for Unicode 17.0.0 — do not edit by hand. To refresh it for a newer Unicode
 //! release, run the generator that produced it,
 //! `cargo test print_punctuation_or_symbol_table -- --ignored --nocapture`, and paste its output
-//! over the table below. `emphasis::tests` checks that the table is sorted and merged, and that
+//! over the table below. `unicode::tests` checks that the table is sorted and merged, and that
 //! it still matches the Unicode general categories the generator reads.
 
 /// The non-ASCII code points whose Unicode general category is `P` (punctuation) or `S`

@@ -2,9 +2,11 @@ use crate::Context;
 use crate::element_handler::element_util::serialize_element_result;
 use crate::element_handler::element_util::serialize_if_extra_attrs_or_inline;
 use crate::element_handler::{Element, HandlerResult, Handlers};
-use crate::node_util::{get_node_tag_name, get_parent_node};
 use crate::options::TranslationMode;
-use crate::text_util::{TrimDocumentWhitespace, concat_strings, frame_as_block};
+use crate::util::{
+    node::{get_node_tag_name, get_parent_node},
+    text::{TrimDocumentWhitespace, concat_strings, frame_as_block},
+};
 use markup5ever_rcdom::NodeData;
 use std::rc::Rc;
 

@@ -1,9 +1,11 @@
 use crate::{
     Context, Element,
-    dom_walker::{is_block_element, is_type_1_element},
     element_handler::{HandlerResult, Handlers},
-    node_util::parent_tag_name_equals,
-    text_util::{frame_as_block, has_line_ending, push_encoding_line_ending},
+    util::{
+        escape::{has_line_ending, push_encoding_line_ending},
+        node::{is_block_element, is_type_1_element, parent_tag_name_equals},
+        text::frame_as_block,
+    },
 };
 use html5ever::serialize::{HtmlSerializer, SerializeOpts, Serializer, TraversalScope, serialize};
 use markup5ever_rcdom::{NodeData, SerializableHandle};

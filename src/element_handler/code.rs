@@ -10,9 +10,11 @@ use crate::{
         HandlerResult, Handlers,
         element_util::{serialize_element_result, serialize_element_when_faithful},
     },
-    node_util::{get_node_tag_name, get_parent_node},
     options::{CodeBlockFence, CodeBlockStyle, TranslationMode},
-    text_util::{JoinOnStringIterator, TrimDocumentWhitespace, concat_strings},
+    util::{
+        node::{get_node_tag_name, get_parent_node},
+        text::{JoinOnStringIterator, TrimDocumentWhitespace, concat_strings},
+    },
 };
 
 pub(super) fn code_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {

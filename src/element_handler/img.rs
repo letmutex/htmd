@@ -2,7 +2,10 @@ use crate::{
     Element,
     element_handler::element_util::serialize_if_extra_attrs,
     element_handler::{HandlerResult, Handlers},
-    text_util::{concat_strings, escape_link_destination, normalize_title},
+    util::{
+        escape::{escape_link_destination, normalize_title},
+        text::concat_strings,
+    },
 };
 
 pub(super) fn img_handler(handlers: &dyn Handlers, element: Element) -> Option<HandlerResult> {
