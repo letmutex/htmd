@@ -256,6 +256,67 @@ mod table_tests_1 {
         assert_eq!(html, convert_faithful(html).unwrap());
     }
 
+    /// A GFM table has one header row, so only the first `<tr>` of a `<thead>`
+    /// reaches the Markdown; the rest would be dropped.
+    #[test]
+    fn extra_header_rows_are_written_as_html() {
+        let html = concat!(
+            "<table><thead><tr><th>A</th></tr><tr><th>B</th></tr></thead>",
+            "<tbody><tr><td>c</td></tr></tbody></table>"
+        );
+        assert_eq!(html, convert_faithful(html).unwrap());
+
+        // Pure mode has no fallback and drops the second header row.
+        assert_eq!(
+            "| A |\n| - |\n| c |",
+            htmd::HtmlToMarkdown::new().convert(html).unwrap()
+        );
+    }
+
+    /// A GFM row is all header cells or all body cells, so a `<th>` among a body
+    /// row's `<td>`s would be dropped.
+    #[test]
+    fn a_header_cell_in_a_body_row_is_written_as_html() {
+        let html = concat!(
+            "<table><tbody><tr><th>A</th><th>B</th></tr>",
+            "<tr><th>r</th><td>c</td></tr></tbody></table>"
+        );
+        assert_eq!(html, convert_faithful(html).unwrap());
+
+        // Pure mode has no fallback and drops the row's `<th>`, which leaves its
+        // `<td>` in the first column.
+        assert_eq!(
+            "| A | B |\n| - | - |\n| c |   |",
+            htmd::HtmlToMarkdown::new().convert(html).unwrap()
+        );
+    }
+
+    /// A `<colgroup>`, a `<script>` between rows, and a row holding no cell all
+    /// reach the Markdown table as nothing at all.
+    #[test]
+    fn table_content_a_markdown_row_cannot_hold_is_written_as_html() {
+        for html in [
+            concat!(
+                "<table><colgroup><col></colgroup><thead><tr><th>A</th></tr></thead>",
+                "<tbody><tr><td>c</td></tr></tbody></table>"
+            ),
+            concat!(
+                "<table><thead><tr><th>A</th></tr></thead>",
+                "<tbody><script>x</script><tr><td>c</td></tr></tbody></table>"
+            ),
+            concat!(
+                "<table><thead><tr><th>A</th></tr></thead>",
+                "<tbody><tr><td>c</td></tr><tr></tr></tbody></table>"
+            ),
+        ] {
+            assert_eq!(html, convert_faithful(html).unwrap());
+            assert_eq!(
+                "| A |\n| - |\n| c |",
+                htmd::HtmlToMarkdown::new().convert(html).unwrap()
+            );
+        }
+    }
+
     #[test]
     fn test_empty_table() {
         let html = "<table></table>";

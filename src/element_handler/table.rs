@@ -153,6 +153,14 @@ fn extract_thead(
     table: &mut ExtractedTable,
 ) {
     let children = thead_node.children.borrow();
+    // A GFM table has exactly one header row, so a second `<tr>` here has
+    // nowhere to go.
+    let row_count = children
+        .iter()
+        .filter(|node| get_node_tag_name(node).is_some_and(|tag| tag == "tr"))
+        .count();
+    table.all_children_translated &= row_count <= 1 && holds_only(thead_node, "tr");
+
     let row_node = children
         .iter()
         .find(|node| get_node_tag_name(node).is_some_and(|tag| tag == "tr"))
@@ -170,11 +178,12 @@ fn extract_header_row(
 ) {
     for cell_tag in ["th", "td"] {
         let (headers, translated) = extract_row_cells(handlers, row_node, cell_tag);
+        if headers.is_empty() && cell_tag == "th" {
+            continue;
+        }
         table.all_children_translated &= translated;
         table.headers = headers;
-        if !table.headers.is_empty() {
-            break;
-        }
+        break;
     }
 }
 
@@ -184,6 +193,8 @@ fn extract_section_rows(
     table: &mut ExtractedTable,
     has_thead: &mut bool,
 ) {
+    table.all_children_translated &= holds_only(section_node, "tr");
+
     for row_node in section_node.children.borrow().iter() {
         if get_node_tag_name(row_node) != Some("tr") {
             continue;
@@ -191,19 +202,15 @@ fn extract_section_rows(
 
         if !*has_thead && table.headers.is_empty() {
             let (headers, translated) = extract_row_cells(handlers, row_node, "th");
-            table.headers = headers;
-            table.all_children_translated &= translated;
-            *has_thead = !table.headers.is_empty();
-            if *has_thead {
+            if !headers.is_empty() {
+                table.headers = headers;
+                table.all_children_translated &= translated;
+                *has_thead = true;
                 continue;
             }
         }
 
-        let (cells, translated) = extract_row_cells(handlers, row_node, "td");
-        table.all_children_translated &= translated;
-        if !cells.is_empty() {
-            table.rows.push(cells);
-        }
+        extract_body_row(handlers, row_node, table);
     }
 }
 
@@ -217,12 +224,33 @@ fn extract_direct_row(
         extract_header_row(handlers, row_node, table);
         *has_thead = !table.headers.is_empty();
     } else {
-        let (cells, translated) = extract_row_cells(handlers, row_node, "td");
-        table.all_children_translated &= translated;
-        if !cells.is_empty() {
-            table.rows.push(cells);
-        }
+        extract_body_row(handlers, row_node, table);
     }
+}
+
+/// Appends `row_node`'s `td` cells to `table.rows`.
+fn extract_body_row(
+    handlers: &dyn Handlers,
+    row_node: &Rc<markup5ever_rcdom::Node>,
+    table: &mut ExtractedTable,
+) {
+    let (cells, translated) = extract_row_cells(handlers, row_node, "td");
+    // A row which yields no cells is dropped rather than written as the empty
+    // Markdown row it has no content for.
+    table.all_children_translated &= translated && !cells.is_empty();
+    if !cells.is_empty() {
+        table.rows.push(cells);
+    }
+}
+
+/// Whether every element child of `node` is a `tag`. Any other element would be
+/// dropped from the Markdown table, which only faithful mode can avoid by
+/// writing the table as HTML.
+fn holds_only(node: &Rc<markup5ever_rcdom::Node>, tag: &str) -> bool {
+    node.children
+        .borrow()
+        .iter()
+        .all(|child| !matches!(&child.data, NodeData::Element { name, .. } if name.local.as_ref() != tag))
 }
 
 /// Whether `node` carries no attributes, which a Markdown table has nowhere to
@@ -283,8 +311,10 @@ fn extract_row_cells(
 ) -> (Vec<String>, bool) {
     let mut cells = Vec::new();
     // A Markdown table row has nowhere to write an attribute either, so a `<tr>`
-    // carrying one takes the whole table to HTML.
-    let mut all_translated = has_no_attributes(row_node);
+    // carrying one takes the whole table to HTML. Neither can it hold a cell of
+    // the other kind -- a GFM row is all header or all body -- nor any of the
+    // other elements a `<tr>` may hold, such as a `<script>`.
+    let mut all_translated = has_no_attributes(row_node) && holds_only(row_node, cell_tag);
 
     for cell_node in row_node.children.borrow().iter() {
         if let NodeData::Element { name, .. } = &cell_node.data
