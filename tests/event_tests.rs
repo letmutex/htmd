@@ -364,4 +364,3 @@ fn test_span_and_unhandled_tag_events_in_faithful_mode() {
         recorded
     );
 }
-
