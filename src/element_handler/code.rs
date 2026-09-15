@@ -167,6 +167,15 @@ fn handle_inline_code(handlers: &dyn Handlers, element: &Element) -> Option<Hand
     if content.is_empty() {
         return None;
     }
+    // Only pure mode reaches a line ending here, the fallback above having
+    // taken faithful mode's. CommonMark reads a line ending in a code span as a
+    // space, so writing that space is what the span meant anyway, and it keeps
+    // the bare newline out of the heading it would truncate.
+    let content = if has_line_ending(&content) {
+        content.replace(['\r', '\n'], " ")
+    } else {
+        content
+    };
 
     let delimiter = get_inline_code_delimiter(&content);
     let needs_padding =

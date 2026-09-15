@@ -130,11 +130,13 @@ fn extract_table_content(
             }
             // A GFM table has one header row, and it comes first. So a second
             // `<thead>` can only overwrite the header the first one gave, and a
-            // `<thead>` following body rows can only become that header by
-            // moving ahead of the rows it followed.
+            // `<thead>` following a body section can only become that header by
+            // moving ahead of it -- a `<tbody>` holding no row included, since
+            // the header it gains would precede a body the Markdown has no
+            // spelling for.
             "thead" => {
                 table.all_children_translated &=
-                    has_no_attributes(child) && !has_thead && table.rows.is_empty();
+                    has_no_attributes(child) && !has_thead && !has_tbody && table.rows.is_empty();
                 has_thead = true;
                 extract_thead(handlers, child, &mut table);
             }

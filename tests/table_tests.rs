@@ -380,6 +380,21 @@ mod table_tests_1 {
         }
     }
 
+    /// A `<tbody>` holding no row reaches the Markdown as nothing at all, so the
+    /// `<thead>` after it would move ahead of a body section the table no longer
+    /// has. Pure mode takes the reordering, which leaves a table of a header
+    /// alone.
+    #[test]
+    fn a_thead_after_an_empty_tbody_is_written_as_html() {
+        assert_html_fallback(
+            concat!(
+                "<table><tbody></tbody>",
+                "<thead><tr><th>B</th></tr></thead></table>"
+            ),
+            "| B |\n| - |",
+        );
+    }
+
     /// A GFM table's header row comes first, so a row of `<th>` following a body
     /// row can only become one by moving ahead of the rows it followed. Pure
     /// mode drops the row, as it drops a `<th>` among a body row's `<td>`s; the

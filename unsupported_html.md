@@ -380,9 +380,10 @@ The table is also serialized as HTML where its shape is not one a
 [GFM table](https://github.github.com/gfm/#tables-extension-) has. A GFM table
 is a header row of header cells, then one body; every row holds the columns the
 header declares. So the table goes out as HTML when it has no header row or more
-than one, when a row of `<th>` follows a body row, when its header row is made
-of `<td>`, when it holds a `<tfoot>` or a second `<tbody>`, or when a row is
-wider or narrower than the header.
+than one, when a row of `<th>` follows a body row, when a `<thead>` follows a
+`<tbody>` (one holding no row included), when its header row is made of `<td>`,
+when it holds a `<tfoot>` or a second `<tbody>`, or when a row is wider or
+narrower than the header.
 
 | Description                       | HTML in                    | Faithful expected               |
 | --------------------------------- | -------------------------- | ------------------------------- |
