@@ -1021,6 +1021,18 @@ fn round_trip_setext(html: &str) -> String {
     )
 }
 
+/// A setext heading's content opens a line, so content which starts any leaf
+/// block dissolves the heading exactly as it dissolves a paragraph. The escape
+/// "Special case for paragraphs" puts on such content keeps the setext spelling
+/// whole, so the headings section's fallback to ATX is not needed here.
+#[test]
+fn round_trip_of_a_setext_heading_of_leaf_block_syntax() {
+    assert_eq!("<h1>-</h1>\n", round_trip_setext("<h1>-</h1>"));
+    assert_eq!("<h2>-</h2>\n", round_trip_setext("<h2>-</h2>"));
+    assert_eq!("<h1>---</h1>\n", round_trip_setext("<h1>---</h1>"));
+    assert_eq!("<h1>1.</h1>\n", round_trip_setext("<h1>1.</h1>"));
+}
+
 /// A heading is a leaf block, so each element below is written as a raw HTML
 /// inline. Only its tags are HTML; what sits between them is CommonMark text,
 /// which is what makes the escape of `a\*b` work here — the CommonMark parser
