@@ -164,6 +164,23 @@ fn preformatted_inline_code_preserves_boundary_spaces() {
     assert_eq!("`  foo  `", markdown);
 }
 
+/// Pure mode has no HTML fallback for a code span holding a line ending, which
+/// `unsupported_html_tests::code_span_holding_a_line_ending` covers for
+/// faithful mode. CommonMark reads such a line ending as a space, so writing
+/// the space keeps the rendered span and leaves the heading whole; the bare
+/// newline would end the heading and strand the rest of it in a paragraph.
+#[test]
+fn pure_mode_writes_a_code_span_line_ending_as_the_space_commonmark_reads() {
+    assert_eq!(
+        "# a `x y` b",
+        htmd::convert("<h1>a <code>x\ny</code> b</h1>").unwrap()
+    );
+    assert_eq!(
+        "a `x y` b",
+        htmd::convert("<p>a <code>x\ny</code> b</p>").unwrap()
+    );
+}
+
 #[test]
 fn fenced_code_uses_a_fence_longer_than_any_run_in_its_content() {
     let markdown =

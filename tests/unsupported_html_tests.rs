@@ -68,6 +68,77 @@ fn code() {
     );
 }
 
+/// A code span whose text holds a line ending. The "Code" section's special
+/// case — a code span's content is literal text, and no encoding of a break
+/// survives there — makes this the same situation as the `<br>` rows of
+/// [`code`]: the `<code>` has to go out as a raw HTML inline, whose contents
+/// the walk collapses to a single space. Writing the span itself would break
+/// the "Translating HTML nodes" rule that no handler may write a bare newline
+/// in an inline context.
+#[test]
+fn code_span_holding_a_line_ending() {
+    // An ATX heading is a single line, so any line ending truncates it.
+    assert_eq!(
+        "# a<code>x y</code>b",
+        convert_faithful("<h1>a<code>x\ny</code>b</h1>").unwrap()
+    );
+    // A setext heading's underline attaches to the line above it.
+    assert_eq!(
+        "a<code>x y</code>b\n==================",
+        convert_faithful_setext("<h1>a<code>x\ny</code>b</h1>").unwrap()
+    );
+
+    // A paragraph absorbs a lone line ending, which CommonMark reads as a
+    // space; a blank one ends the paragraph instead.
+    assert_eq!(
+        "a<code>x y</code>b",
+        convert_faithful("<p>a<code>x\n\ny</code>b</p>").unwrap()
+    );
+    assert_eq!(
+        "> a<code>x y</code>b",
+        convert_faithful("<blockquote><p>a<code>x\n\ny</code>b</p></blockquote>").unwrap()
+    );
+    // The same span in a block context, where the blank line ends the
+    // blockquote rather than the paragraph inside it.
+    assert_eq!(
+        "> <code>x y</code>",
+        convert_faithful("<blockquote><code>x\n\ny</code></blockquote>").unwrap()
+    );
+}
+
+/// A code span holding nothing. The "Code" section's special case again: the
+/// backticks meant to open an empty span close it instead, so CommonMark has no
+/// spelling for one and the `<code>` goes out as a raw HTML inline. The walk
+/// collapses its contents, which turns the whitespace-only spans below into the
+/// single space of the first row.
+#[test]
+fn empty_code_span() {
+    assert_eq!(
+        "a<code></code>b",
+        convert_faithful("<p>a<code></code>b</p>").unwrap()
+    );
+    assert_eq!(
+        "a<code> </code>b",
+        convert_faithful("<p>a<code> </code>b</p>").unwrap()
+    );
+    // Whitespace-only content reaches the emptiness test only after the trim,
+    // so a line ending here is caught as an empty span rather than as the
+    // line ending of [`code_span_holding_a_line_ending`].
+    assert_eq!(
+        "a<code> </code>b",
+        convert_faithful("<p>a<code>\n</code>b</p>").unwrap()
+    );
+
+    // Pure mode has no fallback and drops the span, rather than write the bare
+    // backticks CommonMark reads as literal text.
+    assert_eq!(
+        "ab",
+        htmd::HtmlToMarkdown::new()
+            .convert("<p>a<code></code>b</p>")
+            .unwrap()
+    );
+}
+
 /// The "Inline elements" table. An emphasis delimiter placed against a raw
 /// `<br>` would not flank, so rows 1, 2 and 4 write the element as HTML.
 #[test]
@@ -299,4 +370,39 @@ fn table_cells() {
     assert_eq!("| *a*<br> |", convert_body_cell("<em>a</em><br>"));
     assert_eq!("| <br> |", convert_body_cell("<br>"));
     assert_eq!("| <br><br><br> |", convert_body_cell("<br><br><br>"));
+}
+
+/// The "Table cells" section's rule that the entire table is serialized when it
+/// holds a child which could only be written as HTML. A cell carrying an
+/// attribute is the case that rule names; a row, a section, a `<tfoot>` and a
+/// `<colgroup>` are the same kind of child. `table::extract_table_content`
+/// walks the table's own sections and rows rather than routing them through
+/// `tr_handler` and `table_section_handler`, so it repeats their checks.
+#[test]
+fn table_children_which_only_html_can_express() {
+    for html in [
+        // The cell carrying an attribute, the case the rule names.
+        "<table><thead><tr><th scope=\"col\">h</th></tr></thead>\
+         <tbody><tr><td>a</td></tr></tbody></table>",
+        // A body row, a header row, a `<thead>` and a `<tbody>` carrying one.
+        "<table><thead><tr><th>h</th></tr></thead>\
+         <tbody><tr id=\"r\"><td>a</td></tr></tbody></table>",
+        "<table><thead><tr id=\"r\"><th>h</th></tr></thead>\
+         <tbody><tr><td>a</td></tr></tbody></table>",
+        "<table><thead id=\"t\"><tr><th>h</th></tr></thead>\
+         <tbody><tr><td>a</td></tr></tbody></table>",
+        "<table><thead><tr><th>h</th></tr></thead>\
+         <tbody id=\"b\"><tr><td>a</td></tr></tbody></table>",
+        // A GFM table has one body, so a `<tfoot>`'s rows could only join it,
+        // losing the footer.
+        "<table><thead><tr><th>h</th></tr></thead>\
+         <tbody><tr><td>a</td></tr></tbody>\
+         <tfoot><tr><td>f</td></tr></tfoot></table>",
+        // A `<colgroup>` has no Markdown spelling at all.
+        "<table><colgroup><col span=\"2\"></colgroup>\
+         <thead><tr><th>h</th></tr></thead>\
+         <tbody><tr><td>a</td></tr></tbody></table>",
+    ] {
+        assert_eq!(html, convert_faithful(html).unwrap());
+    }
 }

@@ -193,7 +193,10 @@ Code
 [fenced code block](https://spec.commonmark.org/0.31.2/#fenced-code-blocks) is
 literal text: a `<br>` written inside one is four characters, not a break. No
 encoding of a break survives there, which is why all rows of the table use HTML
-blocks or raw HTML inlines instead of inline code spans.
+blocks or raw HTML inlines instead of inline code spans. A line ending in the
+text of a code span is the same case, and so is an empty one: the backticks
+meant to open an empty span close it instead, so CommonMark can spell no such
+span. Both go out as raw HTML inlines.
 
 Inline elements
 ---------------
@@ -362,9 +365,25 @@ width. Table heading behavior is identical to body-cell behavior. In the
 `|` which appears in the rendered output.
 
 A cell's contents are parsed as inline content, so no HTML block can open inside
-one; also, any instance of a `|` must be escaped as `\|`. The entire table must
-be serialized as HTML if the table contains a child which could only be written
-as HTML (a cell with an attribute, a `<caption>`, etc.).
+one; also, any instance of a `|` must be escaped as `\|`. That escape is read
+only in CommonMark text, so a `|` sitting elsewhere in the cell is handled by
+where it sits. In the open tag of a raw HTML inline it is encoded as `&#124;`,
+which the HTML parser reading the result decodes back — the same trick the
+"Translating HTML nodes" section uses for a line ending there. Inside a comment
+neither the escape nor the encoding is read, so a comment holding a `|` leaves
+the table no CommonMark spelling at all. The entire table must be serialized as
+HTML if the table contains a child which could only be written as HTML (a cell
+with an attribute, a `<caption>`, a comment between cells, a comment inside one
+holding a `|`, etc.).
+
+The table is also serialized as HTML where its shape is not one a
+[GFM table](https://github.github.com/gfm/#tables-extension-) has. A GFM table
+is a header row of header cells, then one body; every row holds the columns the
+header declares. So the table goes out as HTML when it has no header row or more
+than one, when a row of `<th>` follows a body row, when a `<thead>` follows a
+`<tbody>` (one holding no row included), when its header row is made of `<td>`,
+when it holds a `<tfoot>` or a second `<tbody>`, or when a row is wider or
+narrower than the header.
 
 | Description                       | HTML in                    | Faithful expected               |
 | --------------------------------- | -------------------------- | ------------------------------- |

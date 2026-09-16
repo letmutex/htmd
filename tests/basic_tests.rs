@@ -446,9 +446,40 @@ fn pure_mode_writes_a_caption_as_a_paragraph() {
     );
 
     assert_eq!(
-        "Caption\n| Header |\n| ------ |\n| Cell   |",
+        "Caption\n\n| Header |\n| ------ |\n| Cell   |",
         htmd::convert(html).unwrap()
     );
+}
+
+/// The blank line the caption is followed by is what keeps the table a block of
+/// its own. A caption which translates to a list or a blockquote opens a block
+/// which the rows below it would otherwise join as lazy continuation lines,
+/// leaving the table dissolved into that block's text.
+#[test]
+fn pure_mode_separates_a_caption_from_the_table_it_sits_above() {
+    for caption in ["<ul><li>a</li></ul>", "<blockquote>a</blockquote>"] {
+        let html = format!(
+            "<table><caption>{caption}</caption>\
+             <tr><th>Header</th></tr><tr><td>Cell</td></tr></table>"
+        );
+        let markdown = htmd::convert(&html).unwrap();
+
+        assert!(
+            markdown.contains("\n\n| Header |"),
+            "the caption ran into the table: {markdown:?}"
+        );
+        assert!(round_trip_pure_table(&html).contains("<table>"));
+    }
+}
+
+/// [`round_trip`] in pure mode and with the
+/// [GFM table extension](https://github.github.com/gfm/#tables-extension-),
+/// which a Markdown table needs to be read back as a table at all.
+fn round_trip_pure_table(html: &str) -> String {
+    render_markdown(
+        &htmd::convert(html).unwrap(),
+        CommonMarkOptions::ENABLE_TABLES,
+    )
 }
 
 #[test]
@@ -750,10 +781,14 @@ fn multibyte_atx_heading_escape_umlaut() {
 /// it replaced, so the trip is faithful even though the strings differ. Where a
 /// trip loses something instead, the assertion says what.
 fn round_trip(html: &str) -> String {
-    let markdown = convert_faithful(html).unwrap();
-    let parser = Parser::new_ext(&markdown, CommonMarkOptions::empty());
+    render_markdown(&convert_faithful(html).unwrap(), CommonMarkOptions::empty())
+}
+
+/// The second half of a round trip: the CommonMark of the first half read back
+/// as HTML.
+fn render_markdown(markdown: &str, options: CommonMarkOptions) -> String {
     let mut html_output = String::new();
-    pulldown_cmark::html::push_html(&mut html_output, parser);
+    pulldown_cmark::html::push_html(&mut html_output, Parser::new_ext(markdown, options));
     html_output
 }
 
@@ -850,11 +885,10 @@ fn round_trip_of_a_leaf_block_an_html_block_would_dissolve() {
 /// [`round_trip`] with setext headings, the style whose h1 and h2 leave their
 /// content at the start of a line.
 fn round_trip_setext(html: &str) -> String {
-    let markdown = common::convert_faithful_setext(html).unwrap();
-    let parser = Parser::new_ext(&markdown, CommonMarkOptions::empty());
-    let mut html_output = String::new();
-    pulldown_cmark::html::push_html(&mut html_output, parser);
-    html_output
+    render_markdown(
+        &common::convert_faithful_setext(html).unwrap(),
+        CommonMarkOptions::empty(),
+    )
 }
 
 /// A heading is a leaf block, so each element below is written as a raw HTML

@@ -383,6 +383,33 @@ fn a_raw_inline_escapes_the_line_endings_of_its_attributes() {
     );
 }
 
+/// A `|` in an open tag is encoded for the same reason as a line ending there.
+/// The `\|` which `table::normalize_cell_content` writes for a `|` elsewhere in
+/// a cell is a CommonMark escape, and one written inside a tag stays the two
+/// characters it is, so the tag keeps a `|` that would split the row.
+#[test]
+fn a_raw_inline_encodes_the_pipes_of_its_attributes() {
+    assert_eq!(
+        concat!(
+            "| h                            |\n",
+            "| ---------------------------- |\n",
+            r#"| <em foo="1&#124;2">y\|z</em> |"#
+        ),
+        convert_faithful(
+            "<table><thead><tr><th>h</th></tr></thead>\
+             <tbody><tr><td><em foo=\"1|2\">y|z</em></td></tr></tbody></table>"
+        )
+        .unwrap()
+    );
+    // Outside a cell the encoding is redundant but harmless: it decodes back to
+    // the `|` it replaced. The contents are CommonMark text either way, where
+    // `|` needs no escape at all.
+    assert_eq!(
+        r#"a<em foo="1&#124;2">y|z</em>b"#,
+        convert_faithful(r#"<p>a<em foo="1|2">y|z</em>b</p>"#).unwrap()
+    );
+}
+
 /// A type 1 HTML block ends at its closing tag rather than at a blank line, so
 /// escaping a blank line inside one would needlessly rewrite the script, style,
 /// or preformatted text itself.

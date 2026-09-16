@@ -124,8 +124,9 @@ fn serialize_inline_element(handlers: &dyn Handlers, element: &Element) -> io::R
     )?;
     serializer.end_elem(name.clone())?;
     let mut html = String::from_utf8(bytes).map_err(io::Error::other)?;
-    if has_line_ending(&html[..open_tag_len]) {
-        let encoded = escape_attribute_line_endings(&html[..open_tag_len]);
+    let open_tag = &html[..open_tag_len];
+    if has_line_ending(open_tag) || open_tag.contains('|') {
+        let encoded = encode_open_tag_specials(open_tag);
         html.replace_range(..open_tag_len, &encoded);
     }
     Ok(html)
@@ -155,19 +156,27 @@ fn serialize_subtree(element: &Element) -> io::Result<String> {
     String::from_utf8(bytes).map_err(io::Error::other)
 }
 
-/// Writes every line ending in the open tag of a raw HTML inline as a
+/// Writes every line ending and `|` in the open tag of a raw HTML inline as a
 /// character reference.
 ///
 /// A raw HTML inline lives inside a leaf block, which a line ending ends: a
-/// blank one ends a paragraph, a single one an ATX heading or a table row. The
-/// contents are kept safe by the whitespace collapsing of the walk, but
-/// `unsupported_html.md` leaves an attribute value's whitespace alone, so a
-/// line ending there is encoded instead — the open tag passes through
-/// CommonMark verbatim, and the HTML parser reading the result decodes it back.
-fn escape_attribute_line_endings(open_tag: &str) -> String {
+/// blank one ends a paragraph, a single one an ATX heading or a table row. A
+/// `|` ends something smaller — the cell of a
+/// [GFM table](https://github.github.com/gfm/#tables-extension-) row. The
+/// contents are kept safe by the whitespace collapsing of the walk and by the
+/// `\|` of `table::normalize_cell_content`, but neither reaches an open tag:
+/// `unsupported_html.md` leaves an attribute value's whitespace alone, and a
+/// backslash escape written inside a tag stays the two characters it is. Both
+/// are encoded instead — the open tag passes through CommonMark verbatim, and
+/// the HTML parser reading the result decodes the references back.
+fn encode_open_tag_specials(open_tag: &str) -> String {
     let mut result = String::with_capacity(open_tag.len());
     for ch in open_tag.chars() {
-        push_encoding_line_ending(&mut result, ch);
+        if ch == '|' {
+            result.push_str("&#124;");
+        } else {
+            push_encoding_line_ending(&mut result, ch);
+        }
     }
     result
 }
@@ -282,16 +291,18 @@ pub(crate) use serialize_if_extra_attrs_or_inline;
 
 #[cfg(test)]
 mod tests {
-    use super::{escape_attribute_line_endings, escape_html_block_blank_lines};
+    use super::{encode_open_tag_specials, escape_html_block_blank_lines};
 
     #[test]
-    fn escapes_the_line_endings_of_an_open_tag() {
-        assert_eq!("ab", escape_attribute_line_endings("ab"));
-        assert_eq!("a&#10;b", escape_attribute_line_endings("a\nb"));
-        assert_eq!("a&#13;&#10;b", escape_attribute_line_endings("a\r\nb"));
-        assert_eq!("a&#13;b", escape_attribute_line_endings("a\rb"));
-        assert_eq!("a&#10;&#10;b", escape_attribute_line_endings("a\n\nb"));
-        assert_eq!("a \t b", escape_attribute_line_endings("a \t b"));
+    fn encodes_the_line_endings_and_pipes_of_an_open_tag() {
+        assert_eq!("ab", encode_open_tag_specials("ab"));
+        assert_eq!("a&#10;b", encode_open_tag_specials("a\nb"));
+        assert_eq!("a&#13;&#10;b", encode_open_tag_specials("a\r\nb"));
+        assert_eq!("a&#13;b", encode_open_tag_specials("a\rb"));
+        assert_eq!("a&#10;&#10;b", encode_open_tag_specials("a\n\nb"));
+        assert_eq!("a \t b", encode_open_tag_specials("a \t b"));
+        assert_eq!("a&#124;b", encode_open_tag_specials("a|b"));
+        assert_eq!("a&#124;&#10;b", encode_open_tag_specials("a|\nb"));
     }
 
     #[test]

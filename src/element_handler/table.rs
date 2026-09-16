@@ -55,11 +55,9 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: &Element) -> Optio
 
     // A [GFM table](https://github.github.com/gfm/#tables-extension-) has no
     // headerless form: the delimiter row which makes the block a table has to
-    // follow a header row. Faithful mode writes HTML rather than invent one;
-    // pure mode has no such fallback and writes an empty header row.
-    if handlers.options().translation_mode == TranslationMode::Faithful && headers.is_empty() {
-        return Some(serialize_element_result(handlers, element));
-    }
+    // follow a header row. Only pure mode reaches here without one, the row
+    // widths below having sent faithful mode to HTML, and it has no fallback to
+    // write in place of the header row it invents.
     if headers.is_empty() {
         headers = vec![String::new(); num_columns];
     }
@@ -81,7 +79,7 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: &Element) -> Optio
 }
 
 struct ExtractedTable {
-    /// The caption blocks, each already terminated by its line ending.
+    /// The caption blocks, each already terminated by a blank line.
     captions: String,
     headers: Vec<String>,
     rows: Vec<Vec<String>>,
@@ -99,9 +97,14 @@ fn extract_table_content(
         all_children_translated: true,
     };
     let mut has_thead = false;
+    let mut has_tbody = false;
 
     for child in table_node.children.borrow().iter() {
         let NodeData::Element { name, .. } = &child.data else {
+            // The parser foster-parents a table's stray text out of it, so the
+            // only text reaching here is the whitespace between its elements. A
+            // comment has nowhere to go in a Markdown table.
+            table.all_children_translated &= matches!(child.data, NodeData::Text { .. });
             continue;
         };
 
@@ -118,18 +121,59 @@ fn extract_table_content(
                     table
                         .captions
                         .push_str(result.content.trim_document_whitespace());
-                    table.captions.push('\n');
+                    // The blank line is what keeps the table a block of its
+                    // own. A caption written as a list or a blockquote would
+                    // otherwise take the rows below it as lazy continuation
+                    // lines, dissolving the table into that block's text.
+                    table.captions.push_str("\n\n");
                 }
             }
+            // A GFM table has one header row, and it comes first. So a second
+            // `<thead>` can only overwrite the header the first one gave, and a
+            // `<thead>` following a body section can only become that header by
+            // moving ahead of it -- a `<tbody>` holding no row included, since
+            // the header it gains would precede a body the Markdown has no
+            // spelling for.
             "thead" => {
+                table.all_children_translated &=
+                    has_no_attributes(child) && !has_thead && !has_tbody && table.rows.is_empty();
                 has_thead = true;
                 extract_thead(handlers, child, &mut table);
             }
-            "tbody" | "tfoot" => extract_section_rows(handlers, child, &mut table, &mut has_thead),
-            "tr" => extract_direct_row(handlers, child, &mut table, &mut has_thead),
-            _ => {}
+            // A GFM table has one body, so a second `<tbody>`'s rows can only
+            // join the first, which loses the split between them.
+            "tbody" => {
+                table.all_children_translated &= has_no_attributes(child) && !has_tbody;
+                has_tbody = true;
+                extract_section_rows(handlers, child, &mut table, &mut has_thead);
+            }
+            // A GFM table has one body, so a `<tfoot>`'s rows can only join it,
+            // which loses the footer. Faithful mode writes the table as HTML
+            // rather than lose it; pure mode has no fallback and takes the join.
+            "tfoot" => {
+                table.all_children_translated = false;
+                extract_section_rows(handlers, child, &mut table, &mut has_thead);
+            }
+            // The parser wraps a stray `<tr>` in a `<tbody>`, so a row reaches
+            // a table as a direct child of one only in a tree built elsewhere
+            // and handed to `HtmlToMarkdown::tree_to_markdown`. Read it as a row
+            // of the `<tbody>` the parser would have wrapped it in.
+            "tr" => extract_row(handlers, child, &mut table, &mut has_thead),
+            // A `<colgroup>`, its `<col>`s, and anything else a table may hold
+            // have no Markdown spelling at all.
+            _ => table.all_children_translated = false,
         }
     }
+
+    // Every row of a GFM table holds the columns its header declares: a shorter
+    // row would be written with empty cells the HTML never held, a longer one
+    // with a header column the HTML never declared. A table with no header row
+    // at all fails this too, no row holding the zero columns an absent header
+    // declares.
+    table.all_children_translated &= table
+        .rows
+        .iter()
+        .all(|row| row.len() == table.headers.len());
 
     table
 }
@@ -140,12 +184,15 @@ fn extract_thead(
     table: &mut ExtractedTable,
 ) {
     let children = thead_node.children.borrow();
-    let row_node = children
+    let mut row_nodes = children
         .iter()
-        .find(|node| get_node_tag_name(node).is_some_and(|tag| tag == "tr"))
-        .unwrap_or(thead_node);
+        .filter(|node| get_node_tag_name(node) == Some("tr"));
+    let row_node = row_nodes.next();
+    // A GFM table has exactly one header row, so a second `<tr>` here has
+    // nowhere to go.
+    table.all_children_translated &= row_nodes.next().is_none() && holds_only(thead_node, "tr");
 
-    extract_header_row(handlers, row_node, table);
+    extract_header_row(handlers, row_node.unwrap_or(thead_node), table);
 }
 
 /// Fills `table.headers` from `row_node`, preferring its `th` cells and falling
@@ -155,14 +202,31 @@ fn extract_header_row(
     row_node: &Rc<markup5ever_rcdom::Node>,
     table: &mut ExtractedTable,
 ) {
-    for cell_tag in ["th", "td"] {
-        let (headers, translated) = extract_row_cells(handlers, row_node, cell_tag);
-        table.all_children_translated &= translated;
-        table.headers = headers;
-        if !table.headers.is_empty() {
-            break;
-        }
+    if take_header_cells(handlers, row_node, table) {
+        return;
     }
+    // Neither case left gives a header row a GFM table can hold: the `td`
+    // fallback promotes data cells to something the HTML did not say they were,
+    // and a row holding neither kind of cell leaves no header at all.
+    let (headers, _) = extract_row_cells(handlers, row_node, "td");
+    table.all_children_translated = false;
+    table.headers = headers;
+}
+
+/// Makes `row_node`'s `th` cells `table.headers`, reporting whether it held
+/// any.
+fn take_header_cells(
+    handlers: &dyn Handlers,
+    row_node: &Rc<markup5ever_rcdom::Node>,
+    table: &mut ExtractedTable,
+) -> bool {
+    let (headers, translated) = extract_row_cells(handlers, row_node, "th");
+    if headers.is_empty() {
+        return false;
+    }
+    table.all_children_translated &= translated;
+    table.headers = headers;
+    true
 }
 
 fn extract_section_rows(
@@ -171,44 +235,91 @@ fn extract_section_rows(
     table: &mut ExtractedTable,
     has_thead: &mut bool,
 ) {
+    table.all_children_translated &= holds_only(section_node, "tr");
+
     for row_node in section_node.children.borrow().iter() {
-        if get_node_tag_name(row_node) != Some("tr") {
-            continue;
-        }
-
-        if !*has_thead && table.headers.is_empty() {
-            let (headers, translated) = extract_row_cells(handlers, row_node, "th");
-            table.headers = headers;
-            table.all_children_translated &= translated;
-            *has_thead = !table.headers.is_empty();
-            if *has_thead {
-                continue;
-            }
-        }
-
-        let (cells, translated) = extract_row_cells(handlers, row_node, "td");
-        table.all_children_translated &= translated;
-        if !cells.is_empty() {
-            table.rows.push(cells);
+        if get_node_tag_name(row_node) == Some("tr") {
+            extract_row(handlers, row_node, table, has_thead);
         }
     }
 }
 
-fn extract_direct_row(
+/// Appends `row_node` to `table`, as its header row where it holds `th` cells
+/// and no header row has been found yet, and as a body row otherwise.
+fn extract_row(
     handlers: &dyn Handlers,
     row_node: &Rc<markup5ever_rcdom::Node>,
     table: &mut ExtractedTable,
     has_thead: &mut bool,
 ) {
-    if !*has_thead && table.headers.is_empty() {
-        extract_header_row(handlers, row_node, table);
-        *has_thead = !table.headers.is_empty();
-    } else {
-        let (cells, translated) = extract_row_cells(handlers, row_node, "td");
-        table.all_children_translated &= translated;
-        if !cells.is_empty() {
-            table.rows.push(cells);
-        }
+    // A GFM table's header row comes first, so a `<th>` row following a body
+    // row cannot become one without reordering the table.
+    if !*has_thead
+        && table.headers.is_empty()
+        && table.rows.is_empty()
+        && take_header_cells(handlers, row_node, table)
+    {
+        *has_thead = true;
+        return;
+    }
+
+    extract_body_row(handlers, row_node, table);
+}
+
+/// Appends `row_node`'s `td` cells to `table.rows`.
+fn extract_body_row(
+    handlers: &dyn Handlers,
+    row_node: &Rc<markup5ever_rcdom::Node>,
+    table: &mut ExtractedTable,
+) {
+    let (cells, translated) = extract_row_cells(handlers, row_node, "td");
+    // A row which yields no cells is dropped rather than written as the empty
+    // Markdown row it has no content for.
+    table.all_children_translated &= translated && !cells.is_empty();
+    if !cells.is_empty() {
+        table.rows.push(cells);
+    }
+}
+
+/// Whether every child of `node` is a `tag` element, ignoring text. Another
+/// element, or a comment, would be dropped from the Markdown table, which only
+/// faithful mode can avoid by writing the table as HTML; text is exempt because
+/// the parser foster-parents a table's stray text out of it, leaving only the
+/// whitespace between its elements.
+fn holds_only(node: &Rc<markup5ever_rcdom::Node>, tag: &str) -> bool {
+    node.children
+        .borrow()
+        .iter()
+        .all(|child| match &child.data {
+            NodeData::Element { name, .. } => name.local.as_ref() == tag,
+            NodeData::Text { .. } => true,
+            _ => false,
+        })
+}
+
+/// Whether `node`'s subtree holds a comment whose text has a `|`, which splits
+/// the Markdown row the comment is written into. Neither escape for a `|`
+/// reaches inside a comment: a backslash escape is read only in CommonMark
+/// text, and a character reference stays the literal characters composing it.
+/// Only faithful mode can keep such a comment, by writing the table as HTML.
+/// See the "Table cells" section of `unsupported_html.md`.
+fn holds_a_comment_with_a_pipe(node: &Rc<markup5ever_rcdom::Node>) -> bool {
+    node.children.borrow().iter().any(|child| {
+        matches!(&child.data, NodeData::Comment { contents } if contents.contains('|'))
+            || holds_a_comment_with_a_pipe(child)
+    })
+}
+
+/// Whether `node` carries no attributes, which a Markdown table has nowhere to
+/// write: a section or row carrying one can only be written as HTML. This is
+/// the `num_attrs_allowed` of 0 which `tr_handler` and `table_section_handler`
+/// pass to `handle_or_serialize_by_parent`, repeated here because a translated
+/// table walks its own sections and rows rather than routing them through those
+/// handlers.
+fn has_no_attributes(node: &Rc<markup5ever_rcdom::Node>) -> bool {
+    match &node.data {
+        NodeData::Element { attrs, .. } => attrs.borrow().is_empty(),
+        _ => true,
     }
 }
 
@@ -256,7 +367,11 @@ fn extract_row_cells(
     cell_tag: &str,
 ) -> (Vec<String>, bool) {
     let mut cells = Vec::new();
-    let mut all_translated = true;
+    // A Markdown table row has nowhere to write an attribute either, so a `<tr>`
+    // carrying one takes the whole table to HTML. Neither can it hold a cell of
+    // the other kind -- a GFM row is all header or all body -- nor any of the
+    // other elements a `<tr>` may hold, such as a `<script>`.
+    let mut all_translated = has_no_attributes(row_node) && holds_only(row_node, cell_tag);
 
     for cell_node in row_node.children.borrow().iter() {
         if let NodeData::Element { name, .. } = &cell_node.data
@@ -267,7 +382,11 @@ fn extract_row_cells(
             let Some(res) = handlers.handle(cell_node, Context::BLOCK) else {
                 continue;
             };
-            if !res.markdown_translated {
+            // A comment holding a `|` is looked for here rather than over the
+            // whole table because a comment anywhere else in one -- between
+            // cells, rows or sections -- is already ruled out by `holds_only`,
+            // and a `<caption>` takes the table to HTML whatever it holds.
+            if !res.markdown_translated || holds_a_comment_with_a_pipe(cell_node) {
                 all_translated = false;
             }
             let cell_content = normalize_cell_content(res.content.trim_document_whitespace());
@@ -300,10 +419,8 @@ fn format_row_padded(row: &[String], num_columns: usize, col_widths: &[usize]) -
 
 fn format_separator_padded(num_columns: usize, col_widths: &[usize]) -> String {
     let mut line = String::from("|");
-    for (_, col_width) in col_widths.iter().enumerate().take(num_columns) {
-        // A column whose every cell is empty has a width of zero, and a
-        // delimiter cell holding no `-` stops the row being a delimiter row.
-        line.push_str(&concat_strings!(" ", "-".repeat((*col_width).max(1)), " |"));
+    for col_width in col_widths.iter().take(num_columns) {
+        line.push_str(&concat_strings!(" ", "-".repeat(*col_width), " |"));
     }
     line.push('\n');
     line
@@ -314,9 +431,13 @@ fn compute_column_widths(
     rows: &[Vec<String>],
     num_columns: usize,
 ) -> Vec<usize> {
-    let mut widths = vec![0; num_columns];
+    // A column whose every cell is empty measures zero, but a delimiter cell
+    // holding no `-` stops the row being a delimiter row, so every column is at
+    // least one wide. Padding the cells to the same floor keeps the delimiter
+    // row aligned with the rows around it.
+    let mut widths = vec![1; num_columns];
     for (i, header) in headers.iter().enumerate() {
-        widths[i] = header.chars().count();
+        widths[i] = widths[i].max(header.chars().count());
     }
     for row in rows {
         for (i, cell) in row.iter().enumerate().take(num_columns) {

@@ -17,6 +17,8 @@ markup5ever_rcdom = "0.39"
 phf = { version = "0.14", features = ["macros"] }
 
 [dev-dependencies]
+html5ever = "0.39"
+markup5ever_rcdom = "0.39"
 indoc = "2.0.6"
 scraper = "0.27"
 criterion = { version = "0.8", features = ["html_reports"] }

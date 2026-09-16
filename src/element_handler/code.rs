@@ -12,6 +12,7 @@ use crate::{
     },
     options::{CodeBlockFence, CodeBlockStyle, TranslationMode},
     util::{
+        escape::has_line_ending,
         node::{get_node_tag_name, get_parent_node},
         text::{JoinOnStringIterator, TrimDocumentWhitespace, concat_strings},
     },
@@ -147,6 +148,33 @@ fn handle_inline_code(handlers: &dyn Handlers, element: &Element) -> Option<Hand
         handle_preformatted_code(&content)
     } else {
         content.trim_document_whitespace().to_string()
+    };
+    // A code span's content is literal text, so a line ending written in one
+    // stays a line ending and ends the leaf block the span sits in; no encoding
+    // of it survives there. Neither has CommonMark an empty code span: the
+    // backticks meant to open one close it instead, leaving them literal text
+    // and the element gone. Either way it goes out as a raw HTML inline, whose
+    // contents the walk collapses. See the "Code" section of
+    // `unsupported_html.md`. The trim above can empty the content, so this runs
+    // after it.
+    serialize_element_when_faithful!(
+        handlers,
+        element,
+        has_line_ending(&content) || content.is_empty()
+    );
+    // Pure mode has no fallback, and drops the span rather than write the bare
+    // backticks CommonMark reads as literal text.
+    if content.is_empty() {
+        return None;
+    }
+    // Only pure mode reaches a line ending here, the fallback above having
+    // taken faithful mode's. CommonMark reads a line ending in a code span as a
+    // space, so writing that space is what the span meant anyway, and it keeps
+    // the bare newline out of the heading it would truncate.
+    let content = if has_line_ending(&content) {
+        content.replace(['\r', '\n'], " ")
+    } else {
+        content
     };
 
     let delimiter = get_inline_code_delimiter(&content);
