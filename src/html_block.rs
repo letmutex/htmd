@@ -23,13 +23,15 @@ pub(crate) fn starts_html_block(content: &str) -> bool {
     // opens with a `<`, so content which does not is settled without looking
     // for the end of the first line.
     let indented = content.trim_start_matches(' ');
-    if content.len() - indented.len() > 3 || !indented.starts_with('<') {
+    if content.len() - indented.len() > 3 {
         return false;
     }
-    // Only the first line can open the block; a later one is already inside
-    // whatever the first line started.
-    let line = indented.lines().next().unwrap_or_default();
-    let after_angle = &line[1..];
+    let Some(after_angle) = indented.strip_prefix('<') else {
+        return false;
+    };
+    // htmd must produce the entire block on a single line. Therefore, only
+    // check the first (and only) line for an HTML block.
+    let after_angle = after_angle.lines().next().unwrap_or_default();
 
     // Types 2-5, each named by the characters which follow the `<`. A line
     // opening `<!` or `<?` holds no tag name, so no later type can match it.
@@ -67,15 +69,13 @@ pub(crate) fn starts_html_block(content: &str) -> bool {
     }
 
     // Type 7.
-    scan_tag(line).is_some_and(|rest| rest.trim_start_matches([' ', '\t']).is_empty())
+    scan_tag(after_angle).is_some_and(|rest| rest.trim_start_matches([' ', '\t']).is_empty())
 }
 
 /// Scans an [open tag](https://spec.commonmark.org/0.31.2/#open-tag) or
-/// [closing tag](https://spec.commonmark.org/0.31.2/#closing-tag) at the start
-/// of `line`, returning what follows it.
-fn scan_tag(line: &str) -> Option<&str> {
-    let after_angle = line.strip_prefix('<')?;
-
+/// [closing tag](https://spec.commonmark.org/0.31.2/#closing-tag) whose `<`
+/// has already been consumed, returning what follows the tag.
+fn scan_tag(after_angle: &str) -> Option<&str> {
     if let Some(after_slash) = after_angle.strip_prefix('/') {
         let after_name = scan_tag_name(after_slash)?;
         return strip_whitespace(after_name).strip_prefix('>');
@@ -190,6 +190,16 @@ mod tests {
         assert!(!starts_html_block("<!1>a"));
     }
 
+    /// The line end terminates a type 1 or 6 tag name as a space or a `>`
+    /// would, whether or not it ends the content as well.
+    #[test]
+    fn ends_a_type_1_or_6_name_at_the_line_end() {
+        assert!(starts_html_block("<pre"));
+        assert!(starts_html_block("<div"));
+        assert!(starts_html_block("<pre\na"));
+        assert!(starts_html_block("<div\na"));
+    }
+
     #[test]
     fn recognizes_a_lone_type_7_tag() {
         assert!(starts_html_block("<br>"));
@@ -198,6 +208,16 @@ mod tests {
         assert!(starts_html_block("</span>"));
         assert!(starts_html_block("<a href=\"u\" title='t' data-x=y>"));
         assert!(starts_html_block("<a\thref=\"u\" >"));
+        assert!(starts_html_block("<a href = \"u\">"));
+        assert!(starts_html_block("<a href\t=\tu>"));
+    }
+
+    /// A type 1 name is left out of the type 6 tag list, and type 1 itself
+    /// takes only an opening tag, so a closing one falls through to type 7.
+    #[test]
+    fn recognizes_a_lone_closing_type_1_tag() {
+        assert!(starts_html_block("</pre>"));
+        assert!(!starts_html_block("</pre>a"));
     }
 
     #[test]
@@ -221,14 +241,18 @@ mod tests {
         assert!(!starts_html_block("plain text"));
     }
 
+    /// A tab is four columns of indentation wherever it starts, so a line
+    /// holding one before its `<` is an indented code block.
     #[test]
     fn allows_three_spaces_of_indentation() {
         assert!(starts_html_block("   <br>"));
         assert!(!starts_html_block("    <br>"));
+        assert!(!starts_html_block("\t<br>"));
+        assert!(!starts_html_block(" \t<br>"));
     }
 
-    /// Only the first line can open the block; a later one is already inside
-    /// whatever the first line started.
+    /// htmd must produce the entire block on a single line, so only the first
+    /// line is checked.
     #[test]
     fn tests_only_the_first_line() {
         assert!(!starts_html_block("a\n<br>"));
