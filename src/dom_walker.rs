@@ -7,7 +7,7 @@ use crate::{Context, element_handler::ElementHandlers};
 use super::{
     options::TranslationMode,
     util::{
-        escape::{escape_html, index_of_markdown_ordered_item_dot, is_markdown_atx_heading},
+        escape::{escape_html, index_of_markdown_ordered_item_delimiter, is_markdown_atx_heading},
         node::is_block_element,
         text::{TrimDocumentWhitespace, compress_whitespace, concat_strings, frame_as_block},
     },
@@ -88,21 +88,26 @@ fn walk_text(
         return true;
     }
 
-    let output_ends_with_space = output.ends_with(' ');
-    if is_plain_text(text) {
-        let text = if trim_leading_spaces || (text.starts_with(' ') && output_ends_with_space) {
-            text.trim_start_matches(' ')
-        } else {
-            text
-        };
-        output.push_str(text);
-        return true;
-    }
-
-    let text = escape_if_needed(Cow::Borrowed(text));
-    let text = compress_whitespace(text.as_ref());
-    let text = if trim_leading_spaces || (text.starts_with(' ') && output_ends_with_space) {
+    // Escape last, so that the checks for the whitespace which closes a marker
+    // read the text the output will hold: a line ending or a tab there is a
+    // space once the whitespace is compressed, and `trim_leading_spaces`
+    // removes the spaces which would otherwise hide a marker from those
+    // checks.
+    //
+    // Without that flag the leading space survives, so `escape_if_needed`
+    // reads it rather than the marker behind it. That is right mid-line, which
+    // is what a clear flag usually means, but wrong after an inline construct
+    // which ends the line -- `<br>` outside faithful mode -- where such a
+    // marker is left unescaped.
+    let text = compress_whitespace(text);
+    let text = if trim_leading_spaces {
         text.trim_start_matches(' ')
+    } else {
+        text.as_ref()
+    };
+    let text = escape_if_needed(Cow::Borrowed(text));
+    let text = if !trim_leading_spaces && output.ends_with(' ') && text.starts_with(' ') {
+        &text[1..]
     } else {
         text.as_ref()
     };
@@ -174,9 +179,12 @@ fn is_math_span(attrs: &[html5ever::Attribute]) -> bool {
 
 /// The bytes which, at the start of a text node, could open a CommonMark block
 /// — a setext underline, a code fence, a blockquote, a list marker, an ATX
-/// heading, or an ordered list number — and so need a leading backslash. Every
-/// one is ASCII, so testing the first byte of a text node tests its first
-/// character.
+/// heading, or an ordered list number. Every one is ASCII, so testing the first
+/// byte of a text node tests its first character.
+///
+/// Could, not does: only `=`, `~` and `>` open their block on their own. The
+/// rest need what follows them as well, which [`escape_if_needed`] decides.
+/// This is the cheap test which sends a text node there at all.
 fn is_markdown_block_start(byte: u8) -> bool {
     matches!(byte, b'=' | b'~' | b'>' | b'-' | b'+' | b'#' | b'0'..=b'9')
 }
@@ -185,38 +193,6 @@ fn is_markdown_block_start(byte: u8) -> bool {
 /// appear, and so are escaped one by one.
 fn is_markdown_inline_special(byte: u8) -> bool {
     matches!(byte, b'\\' | b'*' | b'_' | b'`' | b'[' | b']')
-}
-
-fn is_plain_text(text: &str) -> bool {
-    let bytes = text.as_bytes();
-    let Some(&first) = bytes.first() else {
-        return true;
-    };
-
-    if is_markdown_block_start(first) {
-        return false;
-    }
-
-    let mut previous_was_space = false;
-    for &byte in bytes {
-        // `<` opens HTML rather than Markdown, so `escape_if_needed` leaves it
-        // to the HTML escape rather than listing it as a special of its own.
-        if is_markdown_inline_special(byte) || byte == b'<' {
-            return false;
-        }
-        match byte {
-            b' ' => {
-                if previous_was_space {
-                    return false;
-                }
-                previous_was_space = true;
-            }
-            b'\t' | b'\n' | b'\r' | 0x0C | 0x0B => return false,
-            _ => previous_was_space = false,
-        }
-    }
-
-    true
 }
 
 pub(crate) fn walk_children(
@@ -418,16 +394,28 @@ fn trim_output_end_spaces(output: &mut String) {
 }
 
 /// Cases:
+///
+/// ````text
 /// '\'        -> '\\'
-/// '==='      -> '\==='      // h1
-/// '---'      -> '\---'      // h2
-/// '```'      -> '\```'       // code fence
-/// '~~~'      -> '\~~~'       // code fence
-/// '# Not h1' -> '\\# Not h1' // markdown heading in html
-/// '1. Item'  -> '1\\. Item'  // ordered list item
-/// '- Item'   -> '\\- Item'   // unordered list item
-/// '+ Item'   -> '\\+ Item'   // unordered list item
-/// '> Quote'  -> '\\> Quote'  // quote
+/// '==='      -> '\==='      // setext underline
+/// '---'      -> '\---'      // setext underline, thematic break
+/// '```'      -> '\`\`\`'    // code fence, escaped as three inline specials
+/// '~~~'      -> '\~~~'      // code fence
+/// '# Not h1' -> '\# Not h1' // ATX heading
+/// '1. Item'  -> '1\. Item'  // ordered list item
+/// '1) Item'  -> '1\) Item'  // ordered list item
+/// '- Item'   -> '\- Item'   // bullet list item
+/// '+ Item'   -> '\+ Item'   // bullet list item
+/// '> Quote'  -> '\> Quote'  // block quote
+/// ````
+///
+/// A marker needs no text after it: whitespace closes it, and so does the end
+/// of its line. The cases which look for that terminator -- `#`, `-`, `+`, and
+/// an ordered item's `.` or `)` -- therefore read the end of `text` as the end
+/// of the line, which `text` cannot tell them. Where an inline sibling
+/// continues the line instead -- `<p>a <em>b</em>#</p>` -- the marker opens
+/// nothing and is escaped all the same. The backslash reads back as the text it
+/// came from, so the cost is a character, not a meaning.
 fn escape_if_needed(text: Cow<'_, str>) -> Cow<'_, str> {
     let Some(first) = text.chars().next() else {
         return text;
@@ -450,7 +438,14 @@ fn escape_if_needed(text: Cow<'_, str>) -> Cow<'_, str> {
     // post-escape behavior without `insert(0, ...)`.
     let needs_leading_backslash = match first {
         '=' | '~' | '>' => true,
-        '-' | '+' => text.chars().nth(1) == Some(' '),
+        // A line of nothing but `-` and spaces is also a thematic break or a
+        // setext underline. Anything else after the second `-` -- `--foo` --
+        // is neither, and opens no list either.
+        '-' => {
+            matches!(text.as_bytes().get(1), Some(b' '))
+                || text.bytes().all(|byte| matches!(byte, b'-' | b' '))
+        }
+        '+' => matches!(text.as_bytes().get(1), None | Some(b' ')),
         '#' => is_markdown_atx_heading(text.as_ref()),
         _ => false,
     };
@@ -472,9 +467,9 @@ fn escape_if_needed(text: Cow<'_, str>) -> Cow<'_, str> {
     }
 
     if first.is_ascii_digit()
-        && let Some(dot_idx) = index_of_markdown_ordered_item_dot(&escaped)
+        && let Some(delimiter_idx) = index_of_markdown_ordered_item_delimiter(&escaped)
     {
-        escaped.replace_range(dot_idx..(dot_idx + 1), "\\.");
+        escaped.insert(delimiter_idx, '\\');
     }
 
     // Perform the HTML escape after the other escapes, so that the \\

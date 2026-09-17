@@ -132,6 +132,18 @@ pub(crate) fn normalize_title(text: &str) -> String {
     result
 }
 
+/// Whether `text` opens an
+/// [ATX heading](https://spec.commonmark.org/0.31.2/#atx-headings).
+///
+/// The `#` run needs no text after it: the end of `text` closes the marker
+/// just as a space does, so text holding nothing but the run is a heading too.
+/// That reading holds only where `text` runs to the end of its line; the
+/// caller owes it that, and gets a yes for a run which more inline content
+/// follows.
+///
+/// A run longer than the six levels CommonMark defines opens no heading but
+/// still answers yes. Both cases cost the caller a backslash it does not need,
+/// never a wrong translation.
 pub(crate) fn is_markdown_atx_heading(text: &str) -> bool {
     let mut is_prev_ch_hash = false;
     for ch in text.chars() {
@@ -143,28 +155,40 @@ pub(crate) fn is_markdown_atx_heading(text: &str) -> bool {
             return false;
         }
     }
-    false
+    is_prev_ch_hash
 }
 
-pub(crate) fn index_of_markdown_ordered_item_dot(text: &str) -> Option<usize> {
+/// The byte offset of the `.` or `)` which makes `text` open an
+/// [ordered list item](https://spec.commonmark.org/0.31.2/#list-items), if it
+/// does.
+///
+/// The delimiter needs no text after it: the end of `text` closes it just as a
+/// space does. As for [`is_markdown_atx_heading`], that reading holds only
+/// where `text` runs to the end of its line, which the caller owes it.
+///
+/// Only the first delimiter after the digits can open a list -- a second one
+/// closes the first, leaving it no whitespace terminator. A digit run longer
+/// than the nine places CommonMark allows opens no list but still answers
+/// with an offset, which costs the caller a backslash it does not need.
+pub(crate) fn index_of_markdown_ordered_item_delimiter(text: &str) -> Option<usize> {
     let mut is_prev_ch_numeric = false;
-    let mut dot_byte_offset = 0;
-    let mut is_prev_ch_dot = false;
+    let mut delimiter_byte_offset = 0;
+    let mut is_prev_ch_delimiter = false;
     for (byte_offset, ch) in text.char_indices() {
         if ch.is_numeric() {
-            if is_prev_ch_dot {
+            if is_prev_ch_delimiter {
                 return None;
             }
             is_prev_ch_numeric = true;
-        } else if ch == '.' {
-            if !is_prev_ch_numeric {
+        } else if ch == '.' || ch == ')' {
+            if !is_prev_ch_numeric || is_prev_ch_delimiter {
                 return None;
             }
-            dot_byte_offset = byte_offset;
-            is_prev_ch_dot = true;
+            delimiter_byte_offset = byte_offset;
+            is_prev_ch_delimiter = true;
         } else if ch == ' ' {
-            if is_prev_ch_dot {
-                return Some(dot_byte_offset);
+            if is_prev_ch_delimiter {
+                return Some(delimiter_byte_offset);
             } else {
                 return None;
             }
@@ -172,12 +196,12 @@ pub(crate) fn index_of_markdown_ordered_item_dot(text: &str) -> Option<usize> {
             return None;
         }
     }
-    None
+    is_prev_ch_delimiter.then_some(delimiter_byte_offset)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{escape_html, index_of_markdown_ordered_item_dot};
+    use super::{escape_html, index_of_markdown_ordered_item_delimiter};
 
     #[test]
     fn escapes_basic_tags() {
@@ -220,25 +244,29 @@ mod tests {
     }
 
     #[test]
-    fn test_index_of_markdown_ordered_item_dot() {
-        assert_eq!(None, index_of_markdown_ordered_item_dot("16.1¾ "));
-        assert_eq!(Some(1), index_of_markdown_ordered_item_dot("1. "));
-        assert_eq!(Some(2), index_of_markdown_ordered_item_dot("12. "));
-        assert_eq!(Some(5), index_of_markdown_ordered_item_dot("12345. "));
-        assert_eq!(Some(1), index_of_markdown_ordered_item_dot("1. \n"));
-        assert_eq!(None, index_of_markdown_ordered_item_dot(". "));
-        assert_eq!(None, index_of_markdown_ordered_item_dot("abc. "));
-        assert_eq!(None, index_of_markdown_ordered_item_dot("1 . "));
-        assert_eq!(None, index_of_markdown_ordered_item_dot(" 1. "));
-        assert_eq!(None, index_of_markdown_ordered_item_dot("1.a "));
-        assert_eq!(None, index_of_markdown_ordered_item_dot("1."));
+    fn test_index_of_markdown_ordered_item_delimiter() {
+        assert_eq!(None, index_of_markdown_ordered_item_delimiter("16.1¾ "));
+        assert_eq!(Some(1), index_of_markdown_ordered_item_delimiter("1. "));
+        assert_eq!(Some(2), index_of_markdown_ordered_item_delimiter("12. "));
+        assert_eq!(Some(5), index_of_markdown_ordered_item_delimiter("12345. "));
+        assert_eq!(Some(1), index_of_markdown_ordered_item_delimiter("1. \n"));
+        assert_eq!(None, index_of_markdown_ordered_item_delimiter(". "));
+        assert_eq!(None, index_of_markdown_ordered_item_delimiter("abc. "));
+        assert_eq!(None, index_of_markdown_ordered_item_delimiter("1 . "));
+        assert_eq!(None, index_of_markdown_ordered_item_delimiter(" 1. "));
+        assert_eq!(None, index_of_markdown_ordered_item_delimiter("1.a "));
+        assert_eq!(Some(1), index_of_markdown_ordered_item_delimiter("1."));
+        assert_eq!(Some(1), index_of_markdown_ordered_item_delimiter("1)"));
     }
 
     #[test]
-    fn test_index_of_markdown_ordered_item_dot_multibyte() {
-        // U+00BD (½) is 2 bytes in UTF-8: the dot byte offset is 3, not 2
-        assert_eq!(Some(3), index_of_markdown_ordered_item_dot("2½. text"));
-        // No dot, should return None
-        assert_eq!(None, index_of_markdown_ordered_item_dot("2½"));
+    fn test_index_of_markdown_ordered_item_delimiter_multibyte() {
+        // U+00BD (½) is 2 bytes in UTF-8: the delimiter byte offset is 3, not 2
+        assert_eq!(
+            Some(3),
+            index_of_markdown_ordered_item_delimiter("2½. text")
+        );
+        // No delimiter, should return None
+        assert_eq!(None, index_of_markdown_ordered_item_delimiter("2½"));
     }
 }
