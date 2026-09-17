@@ -161,8 +161,71 @@ fn hr() {
 fn strong_italic() {
     let html = r#"<i>Italic</i><em>Also italic</em><strong>Strong</strong><b>Stronger</b>"#;
     assert_eq!(
-        "*ItalicAlso italic***StrongStronger**",
+        "<i>Italic</i><em>Also italic</em><strong>Strong</strong><b>Stronger</b>",
         convert_faithful(html).unwrap()
+    );
+    assert_eq!(
+        "*ItalicAlso italic***StrongStronger**",
+        convert_pure(html).unwrap()
+    );
+}
+
+/// A pair of adjacent emphases is merged so that it does not go out as
+/// `*a**b*`, which CommonMark reads as one emphasis holding `a**b`. Merging is
+/// a pure-mode spelling, though: it writes two elements as one, which faithful
+/// mode owes the reader as HTML instead.
+#[test]
+fn faithful_mode_keeps_adjacent_emphasis_apart() {
+    assert_eq!(
+        "<em>a</em><em>b</em>",
+        convert_faithful("<p><em>a</em><em>b</em></p>").unwrap()
+    );
+    assert_eq!(
+        "<i>a</i><em>b</em>",
+        convert_faithful("<p><i>a</i><em>b</em></p>").unwrap()
+    );
+    assert_eq!(
+        "<b>a</b><strong>b</strong>",
+        convert_faithful("<p><b>a</b><strong>b</strong></p>").unwrap()
+    );
+}
+
+/// Writing the two code spans one after the other is no answer either: the
+/// backtick strings of ``` `a``b` ``` pair outside in, making one span whose
+/// content is ``` a``b ```. Faithful mode writes both as HTML.
+#[test]
+fn faithful_mode_keeps_adjacent_code_spans_apart() {
+    assert_eq!(
+        "<code>a</code><code>b</code>",
+        convert_faithful("<p><code>a</code><code>b</code></p>").unwrap()
+    );
+}
+
+/// An element CommonMark cannot spell is already written as a raw HTML inline,
+/// so merging a pair of them buys nothing and loses an element.
+#[test]
+fn faithful_mode_keeps_adjacent_untranslated_elements_apart() {
+    assert_eq!(
+        "<sub>a</sub><sub>b</sub>",
+        convert_faithful("<p><sub>a</sub><sub>b</sub></p>").unwrap()
+    );
+    assert_eq!(
+        r#"<abbr title="t">a</abbr><abbr title="t">b</abbr>"#,
+        convert_faithful(r#"<p><abbr title="t">a</abbr><abbr title="t">b</abbr></p>"#).unwrap()
+    );
+    assert_eq!(
+        r#"<span class="x">a</span><span class="x">b</span>"#,
+        convert_faithful(r#"<p><span class="x">a</span><span class="x">b</span></p>"#).unwrap()
+    );
+}
+
+/// Pure mode keeps the merge: it has no HTML to fall back on.
+#[test]
+fn pure_mode_merges_adjacent_inline_elements() {
+    assert_eq!("*ab*", convert_pure("<p><em>a</em><em>b</em></p>").unwrap());
+    assert_eq!(
+        "ab",
+        convert_pure("<p><sub>a</sub><sub>b</sub></p>").unwrap()
     );
 }
 
