@@ -28,3 +28,9 @@ pub fn convert_faithful_setext(html: &str) -> std::io::Result<String> {
         .build()
         .convert(html)
 }
+
+// The default translation mode, which drops what CommonMark cannot spell.
+#[allow(dead_code)]
+pub fn convert_pure(html: &str) -> std::io::Result<String> {
+    HtmlToMarkdown::builder().build().convert(html)
+}

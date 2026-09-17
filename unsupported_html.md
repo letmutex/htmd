@@ -214,6 +214,8 @@ whitespace nor Unicode punctuation.
 | `<br>`s alone in emphasis with surrounding text | `<p>a<em><br><br>...<br></em>b</p>`     | `a<em><br><br>...<br></em>b`     |
 | `<br>`s alone in an untranslated element        | `<p>a<del><br><br>...<br></del>b</p>`   | `a<del><br><br>...<br></del>b`   |
 | `<br>`s alone in a `<span>`                     | `<p>a<span><br><br>...<br></span>b</p>` | `a<span><br><br>...<br></span>b` |
+| Whitespace-only emphasis                        | `<p>a<em>␣</em>b</p>`                   | `a<em>␣</em>b`                   |
+| Empty emphasis                                  | `<p>a<em></em>b</p>`                    | `a<em></em>b`                    |
 
 An emphasis [delimiter run](https://spec.commonmark.org/0.31.2/#delimiter-run)
 opens emphasis only if it is
@@ -228,14 +230,23 @@ literal text `a*`, a break, and `*b`. Rows 1-2 show the conservative algorithm
 below at work; while these do have a CommonMark encoding, it is not used for
 simplicity.
 
+Rows 7-8 have no emphasis string at all once the whitespace is removed, and
+CommonMark cannot spell an emphasis empty: `**` is a literal pair of asterisks,
+not a strong emphasis holding nothing. Writing the whitespace on its own would
+drop the element, and row 8 has not even that much to write, so both are
+serialized.
+
 Approach:
 
-1. If the first or last character of the emphasis string, after removing leading
+1. If the emphasis string is empty once its leading and trailing whitespace is
+   removed, serialize the entire element as HTML. This comes before step 3,
+   which would otherwise write a bare pair of delimiters around nothing.
+2. If the first or last character of the emphasis string, after removing leading
    and trailing whitespace, is a Unicode punctuation character, serialize the
    entire element as HTML. (This is conservative; if the emphasis was preceded
    or followed by Unicode whitespace, serialization isn't needed. However, the
    current implementation makes this difficult to determine.)
-2. Move leading and trailing whitespace outside the emphasis string; surround
+3. Move leading and trailing whitespace outside the emphasis string; surround
    the string with the appropriate delimiters.
 
 Links

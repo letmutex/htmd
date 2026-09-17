@@ -140,7 +140,8 @@ fn empty_code_span() {
 }
 
 /// The "Inline elements" table. An emphasis delimiter placed against a raw
-/// `<br>` would not flank, so rows 1, 2 and 4 write the element as HTML.
+/// `<br>` would not flank, so rows 1, 2 and 4 write the element as HTML; rows 7
+/// and 8 do so because they leave no emphasis string to delimit.
 #[test]
 fn inline_elements() {
     assert_eq!(
@@ -195,6 +196,26 @@ fn inline_elements() {
     assert_eq!(
         "a<span><br><br><br></span>b",
         convert_faithful("<p>a<span><br><br><br></span>b</p>").unwrap()
+    );
+
+    assert_eq!(
+        "a<em> </em>b",
+        convert_faithful("<p>a<em> </em>b</p>").unwrap()
+    );
+    assert_eq!(
+        "a<strong> </strong>b",
+        convert_faithful("<p>a<strong> </strong>b</p>").unwrap()
+    );
+    // A no-break space is Unicode whitespace too, so it leaves no emphasis
+    // string either.
+    assert_eq!(
+        "a<em>\u{a0}</em>b",
+        convert_faithful("<p>a<em>&#160;</em>b</p>").unwrap()
+    );
+
+    assert_eq!(
+        "a<em></em>b",
+        convert_faithful("<p>a<em></em>b</p>").unwrap()
     );
 }
 
