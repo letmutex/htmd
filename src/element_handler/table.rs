@@ -165,11 +165,14 @@ fn extract_table_content(
         }
     }
 
+    // A GFM table is a header row and the rows under it, so a table holding no
+    // header row -- one holding nothing at all included -- has no shape a GFM
+    // table can take.
+    table.all_children_translated &= !table.headers.is_empty();
+
     // Every row of a GFM table holds the columns its header declares: a shorter
     // row would be written with empty cells the HTML never held, a longer one
-    // with a header column the HTML never declared. A table with no header row
-    // at all fails this too, no row holding the zero columns an absent header
-    // declares.
+    // with a header column the HTML never declared.
     table.all_children_translated &= table
         .rows
         .iter()
