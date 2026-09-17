@@ -272,17 +272,20 @@ Headings
 --------
 
 The rows use `<h1>`. In the setext table, an `<h2>` underlines with `---`
-instead of `===`; levels 3-6 have no setext form. In the ATX table, each level
-writes one more `#`.
+instead of `===`, or writes `##` in a row which falls back to ATX; levels 3-6
+have no setext form. In the ATX table, each level writes one more `#`.
 
 The special case for paragraphs section's criteria also apply to
 [Setext headings](https://spec.commonmark.org/0.31.2/#setext-headings); if a
 level 1 or level 2 heading (the only headings expressible using setext) meets
-these criteria, it must instead be encoded as an ATX heading as shown in the
-first row below.
+these criteria, it must instead be encoded as an ATX heading, as the
+`<br>`-only heading row below shows. A heading holding nothing falls back to
+ATX for a different reason: its underline is empty as well, so the setext
+spelling is two blank lines and the heading is lost.
 
 | Description                        | HTML in                    | Faithful expected                 |
 | ---------------------------------- | -------------------------- | --------------------------------- |
+| Empty heading                      | `<h1></h1>`                | `#`                               |
 | `<br>`-only heading (one `<br>`)   | `<h1><br></h1>`            | `#␣<br>`                          |
 | `<br>`s-only heading (two or more) | `<h1><br><br>...<br></h1>` | `<br><br>...<br>⏎===============` |
 | `<br>` starting a heading          | `<h1><br><em>b</em></h1>`  | `<br>*b*⏎=======`                 |
@@ -290,10 +293,13 @@ first row below.
 
 An [ATX heading](https://spec.commonmark.org/0.31.2/#atx-headings) is a single
 line. The `#` has already opened the line, so a raw `<br>` is safe anywhere in
-the heading (see the analysis section).
+the heading (see the analysis section). A heading with no content is the `#`s
+alone: a space with nothing after it would leave trailing whitespace on the
+line.
 
 | Description               | HTML in                    | Faithful expected   |
 | ------------------------- | -------------------------- | ------------------- |
+| Empty heading             | `<h1></h1>`                | `#`                 |
 | `<br>`s-only heading      | `<h1><br><br>...<br></h1>` | `#␣<br><br>...<br>` |
 | `<br>` starting a heading | `<h1><br><em>b</em></h1>`  | `#␣<br>*b*`         |
 | `<br>` ending a heading   | `<h1><em>a</em><br></h1>`  | `#␣*a*<br>`         |

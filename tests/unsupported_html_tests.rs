@@ -252,7 +252,8 @@ fn at_the_document_root() {
 }
 
 /// The first "Headings" table. A lone `<br>` would open an HTML block where a
-/// setext heading leaves its content, so row 1 falls back to ATX.
+/// setext heading leaves its content, so the `<br>`-only heading row falls back
+/// to ATX.
 #[test]
 fn setext_headings() {
     assert_eq!("# <br>", convert_faithful_setext("<h1><br></h1>").unwrap());
@@ -271,10 +272,32 @@ fn setext_headings() {
     );
 }
 
+/// The first "Headings" table's empty row. A level 1 or 2 heading holding
+/// nothing has no setext spelling: the underline is empty too, so the whole
+/// heading would disappear.
+#[test]
+fn an_empty_setext_heading_falls_back_to_atx() {
+    assert_eq!("#", convert_faithful_setext("<h1></h1>").unwrap());
+    assert_eq!("##", convert_faithful_setext("<h2></h2>").unwrap());
+    assert_eq!("#", convert_faithful_setext("<h1>   </h1>").unwrap());
+
+    // The heading still has to survive whatever follows it.
+    assert_eq!(
+        "#\n\na",
+        convert_faithful_setext("<h1></h1><p>a</p>").unwrap()
+    );
+}
+
 /// The second "Headings" table. An ATX heading's `#` has already opened the
 /// line, so a raw `<br>` is safe anywhere in it.
 #[test]
 fn atx_headings() {
+    // An empty heading drops the space as well, which would otherwise be
+    // trailing whitespace.
+    assert_eq!("#", convert_faithful("<h1></h1>").unwrap());
+    assert_eq!("#\n\na", convert_faithful("<h1></h1><p>a</p>").unwrap());
+    assert_eq!("###\n\na", convert_faithful("<h3></h3><p>a</p>").unwrap());
+
     assert_eq!("# <br>", convert_faithful("<h1><br></h1>").unwrap());
     assert_eq!(
         "# <br><br><br>",
