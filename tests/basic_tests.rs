@@ -10,7 +10,7 @@ use htmd::{
     options::{LinkStyle, Options, TranslationMode},
 };
 mod common;
-use common::convert_faithful;
+use common::{convert_faithful, convert_pure};
 
 #[test]
 fn links_with_spaces() {
@@ -164,6 +164,21 @@ fn strong_italic() {
         "*ItalicAlso italic***StrongStronger**",
         convert_faithful(html).unwrap()
     );
+}
+
+// Faithful mode keeps an emphasis with nothing to emphasize as HTML; see rows 7
+// and 8 of the "Inline elements" table of `unsupported_html.md`. Pure mode has
+// no such spelling, so the element goes and only the whitespace it held
+// survives, still separating the words around it.
+#[test]
+fn blank_emphasis_leaves_its_whitespace_behind() {
+    assert_eq!("a b", convert_pure("<p>a<em> </em>b</p>").unwrap());
+    assert_eq!("a b", convert_pure("<p>a<strong> </strong>b</p>").unwrap());
+    assert_eq!(
+        "a\u{a0}b",
+        convert_pure("<p>a<em>&#160;</em>b</p>").unwrap()
+    );
+    assert_eq!("ab", convert_pure("<p>a<em></em>b</p>").unwrap());
 }
 
 #[test]
