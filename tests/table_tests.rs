@@ -565,12 +565,13 @@ mod table_tests_1 {
         );
     }
 
+    /// A GFM table is a header row and the rows under it, so a table holding no
+    /// row at all is not one. Pure mode, with no fallback, drops it.
     #[test]
-    fn test_empty_table() {
-        let html = "<table></table>";
-        let markdown = convert_faithful(html).unwrap();
-        let result = markdown.trim();
-        assert_eq!("", result);
+    fn an_empty_table_is_written_as_html() {
+        assert_html_fallback("<table></table>", "");
+        assert_html_fallback("<table><tbody></tbody></table>", "");
+        assert_html_fallback("<table><thead></thead></table>", "");
     }
 
     // Should allow inline markup inside tables. These come from https://github.github.com/gfm/.
