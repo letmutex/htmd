@@ -2,7 +2,10 @@ use html5ever::tendril::{Tendril, fmt::UTF8};
 use markup5ever_rcdom::{Node, NodeData};
 use std::{borrow::Cow, cell::RefCell, rc::Rc};
 
-use crate::{Context, element_handler::ElementHandlers};
+use crate::{
+    Context, Element,
+    element_handler::{ElementHandlers, element_util::serialize_element},
+};
 
 use super::{
     options::TranslationMode,
@@ -220,11 +223,24 @@ pub(crate) fn walk_children(
         }
 
         let combined;
-        let child = if run_end - index > 1 {
+        let child = if run_end - index == 1 {
+            &children[index]
+        } else if handlers.options.translation_mode == TranslationMode::Pure {
             combined = combine_nodes(node, &children[index..run_end]);
             &combined
         } else {
-            &children[index]
+            // Combining writes a run of elements as one, which faithful mode
+            // owes the reader as the elements they were. Writing them one after
+            // the other is no answer either, since that is what combining
+            // avoids: `*a**b*` is a single emphasis holding `a**b`, and
+            // `` `a``b` `` a single code span. Each element goes out as HTML.
+            for element_node in &children[index..run_end] {
+                append_serialized_inline(element_node, output, handlers, context);
+            }
+            markdown_translated = false;
+            trim_leading_spaces = false;
+            index = run_end;
+            continue;
         };
 
         let is_block = match &child.data {
@@ -257,8 +273,10 @@ pub(crate) fn walk_children(
     markdown_translated
 }
 
-// Determine if the two nodes are similar, and should therefore be combined. If
-// so, return the text of the second node to simplify the combining process.
+// Determine if the two nodes are similar enough that writing them one after the
+// other would read back as a single element. Pure mode combines such a run into
+// the one element the CommonMark spells; faithful mode writes each of them as
+// HTML instead.
 fn can_combine(n1: &Node, n2: &Node) -> bool {
     // To be combined, both nodes must be elements.
     let NodeData::Element {
@@ -310,6 +328,29 @@ fn can_combine(n1: &Node, n2: &Node) -> bool {
         && template_contents2.borrow().is_none()
         && attrs1 == attrs2
         && mathml_annotation_xml_integration_point1 == mathml_annotation_xml_integration_point2
+}
+
+/// Appends `node`, an element of a combinable run, to `output` as a raw HTML
+/// inline. Only inline elements form a run, so the serializer's block spelling
+/// never applies here.
+fn append_serialized_inline(
+    node: &Rc<Node>,
+    output: &mut String,
+    handlers: &ElementHandlers,
+    context: Context,
+) {
+    let NodeData::Element { name, attrs, .. } = &node.data else {
+        unreachable!("only element nodes form a combinable run")
+    };
+    let element = Element {
+        node,
+        tag: name.local.as_ref(),
+        attrs: &attrs.borrow(),
+        context,
+        skipped_handlers: 0,
+    };
+    let html = serialize_element(handlers, &element);
+    append_normalized_content(output, html, context.literal);
 }
 
 fn combine_nodes(parent: &Rc<Node>, nodes: &[Rc<Node>]) -> Rc<Node> {

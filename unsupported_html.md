@@ -216,6 +216,8 @@ whitespace nor Unicode punctuation.
 | `<br>`s alone in a `<span>`                     | `<p>a<span><br><br>...<br></span>b</p>` | `a<span><br><br>...<br></span>b` |
 | Whitespace-only emphasis                        | `<p>a<em>␣</em>b</p>`                   | `a<em>␣</em>b`                   |
 | Empty emphasis                                  | `<p>a<em></em>b</p>`                    | `a<em></em>b`                    |
+| Adjacent emphases                               | `<p><em>a</em><em>b</em></p>`           | `<em>a</em><em>b</em>`           |
+| Adjacent code spans                             | `<p><code>a</code><code>b</code></p>`   | `<code>a</code><code>b</code>`   |
 
 An emphasis [delimiter run](https://spec.commonmark.org/0.31.2/#delimiter-run)
 opens emphasis only if it is
@@ -235,6 +237,19 @@ CommonMark cannot spell an emphasis empty: `**` is a literal pair of asterisks,
 not a strong emphasis holding nothing. Writing the whitespace on its own would
 drop the element, and row 8 has not even that much to write, so both are
 serialized.
+
+Rows 9-10 are a pair of elements which CommonMark, written plainly, reads back
+as one. `*a**b*` pairs its delimiter runs outside in, giving a single emphasis
+holding `a**b`; the
+[backtick strings](https://spec.commonmark.org/0.31.2/#backtick-string) of
+`` `a``b` `` pair the same way, giving a single code span holding ``a``b``. Pure
+mode writes the one element the pair reads as, combining the text of both, which
+is a spelling and not a translation: it loses an element, and loses the
+distinction between `<i>` and `<em>` or `<b>` and `<strong>` when the pair
+mixes them. Faithful mode serializes each element of such a run instead. This
+applies to a run of any inline element, so a pair which is already serialized —
+`<sub>a</sub><sub>b</sub>` — stays the two elements it was rather than being
+combined into one.
 
 Approach:
 
