@@ -367,3 +367,35 @@ fn test_span_and_unhandled_tag_events_in_faithful_mode() {
         recorded
     );
 }
+
+#[test]
+fn test_append_content_when_body_is_empty() {
+    struct Footnote;
+
+    impl ElementHandler for Footnote {
+        fn handle(&self, _handlers: &dyn Handlers, _element: &Element) -> Option<HandlerResult> {
+            None
+        }
+
+        fn append(&self) -> Option<String> {
+            Some("\n\n[^1]: A footnote.".to_string())
+        }
+    }
+
+    let converter = HtmlToMarkdown::builder()
+        .add_handler(vec!["img"], Footnote)
+        .build();
+
+    // Appended content opens with a blank line separating it from the body.
+    // With the body empty, that blank line must not lead the document.
+    assert_eq!(
+        "[^1]: A footnote.",
+        converter.convert("<img src=\"a.png\">").unwrap()
+    );
+    assert_eq!(
+        "Hello\n\n[^1]: A footnote.",
+        converter
+            .convert("<p>Hello</p><img src=\"a.png\">")
+            .unwrap()
+    );
+}

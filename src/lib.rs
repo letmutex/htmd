@@ -8,15 +8,14 @@ use std::rc::Rc;
 
 use dom_walker::walk_node;
 use element_handler::ElementHandlers;
+pub use element_handler::{ElementHandler, EventSubscription, EventTypes};
 use html5ever::tendril::TendrilSink;
 use html5ever::tree_builder::TreeBuilderOpts;
 use html5ever::{Attribute, ParseOpts, parse_document};
-use util::node::is_inside_pre;
-// Export publicly, providing an interface to the
-pub use element_handler::{ElementHandler, EventSubscription, EventTypes};
 pub use markup5ever_rcdom::Node;
 use markup5ever_rcdom::RcDom;
 use options::Options;
+use util::node::is_inside_pre;
 
 use crate::element_handler::Handlers;
 
@@ -30,7 +29,7 @@ use crate::element_handler::Handlers;
 /// let md = convert("<h1>Hello</h1>").unwrap();
 /// assert_eq!("# Hello", md);
 /// ```
-pub fn convert(html: &str) -> Result<String, std::io::Error> {
+pub fn convert(html: &str) -> std::io::Result<String> {
     HtmlToMarkdown::new().convert(html)
 }
 
@@ -184,13 +183,9 @@ impl HtmlToMarkdown {
             },
         );
 
-        // Trim leading/trailing newlines in place instead of allocating a copy.
-        let start = content.len() - content.trim_start_matches('\n').len();
-        if start > 0 {
-            content.drain(..start);
-        }
-        let end = content.trim_end_matches('\n').len();
-        content.truncate(end);
+        // Trim the body's trailing newlines before the appends below, whose
+        // content opens with a blank line separating it from the body.
+        content.truncate(content.trim_end_matches('\n').len());
 
         for handler in &self.handlers.handlers {
             let Some(append_content) = handler.append() else {
@@ -198,7 +193,14 @@ impl HtmlToMarkdown {
             };
             content.push_str(&append_content);
         }
-        content.truncate(content.trim_end_matches('\n').len());
+
+        // Trim leading/trailing newlines in place instead of allocating a copy.
+        let end = content.trim_end_matches('\n').len();
+        content.truncate(end);
+        let start = content.len() - content.trim_start_matches('\n').len();
+        if start > 0 {
+            content.drain(..start);
+        }
 
         self.handlers.emit_doc_leave();
         content
@@ -270,8 +272,8 @@ impl HtmlToMarkdownBuilder {
         self
     }
 
-    /// Option for html5ever parsing. If true, the content of <noscript> tags will be converted to raw text.
-    /// If false, the content of <noscript> tags will be parsed as normal DOM.
+    /// Option for html5ever parsing. If true, the content of `<noscript>` tags will be converted to raw text.
+    /// If false, the content of `<noscript>` tags will be parsed as normal DOM.
     pub fn scripting_enabled(mut self, enabled: bool) -> Self {
         self.scripting_enabled = enabled;
         self
