@@ -1,5 +1,5 @@
 /// The HTML to Markdown converting options.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Options {
     pub heading_style: HeadingStyle,
     pub hr_style: HrStyle,
