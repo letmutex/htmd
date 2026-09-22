@@ -6,7 +6,7 @@ use pulldown_cmark::{Options as CommonMarkOptions, Parser};
 
 use htmd::{
     Element, HtmlToMarkdown,
-    element_handler::Handlers,
+    element_handler::{ElementHandler, HandlerResult, Handlers},
     options::{LinkStyle, Options, TranslationMode},
 };
 mod common;
@@ -1272,4 +1272,36 @@ fn round_trip_losses_of_a_walked_raw_inline() {
     ] {
         assert_eq!(expected, round_trip(html), "round trip of {html}");
     }
+}
+
+#[test]
+fn append_content_when_the_body_is_empty() {
+    struct Footnote;
+
+    impl ElementHandler for Footnote {
+        fn handle(&self, _handlers: &dyn Handlers, _element: &Element) -> Option<HandlerResult> {
+            None
+        }
+
+        fn append(&self) -> Option<String> {
+            Some("\n\n[^1]: A footnote.".to_string())
+        }
+    }
+
+    let converter = HtmlToMarkdown::builder()
+        .add_handler(vec!["img"], Footnote)
+        .build();
+
+    // Appended content opens with a blank line separating it from the body.
+    // With the body empty, that blank line must not lead the document.
+    assert_eq!(
+        "[^1]: A footnote.",
+        converter.convert("<img src=\"a.png\">").unwrap()
+    );
+    assert_eq!(
+        "Hello\n\n[^1]: A footnote.",
+        converter
+            .convert("<p>Hello</p><img src=\"a.png\">")
+            .unwrap()
+    );
 }
