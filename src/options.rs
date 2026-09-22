@@ -13,7 +13,7 @@ pub struct Options {
     pub ul_bullet_spacing: u8,
     /// The number of spaces between the period character and the content.
     pub ol_number_spacing: u8,
-    /// If true, the whitespace in inline \<code> tags will be preserved.
+    /// If true, the whitespace in inline `<code>` tags will be preserved.
     pub preformatted_code: bool,
     pub translation_mode: TranslationMode,
 }
@@ -37,6 +37,8 @@ impl Default for Options {
     }
 }
 
+/// How to write headings. `HeadingStyle::Setex` is a preference, not a
+/// guarantee: some HTML can only be encoded using ATX.
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum HeadingStyle {
     Atx,
@@ -53,6 +55,8 @@ pub enum HrStyle {
     Underscores,
 }
 
+/// The Markdown encoding of a line break.
+///
 /// When in `TranslationMode::Faithful`, this is ignored; in this mode,
 /// `<br>` is always translated as `<br>`.
 #[derive(PartialEq, Debug, Clone, Copy)]
