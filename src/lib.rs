@@ -194,9 +194,11 @@ impl HtmlToMarkdown {
             content.push_str(&append_content);
         }
 
-        // Trim leading/trailing newlines in place instead of allocating a copy.
-        let end = content.trim_end_matches('\n').len();
-        content.truncate(end);
+        // Trim the document's edges in place instead of allocating a copy. The
+        // leading trim runs after the appends, not before: with an empty body,
+        // the first append's separating blank line would otherwise lead the
+        // document.
+        content.truncate(content.trim_end_matches('\n').len());
         let start = content.len() - content.trim_start_matches('\n').len();
         if start > 0 {
             content.drain(..start);
