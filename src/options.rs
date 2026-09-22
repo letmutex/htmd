@@ -10,8 +10,12 @@ pub struct Options {
     pub code_block_fence: CodeBlockFence,
     pub bullet_list_marker: BulletListMarker,
     /// The number of spaces between the bullet character and the content.
+    /// Values outside 1 through 4 are clamped to that range, per CommonMark
+    /// requirements.
     pub ul_bullet_spacing: u8,
-    /// The number of spaces between the period character and the content.
+    /// The number of spaces between the period character and the content of
+    /// the list's widest-numbered item. Values outside 1 through 4 are clamped
+    /// to that range, per CommonMark requirements.
     pub ol_number_spacing: u8,
     /// If true, the whitespace in inline `<code>` tags will be preserved.
     pub preformatted_code: bool,

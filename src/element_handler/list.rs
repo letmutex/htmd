@@ -2,7 +2,7 @@ use markup5ever_rcdom::NodeData;
 
 use crate::{
     Element,
-    element_handler::element_util::serialize_if_extra_attrs_or_inline,
+    element_handler::element_util::{list_marker_spacing, serialize_if_extra_attrs_or_inline},
     element_handler::{HandlerResult, Handlers, element_util::serialize_element_result},
     options::{Options, TranslationMode},
     util::{
@@ -148,8 +148,12 @@ fn add_ol_li_marker(
     highest_index: usize,
 ) -> String {
     let index_str = index.to_string();
-    let spacing =
-        " ".repeat(options.ol_number_spacing as usize + digits(highest_index) - index_str.len());
+    // Pad the narrower numbers so that every item's content starts in the same
+    // column; where that would exceed the spacing CommonMark allows, the limit
+    // wins and the alignment is lost.
+    let spacing = list_marker_spacing(
+        options.ol_number_spacing as usize + digits(highest_index) - index_str.len(),
+    );
     let content = content.trim_start_matches('\n');
     let content = indent_text_except_first_line(content, index_str.len() + 1 + spacing.len(), true);
     concat_strings!("\n", index_str, ".", spacing, content)

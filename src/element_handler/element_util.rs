@@ -26,6 +26,13 @@ macro_rules! serialize_when_faithful {
 
 pub(crate) use serialize_when_faithful;
 
+/// The spaces which separate a list marker from its content. Clamped between
+/// 1 and 4 per the [list items](https://spec.commonmark.org/0.31.2/#list-items)
+/// section of the CommonMark spec.
+pub(super) fn list_marker_spacing(spaces: usize) -> String {
+    " ".repeat(spaces.clamp(1, 4))
+}
+
 /// Handles a structural element when it has an allowed parent, or preserves it
 /// as HTML in faithful mode when it appears elsewhere.
 ///
