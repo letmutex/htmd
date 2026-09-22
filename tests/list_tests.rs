@@ -1,9 +1,6 @@
-use htmd::{
-    HtmlToMarkdown,
-    options::{Options, TranslationMode},
-};
+use htmd::options::Options;
 mod common;
-use common::convert_faithful;
+use common::{convert_faithful, convert_faithful_options};
 
 #[test]
 fn unordered_lists() {
@@ -29,16 +26,11 @@ fn unordered_lists_custom_bullet_spacing() {
             <li>Item 3</li>
         </ul>
         "#;
-    let ul_bullet_spacing = 2;
-    let md = HtmlToMarkdown::builder()
-        .options(Options {
-            translation_mode: TranslationMode::Faithful,
-            ul_bullet_spacing,
-            ..Default::default()
-        })
-        .build()
-        .convert(html)
-        .unwrap();
+    let options = Options {
+        ul_bullet_spacing: 2,
+        ..Default::default()
+    };
+    let md = convert_faithful_options(html, options).unwrap();
     assert_eq!("*  Item 1\n*  Item 2\n*  Item 3", md)
 }
 
@@ -66,16 +58,11 @@ fn ordered_lists_custom_bullet_spacing() {
             <li>Item 3</li>
         </ol>
         "#;
-    let ol_number_spacing = 1;
-    let md = HtmlToMarkdown::builder()
-        .options(Options {
-            translation_mode: TranslationMode::Faithful,
-            ol_number_spacing,
-            ..Default::default()
-        })
-        .build()
-        .convert(html)
-        .unwrap();
+    let options = Options {
+        ol_number_spacing: 1,
+        ..Default::default()
+    };
+    let md = convert_faithful_options(html, options).unwrap();
     assert_eq!("1. Item 1\n2. Item 2\n3. Item 3", md)
 }
 
@@ -93,16 +80,11 @@ fn ordered_lists_start_with_zero_or_negative() {
             <li>Item 3</li>
         </ol>
         "#;
-    let ol_number_spacing = 1;
-    let md = HtmlToMarkdown::builder()
-        .options(Options {
-            translation_mode: TranslationMode::Faithful,
-            ol_number_spacing,
-            ..Default::default()
-        })
-        .build()
-        .convert(html)
-        .unwrap();
+    let options = Options {
+        ol_number_spacing: 1,
+        ..Default::default()
+    };
+    let md = convert_faithful_options(html, options).unwrap();
     assert_eq!(
         "1. Item 1\n2. Item 2\n3. Item 3\n\n1. Item 1\n2. Item 2\n3. Item 3",
         md
