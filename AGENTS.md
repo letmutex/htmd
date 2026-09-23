@@ -12,6 +12,9 @@
   history. Only add comments which supply what self-documenting code cannot.
   Keep comments as brief as possible.
 
+- Limit comments preceding short functions to one line. Where possible, refer to
+  a specification.
+
 - Every public item still gets a rustdoc summary line, even one which only
   restates the signature -- that line is what the generated docs show. The
   criteria below govern the prose which follows it, not the summary.
