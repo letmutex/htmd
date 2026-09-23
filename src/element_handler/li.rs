@@ -1,6 +1,6 @@
 use crate::{
     Context, Element,
-    element_handler::element_util::serialize_if_extra_attrs_or_inline,
+    element_handler::element_util::{list_marker_spacing, serialize_if_extra_attrs_or_inline},
     element_handler::{HandlerResult, Handlers},
     options::BulletListMarker,
     util::{
@@ -27,7 +27,7 @@ pub(super) fn list_item_handler(
         } else {
             "-"
         };
-        let spacing = " ".repeat(handlers.options().ul_bullet_spacing.into());
+        let spacing = list_marker_spacing(handlers.options().ul_bullet_spacing.into());
         let content = indent_text_except_first_line(&content, marker.len() + spacing.len(), true);
 
         Some(concat_strings!("\n", marker, spacing, content).into())

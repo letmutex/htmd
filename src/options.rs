@@ -1,5 +1,5 @@
 /// The HTML to Markdown converting options.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Options {
     pub heading_style: HeadingStyle,
     pub hr_style: HrStyle,
@@ -10,10 +10,14 @@ pub struct Options {
     pub code_block_fence: CodeBlockFence,
     pub bullet_list_marker: BulletListMarker,
     /// The number of spaces between the bullet character and the content.
+    /// Values outside 1 through 4 are clamped to that range, per CommonMark
+    /// requirements.
     pub ul_bullet_spacing: u8,
-    /// The number of spaces between the period character and the content.
+    /// The number of spaces between the period character and the content of
+    /// the list's widest-numbered item. Values outside 1 through 4 are clamped
+    /// to that range, per CommonMark requirements.
     pub ol_number_spacing: u8,
-    /// If true, the whitespace in inline \<code> tags will be preserved.
+    /// If true, the whitespace in inline `<code>` tags will be preserved.
     pub preformatted_code: bool,
     pub translation_mode: TranslationMode,
 }
@@ -37,6 +41,8 @@ impl Default for Options {
     }
 }
 
+/// How to write headings. `HeadingStyle::Setex` is a preference, not a
+/// guarantee: some HTML can only be encoded using ATX.
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum HeadingStyle {
     Atx,
@@ -53,6 +59,8 @@ pub enum HrStyle {
     Underscores,
 }
 
+/// The Markdown encoding of a line break.
+///
 /// When in `TranslationMode::Faithful`, this is ignored; in this mode,
 /// `<br>` is always translated as `<br>`.
 #[derive(PartialEq, Debug, Clone, Copy)]
