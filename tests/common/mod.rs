@@ -3,6 +3,7 @@ use htmd::{
     HtmlToMarkdown,
     options::{HeadingStyle, Options, TranslationMode},
 };
+use pulldown_cmark::{Options as CommonMarkOptions, Parser};
 
 // By default, use the faithful translation mode, which is more stringent.
 pub fn convert_faithful(html: &str) -> std::io::Result<String> {
@@ -38,4 +39,26 @@ pub fn convert_faithful_setext(html: &str) -> std::io::Result<String> {
 #[allow(dead_code)]
 pub fn convert_pure(html: &str) -> std::io::Result<String> {
     HtmlToMarkdown::builder().build().convert(html)
+}
+
+// Takes `html` back to HTML the long way round: `convert_faithful` writes the
+// Markdown, and pulldown-cmark reads that Markdown back.
+//
+// What comes back is HTML *source*, not a DOM, so a character reference in it
+// is decoded only later, by whatever HTML parser reads the result. That is why
+// several callers still assert a `&#10;`: it decodes to the line ending it
+// replaced, so the trip is faithful even though the strings differ. Where a
+// trip loses something instead, the assertion says what.
+#[allow(dead_code)]
+pub fn round_trip(html: &str) -> String {
+    render_markdown(&convert_faithful(html).unwrap(), CommonMarkOptions::empty())
+}
+
+// The second half of a round trip: the CommonMark of the first half read back
+// as HTML.
+#[allow(dead_code)]
+pub fn render_markdown(markdown: &str, options: CommonMarkOptions) -> String {
+    let mut html_output = String::new();
+    pulldown_cmark::html::push_html(&mut html_output, Parser::new_ext(markdown, options));
+    html_output
 }
