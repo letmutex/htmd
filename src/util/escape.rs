@@ -46,10 +46,11 @@ fn should_escape_html_like_sequence(fragment: &str) -> bool {
     };
 
     match next {
-        '!' => {
-            let rest = chars.as_str();
-            !(rest.starts_with("[CDATA[") || rest.starts_with("\\[CDATA\\["))
-        }
+        // `escape_if_needed` escapes the brackets of a CDATA section before
+        // this runs, and `<!\[` opens neither a CDATA section nor a
+        // declaration: the escaped spelling is already literal text, while the
+        // unescaped one is raw HTML and needs the backslash.
+        '!' => !chars.as_str().starts_with("\\[CDATA\\["),
         '?' => true,
         '/' => chars.next().is_some_and(|c| c.is_ascii_alphabetic()),
         c if c.is_ascii_alphabetic() => true,
@@ -234,12 +235,32 @@ mod tests {
         assert_eq!(escape_html("< >".into()), "< >");
     }
 
+    /// A [CDATA section](https://spec.commonmark.org/0.31.2/#cdata-section) is
+    /// raw HTML, so one written as literal text needs the escape every other
+    /// tag gets. Left unescaped it passes through to the HTML output, where a
+    /// renderer reads it as a bogus comment and shows nothing;
+    /// `a_literal_cdata_section_is_lost_unescaped` in `tests/basic_tests.rs`
+    /// records that.
+    ///
+    /// No caller in this crate reaches this arm: `escape_if_needed` escapes the
+    /// brackets first, so a CDATA section arrives in the spelling
+    /// `leaves_an_escaped_cdata_section` covers. The escape is what a caller
+    /// which skipped that pass would need.
     #[test]
-    fn leaves_cdata_sections() {
+    fn escapes_a_literal_cdata_section() {
         assert_eq!(
             escape_html("<![CDATA[character data]]>".into()),
-            "<![CDATA[character data]]>"
+            "\\<![CDATA[character data]]>"
         );
+    }
+
+    /// `<!\[` opens neither a CDATA section, which needs a literal `[CDATA[`,
+    /// nor a [declaration](https://spec.commonmark.org/0.31.2/#declaration),
+    /// which needs an ASCII letter after the `<!`. The escaped spelling is
+    /// already literal text, and it is the one the crate emits, so escaping it
+    /// again would put a stray backslash in every CDATA section htmd converts.
+    #[test]
+    fn leaves_an_escaped_cdata_section() {
         assert_eq!(
             escape_html("<!\\[CDATA\\[already escaped]]>".into()),
             "<!\\[CDATA\\[already escaped]]>"

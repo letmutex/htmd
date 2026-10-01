@@ -996,6 +996,32 @@ fn a_paragraph_of_unicode_numerics_needs_no_escape() {
     assert_paragraph_survives("<p>1١. text</p>", "1١. text", "1١. text");
 }
 
+/// What `escape_html` owes a [CDATA section](https://spec.commonmark.org/0.31.2/#cdata-section),
+/// which no conversion can reach: `escape_if_needed` escapes the brackets
+/// before `escape_html` runs, so the spelling htmd emits is the escaped one,
+/// and the first trip below is the one that spelling takes -- proof that
+/// `escape_html` must go on leaving it alone.
+///
+/// The last two read Markdown directly, which is the only way to reach the
+/// unescaped spelling, and show what emitting it would cost: it is raw HTML,
+/// so it passes through to the output for an HTML parser to read as a bogus
+/// comment and show as nothing.
+#[test]
+fn a_literal_cdata_section_is_lost_unescaped() {
+    assert_eq!(
+        "<p>&lt;![CDATA[x]]&gt;</p>\n",
+        round_trip("<p>&lt;![CDATA[x]]&gt;</p>")
+    );
+    assert_eq!(
+        "<p>a <![CDATA[x]]> b</p>\n",
+        render_markdown("a <![CDATA[x]]> b", CommonMarkOptions::empty())
+    );
+    assert_eq!(
+        "<p>a &lt;![CDATA[x]]&gt; b</p>\n",
+        render_markdown(r"a \<![CDATA[x]]> b", CommonMarkOptions::empty())
+    );
+}
+
 /// `script` and `style` open a
 /// [type 1 HTML block](https://spec.commonmark.org/0.31.2/#html-blocks), which
 /// runs to the line holding its closing tag: the element passes through whole,
