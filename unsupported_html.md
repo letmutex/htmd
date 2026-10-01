@@ -338,14 +338,14 @@ line.
 Paragraphs
 ----------
 
-| Description                          | HTML in                    | Faithful expected |
-| ------------------------------------ | -------------------------- | ----------------- |
-| `<br>`-only paragraph (one `<br>`)   | `<p><br></p>`              | `<p><br></p>`     |
-| `<br>`s-only paragraph (two or more) | `<p><br><br>...<br></p>`   | `<br><br>...<br>` |
-| `<br>` starting a paragraph          | `<p><br><em>b</em></p>`    | `<br>*b*`         |
-| `<br>` ending a paragraph            | `<p><em>a</em><br></p>`    | `*a*<br>`         |
-| `<br>` before an image               | `<p><br><img src="i"></p>` | `<br>![](i)`      |
-| `<br>` after an image                | `<p><img src="i"><br></p>` | `![](i)<br>`      |
+| Description                          | HTML in                           | Faithful expected |
+| ------------------------------------ | --------------------------------- | ----------------- |
+| `<br>`-only paragraph (one `<br>`)   | `<p><br></p>`                     | `<p><br></p>`     |
+| `<br>`s-only paragraph (two or more) | `<p><br><br>...<br></p>`          | `<br><br>...<br>` |
+| `<br>` starting a paragraph          | `<p><br><em>b</em></p>`           | `<br>*b*`         |
+| `<br>` ending a paragraph            | `<p><em>a</em><br></p>`           | `*a*<br>`         |
+| `<br>` before an image               | `<p><br><img src="i" alt=""></p>` | `<br>![](i)`      |
+| `<br>` after an image                | `<p><img src="i" alt=""><br></p>` | `![](i)<br>`      |
 
 The first row is the special case for paragraph section's rule that a paragraph
 writing out as a single complete tag must be serialized: a bare `<br>` re-opens

@@ -420,11 +420,11 @@ fn paragraphs() {
 
     assert_eq!(
         "<br>![](i)",
-        convert_faithful(r#"<p><br><img src="i"></p>"#).unwrap()
+        convert_faithful(r#"<p><br><img src="i" alt=""></p>"#).unwrap()
     );
     assert_eq!(
         "![](i)<br>",
-        convert_faithful(r#"<p><img src="i"><br></p>"#).unwrap()
+        convert_faithful(r#"<p><img src="i" alt=""><br></p>"#).unwrap()
     );
 }
 

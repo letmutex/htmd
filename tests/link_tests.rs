@@ -93,7 +93,7 @@ fn a_link_destination_escapes_its_line_endings() {
     // An image's destination takes the same encoding.
     assert_eq!(
         "a![](i&#10;j)b",
-        convert_faithful("<p>a<img src=\"i\nj\">b</p>").unwrap()
+        convert_faithful("<p>a<img src=\"i\nj\" alt=\"\">b</p>").unwrap()
     );
     assert_eq!(
         "[t](u)",
@@ -588,6 +588,63 @@ fn a_link_keeps_the_whitespace_around_its_text() {
     assert_eq!(
         "[t ](x)now",
         convert_faithful(r#"<p><a href="x">t </a>now</p>"#).unwrap()
+    );
+}
+
+/// An `<img>` without a `src` has no Markdown spelling -- `![q](<>)` reads
+/// back with an empty `src` -- so it is written as raw HTML rather than dropped
+/// along with its alt text.
+#[test]
+fn an_image_without_a_source_is_written_as_html() {
+    assert_eq!(
+        r#"a<img alt="q">b"#,
+        convert_faithful(r#"<p>a<img alt="q">b</p>"#).unwrap()
+    );
+    assert_eq!(
+        "<p>a<img alt=\"q\">b</p>\n",
+        round_trip(r#"<p>a<img alt="q">b</p>"#)
+    );
+}
+
+/// An `<img>` without an `alt` has no Markdown spelling -- `![](i)` reads back
+/// with `alt=""`, which [means](https://html.spec.whatwg.org/multipage/images.html#alt)
+/// a decorative image rather than one lacking a text alternative -- so it is
+/// written as raw HTML.
+#[test]
+fn an_image_without_alt_text_is_written_as_html() {
+    assert_eq!(
+        r#"a<img src="i">b"#,
+        convert_faithful(r#"<p>a<img src="i">b</p>"#).unwrap()
+    );
+    assert_eq!(
+        "<p>a<img src=\"i\">b</p>\n",
+        round_trip(r#"<p>a<img src="i">b</p>"#)
+    );
+    // An empty `alt` is the one `![](i)` spells.
+    assert_eq!(
+        "![](i)",
+        convert_faithful(r#"<img src="i" alt="">"#).unwrap()
+    );
+    assert_eq!(
+        "<p><img src=\"i\" alt=\"\" /></p>\n",
+        round_trip(r#"<img src="i" alt="">"#)
+    );
+}
+
+/// An `<img>` with an empty `title` has no Markdown spelling -- `![q](i "")`
+/// reads back without a `title`, which
+/// [lets](https://html.spec.whatwg.org/multipage/dom.html#the-title-attribute)
+/// an ancestor's advisory information apply where the empty one hid it -- so
+/// it is written as raw HTML.
+#[test]
+fn an_image_with_an_empty_title_is_written_as_html() {
+    assert_eq!(
+        r#"a<img src="i" alt="q" title="">b"#,
+        convert_faithful(r#"<p>a<img src="i" alt="q" title="">b</p>"#).unwrap()
+    );
+    assert_eq!(
+        "<p>a<img src=\"i\" alt=\"q\" title=\"\">b</p>\n",
+        round_trip(r#"<p>a<img src="i" alt="q" title="">b</p>"#)
     );
 }
 
