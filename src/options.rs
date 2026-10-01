@@ -94,8 +94,10 @@ pub enum BulletListMarker {
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum LinkStyle {
     Inlined,
-    /// Will convert links with the same URL and link text to
-    /// [Autolinks](https://spec.commonmark.org/0.31.2/#autolink).
+    /// Will convert links whose text is the URL to
+    /// [Autolinks](https://spec.commonmark.org/0.31.2/#autolink) where one can
+    /// hold that URL and the link has no title; see the links section of
+    /// `overall_translation_approach.md`.
     InlinedPreferAutolinks,
     Referenced,
 }
