@@ -17,6 +17,68 @@ fn translating_html_nodes() {
     assert_eq!("# <p>a</p>", convert_faithful("<h1><p>a</p></h1>").unwrap());
 }
 
+/// The "Translating HTML nodes" rule that an inline begins an inline context,
+/// applied to every inline which can hold an element: a block inside one goes
+/// out as a raw HTML inline, as it does inside a heading. Images, autolinks and
+/// hard line breaks hold no elements. GFM strikethrough has no handler, so
+/// `<del>` is a raw HTML inline, like `<span>`.
+#[test]
+fn blocks_inside_inlines() {
+    // An inline as HTML, then as the CommonMark expected for it with text at
+    // each end of its content and with a block alone; `{}` stands for that
+    // content. A raw HTML inline at the edge of an emphasis string would not
+    // flank, so the "Inline elements" approach writes that emphasis as HTML.
+    let inlines = [
+        (r#"<a href="u">{}</a>"#, "[{}](u)", "[{}](u)"),
+        ("<em>{}</em>", "*{}*", "<em>{}</em>"),
+        ("<i>{}</i>", "*{}*", "<i>{}</i>"),
+        ("<strong>{}</strong>", "**{}**", "<strong>{}</strong>"),
+        ("<b>{}</b>", "**{}**", "<b>{}</b>"),
+        ("<code>{}</code>", "<code>{}</code>", "<code>{}</code>"),
+        ("<del>{}</del>", "<del>{}</del>", "<del>{}</del>"),
+        (
+            r#"<span class="s">{}</span>"#,
+            r#"<span class="s">{}</span>"#,
+            r#"<span class="s">{}</span>"#,
+        ),
+    ];
+    // Each is spelled as it serializes, so the table carries the `<tbody>` the
+    // HTML parser would otherwise insert.
+    let blocks = [
+        "<p>b</p>",
+        "<h2>b</h2>",
+        "<ul><li>b</li></ul>",
+        "<ol><li>b</li></ol>",
+        "<blockquote>b</blockquote>",
+        "<pre>b</pre>",
+        "<hr>",
+        "<table><tbody><tr><td>b</td></tr></tbody></table>",
+        "<div>b</div>",
+    ];
+
+    // Every case runs, so a failure lists all of the cases which went wrong.
+    let mut failures = Vec::new();
+    for (inline, between_text, alone) in inlines {
+        for block in blocks {
+            let block_between_text = format!("x{block}y");
+            let contents = [(block_between_text.as_str(), between_text), (block, alone)];
+            for (content, markdown) in contents {
+                let html = format!("a{}c", inline.replace("{}", content));
+                let expected = format!("a{}c", markdown.replace("{}", content));
+                let actual = convert_faithful(&html).unwrap();
+                if actual != expected {
+                    failures.push((html, expected, actual));
+                }
+            }
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} cases failed, as (HTML in, expected, actual): {failures:#?}",
+        failures.len()
+    );
+}
+
 /// The "Special case for paragraphs" table. See also the first row of
 /// [`paragraphs`] and the second row of [`blockquotes`].
 #[test]

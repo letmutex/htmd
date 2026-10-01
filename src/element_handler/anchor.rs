@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
 use crate::{
-    Element, ElementHandler, Options,
+    Context, ContextKind, Element, ElementHandler, Options,
     element_handler::EventSubscription,
     element_handler::EventTypes,
     element_handler::element_util::serialize_if_extra_attrs,
@@ -135,6 +135,8 @@ impl ElementHandler for AnchorElementHandler {
             }
         }
 
+        // Without an `href` this is no link: its content stands in its place,
+        // in the context the `<a>` appears in.
         let Some(link) = link else {
             return Some(handlers.walk_children(element.node, element.context));
         };
@@ -144,7 +146,15 @@ impl ElementHandler for AnchorElementHandler {
 
         let link = escape_link_destination(link);
 
-        let content = handlers.walk_children_content(element.node, element.context);
+        // A link is an inline: its children begin an inline context, though
+        // text inside a `<pre>` stays literal.
+        let content = handlers.walk_children_content(
+            element.node,
+            Context {
+                kind: ContextKind::Inline,
+                ..element.context
+            },
+        );
         let md = match handlers.options().link_style {
             LinkStyle::Inlined => {
                 self.build_inlined_anchor(&content, &link, title.as_deref(), false)

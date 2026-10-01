@@ -52,8 +52,6 @@ fn handle_code_block(
 ) -> Option<HandlerResult> {
     // A code block is a CommonMark block, so it needs a block context.
     serialize_element_when_faithful!(handlers, element, element.context.is_inline());
-    // `<code>` begins no block of its own, so it passes on its context: the
-    // inline context begun by the `<pre>` this is the code block of.
     let content = handlers.walk_children_content(
         element.node,
         Context {
