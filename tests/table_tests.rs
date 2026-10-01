@@ -622,7 +622,7 @@ mod table_tests_1 {
 | `Type`                                  | *Example*             |
 | --------------------------------------- | --------------------- |
 | Backslash escapes                       | \*not emphasized\*    |
-| Entity and numeric character references | &                     |
+| Entity and numeric character references | \&                    |
 | Code spans                              | `code`                |
 | Emphasis and strong emphasis            | *emphasis* **strong** |
 | Links                                   | [link](/uri "title")  |
