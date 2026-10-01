@@ -98,19 +98,24 @@ mod tests {
         assert!(!is_unicode_punctuation(char::MAX));
     }
 
-    /// Every non-ASCII code point whose general category group is `P` or `S`, as merged inclusive
-    /// ranges: what `unicode_punctuation.rs` is supposed to contain, classified independently of
-    /// it by `unicode-properties` (a dev-dependency, so the crate itself carries no Unicode data
+    /// Whether `ch`'s general category group is `P` or `S`, classified independently of the table
+    /// by `unicode-properties` (a dev-dependency, so the crate itself carries no Unicode data
     /// beyond the table).
-    fn punctuation_or_symbol_from_unicode() -> Vec<(char, char)> {
+    fn is_punctuation_or_symbol_per_unicode(ch: char) -> bool {
         use unicode_properties::{GeneralCategoryGroup, UnicodeGeneralCategory};
 
+        matches!(
+            ch.general_category_group(),
+            GeneralCategoryGroup::Punctuation | GeneralCategoryGroup::Symbol
+        )
+    }
+
+    /// Every non-ASCII code point in `P` or `S`, as merged inclusive ranges: what
+    /// `unicode_punctuation.rs` is supposed to contain.
+    fn punctuation_or_symbol_from_unicode() -> Vec<(char, char)> {
         let mut ranges: Vec<(char, char)> = Vec::new();
         for ch in (0x80..=char::MAX as u32).filter_map(char::from_u32) {
-            if !matches!(
-                ch.general_category_group(),
-                GeneralCategoryGroup::Punctuation | GeneralCategoryGroup::Symbol
-            ) {
+            if !is_punctuation_or_symbol_per_unicode(ch) {
                 continue;
             }
             match ranges.last_mut() {
@@ -141,6 +146,31 @@ mod tests {
              missing {missing:?}, extra {extra:?}. If this is a new Unicode release, \
              regenerate the table with `cargo test print_punctuation_or_symbol_table \
              -- --ignored --nocapture`.",
+        );
+    }
+
+    /// `is_unicode_punctuation` answers ASCII with `is_ascii_punctuation` instead of the table,
+    /// which is only correct while the two agree.
+    #[test]
+    fn ascii_punctuation_matches_unicode_general_categories() {
+        for ch in (0u8..0x80).map(char::from) {
+            assert_eq!(
+                ch.is_ascii_punctuation(),
+                is_punctuation_or_symbol_per_unicode(ch),
+                "{ch:?}",
+            );
+        }
+    }
+
+    /// The generator prints only the table, so a regeneration must update the Unicode version in
+    /// the header of `unicode_punctuation.rs` by hand.
+    #[test]
+    fn header_names_the_unicode_version_of_the_data() {
+        let (major, minor, update) = unicode_properties::UNICODE_VERSION;
+        let header = format!("Generated data for Unicode {major}.{minor}.{update}");
+        assert!(
+            include_str!("unicode_punctuation.rs").contains(&header),
+            "the header of `unicode_punctuation.rs` should say \"{header}\"",
         );
     }
 
