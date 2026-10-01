@@ -193,10 +193,10 @@ Code
 [fenced code block](https://spec.commonmark.org/0.31.2/#fenced-code-blocks) is
 literal text: a `<br>` written inside one is four characters, not a break. No
 encoding of a break survives there, which is why all rows of the table use HTML
-blocks or raw HTML inlines instead of inline code spans. A line ending in the
-text of a code span is the same case, and so is an empty one: the backticks
-meant to open an empty span close it instead, so CommonMark can spell no such
-span. Both go out as raw HTML inlines.
+blocks or raw HTML inlines instead of inline code spans or code blocks. A line
+ending in the text of a code span is the same case, and so is an empty one: the
+backticks meant to open an empty span close it instead, so CommonMark can spell
+no such span. Both go out as raw HTML inlines.
 
 Inline elements
 ---------------
@@ -242,12 +242,12 @@ Rows 9-10 are a pair of elements which CommonMark, written plainly, reads back
 as one. `*a**b*` pairs its delimiter runs outside in, giving a single emphasis
 holding `a**b`; the
 [backtick strings](https://spec.commonmark.org/0.31.2/#backtick-string) of
-`` `a``b` `` pair the same way, giving a single code span holding ``a``b``. Pure
+``` `a``b` ``` pair the same way, giving a single code span holding `a``b`. Pure
 mode writes the one element the pair reads as, combining the text of both, which
 is a spelling and not a translation: it loses an element, and loses the
-distinction between `<i>` and `<em>` or `<b>` and `<strong>` when the pair
-mixes them. Faithful mode serializes each element of such a run instead. This
-applies to a run of any inline element, so a pair which is already serialized —
+distinction between `<i>` and `<em>` or `<b>` and `<strong>` when the pair mixes
+them. Faithful mode serializes each element of such a run instead. This applies
+to a run of any inline element, so a pair which is already serialized —
 `<sub>a</sub><sub>b</sub>` — stays the two elements it was rather than being
 combined into one.
 
@@ -273,7 +273,7 @@ Links
 | `<br>`s starting a link label | `<p>a<a href="u"><br><br>...<br>c</a>b</p>` | `a[<br><br>...<br>c](u)b` |
 | `<br>`s ending a link label   | `<p>a<a href="u">c<br><br>...<br></a>b</p>` | `a[c<br><br>...<br>](u)b` |
 
-Unlike emphasis (see the inline elements section), a link label has no flanking
+Unlike emphasis (see the inline elements section), link text has no flanking
 rule: `[` and `]` delimit the label whatever characters sit next to them, which
 makes this encoding straightforward.
 
@@ -304,10 +304,10 @@ have no setext form. In the ATX table, each level writes one more `#`.
 The special case for paragraphs section's criteria also apply to
 [Setext headings](https://spec.commonmark.org/0.31.2/#setext-headings); if a
 level 1 or level 2 heading (the only headings expressible using setext) meets
-these criteria, it must instead be encoded as an ATX heading, as the
-`<br>`-only heading row below shows. A heading holding nothing falls back to
-ATX for a different reason: its underline is empty as well, so the setext
-spelling is two blank lines and the heading is lost.
+these criteria, it must instead be encoded as an ATX heading, as the `<br>`-only
+heading row below shows. A heading holding nothing falls back to ATX for a
+different reason: its underline is empty as well, so the setext spelling is two
+blank lines and the heading is lost.
 
 | Description                        | HTML in                    | Faithful expected                 |
 | ---------------------------------- | -------------------------- | --------------------------------- |
@@ -379,7 +379,8 @@ are literal text and are not parsed by CommonMark. However, newlines in
 single-line CommonMark blocks (such as a heading or a table cell) or blank lines
 in other blocks end the math span and begin another block. Since LaTeX
 mathematics ignores newlines and other forms of whitespace, all newlines are
-replaced with spaces in math expressions to prevent these mis-translations. In
+replaced with spaces in math expressions to prevent these mis-translations.
+However, this tradeoff causes LaTeX `%` comments to be mis-translated. In
 addition, leading and trailing whitespace is trimmed, since inline math may not
 begin or end with whitespace per the
 [pulldown-cmark spec](https://pulldown-cmark.github.io/pulldown-cmark/specs/math.html).
@@ -417,8 +418,8 @@ than one, when a row of `<th>` follows a body row, when a `<thead>` follows a
 when it holds a `<tfoot>` or a second `<tbody>`, or when a row is wider or
 narrower than the header.
 
-| Description                       | HTML in                    | Faithful expected               |
-| --------------------------------- | -------------------------- | ------------------------------- |
+| Description                       | HTML in                    | Faithful expected       |
+| --------------------------------- | -------------------------- | ----------------------- |
 | `<br>` before text in a body cell | `<td><br><em>b</em></td>`  | `\|␣<br>*b*␣\|`         |
 | `<br>` after text in a body cell  | `<td><em>a</em><br></td>`  | `\|␣*a*<br>␣\|`         |
 | `<br>`s-only body cell            | `<td><br><br>...<br></td>` | `\|␣<br><br>...<br>␣\|` |
