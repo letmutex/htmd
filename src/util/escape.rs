@@ -2,7 +2,8 @@ use std::borrow::Cow;
 
 use super::text::TrimDocumentWhitespace;
 
-/// Escape sequences that Markdown would treat as raw HTML so that they stay as literal text.
+/// Escape sequences that Markdown would treat as raw HTML or an autolink so that they stay as
+/// literal text.
 pub(crate) fn escape_html(text: Cow<'_, str>) -> Cow<'_, str> {
     let src = text.as_ref();
     if !src.contains('<') {
@@ -52,10 +53,46 @@ fn should_escape_html_like_sequence(fragment: &str) -> bool {
         // unescaped one is raw HTML and needs the backslash.
         '!' => !chars.as_str().starts_with("\\[CDATA\\["),
         '?' => true,
-        '/' => chars.next().is_some_and(|c| c.is_ascii_alphabetic()),
+        '/' if chars.next().is_some_and(|c| c.is_ascii_alphabetic()) => true,
+        // A URI autolink's scheme opens with a letter, which the tag arm
+        // covers; an email autolink may open with a digit or a symbol.
         c if c.is_ascii_alphabetic() => true,
-        _ => false,
+        _ => starts_with_email_autolink(fragment),
     }
+}
+
+/// Whether `fragment` opens with an
+/// [email autolink](https://spec.commonmark.org/0.31.2/#email-autolink).
+///
+/// Neither scan crosses a `<`, so escaping a whole string stays linear.
+fn starts_with_email_autolink(fragment: &str) -> bool {
+    let Some(address) = fragment.strip_prefix('<') else {
+        return false;
+    };
+    let local_part_len = address
+        .bytes()
+        .take_while(|&byte| byte.is_ascii_alphanumeric() || b".!#$%&'*+/=?^_`{|}~-".contains(&byte))
+        .count();
+    if local_part_len == 0 {
+        return false;
+    }
+    let Some(domain) = address[local_part_len..].strip_prefix('@') else {
+        return false;
+    };
+    let domain_len = domain
+        .bytes()
+        .take_while(|&byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.'))
+        .count();
+    domain[domain_len..].starts_with('>') && domain[..domain_len].split('.').all(is_domain_label)
+}
+
+/// Whether `label`, holding only ASCII alphanumerics and `-`, is one label of
+/// an email autolink's domain.
+fn is_domain_label(label: &str) -> bool {
+    let bytes = label.as_bytes();
+    bytes.len() <= 63
+        && bytes.first().is_some_and(u8::is_ascii_alphanumeric)
+        && bytes.last().is_some_and(u8::is_ascii_alphanumeric)
 }
 
 /// Whether `text` holds a line ending: the one place the set of line endings
@@ -233,6 +270,42 @@ mod tests {
         assert_eq!(escape_html("< not html".into()), "< not html");
         assert_eq!(escape_html("<123>".into()), "<123>");
         assert_eq!(escape_html("< >".into()), "< >");
+    }
+
+    /// An [email autolink](https://spec.commonmark.org/0.31.2/#email-autolink)
+    /// may follow its `<` with a digit, a `/` or a symbol, where a tag needs a
+    /// letter.
+    #[test]
+    fn escapes_an_email_autolink() {
+        assert_eq!(escape_html("<1foo@bar.com>".into()), "\\<1foo@bar.com>");
+        assert_eq!(escape_html("</1@b.co>".into()), "\\</1@b.co>");
+        assert_eq!(escape_html("<+a@b.co>".into()), "\\<+a@b.co>");
+    }
+
+    /// Each of these breaks the email autolink grammar in one place.
+    #[test]
+    fn leaves_a_near_miss_email_autolink() {
+        for text in [
+            "<1@b.co",
+            "<@b.co>",
+            "<1@>",
+            "<1@-b.co>",
+            "<1@b-.co>",
+            "<1@b..co>",
+            "<1@b.co.>",
+            "<1 @b.co>",
+            "<\\_a@b.co>",
+        ] {
+            assert_eq!(escape_html(text.into()), text);
+        }
+        let longest_label = "a".repeat(63);
+        let autolink = format!("<1@{longest_label}.co>");
+        assert_eq!(
+            escape_html(autolink.as_str().into()),
+            format!("\\{autolink}")
+        );
+        let too_long = format!("<1@{longest_label}a.co>");
+        assert_eq!(escape_html(too_long.as_str().into()), too_long);
     }
 
     /// A [CDATA section](https://spec.commonmark.org/0.31.2/#cdata-section) is
