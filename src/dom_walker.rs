@@ -422,7 +422,25 @@ fn append_normalized_content(output: &mut String, mut content: String, preserve_
         &content
     };
 
+    if !preserve_whitespace {
+        escape_image_marker(output, content);
+    }
     output.push_str(content);
+}
+
+/// Escapes a `!` ending `output` when `content` begins with a `[`, which would
+/// otherwise read as the start of an image rather than a link.
+fn escape_image_marker(output: &mut String, content: &str) {
+    if !content.starts_with('[') {
+        return;
+    }
+    let Some(before_marker) = output.strip_suffix('!') else {
+        return;
+    };
+    let preceding_backslashes = before_marker.len() - before_marker.trim_end_matches('\\').len();
+    if preceding_backslashes % 2 == 0 {
+        output.insert(before_marker.len(), '\\');
+    }
 }
 
 fn trim_output_end(output: &mut String) {
