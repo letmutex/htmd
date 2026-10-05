@@ -2,7 +2,7 @@ use std::{sync::Arc, thread::JoinHandle};
 
 use indoc::indoc;
 use pretty_assertions::assert_eq;
-use pulldown_cmark::{Options as CommonMarkOptions, Parser};
+use pulldown_cmark::Options as CommonMarkOptions;
 
 use htmd::{
     Element, HtmlToMarkdown,
@@ -10,7 +10,7 @@ use htmd::{
     options::{LinkStyle, Options, TranslationMode},
 };
 mod common;
-use common::{convert_faithful, convert_pure};
+use common::{convert_faithful, convert_pure, render_markdown, round_trip};
 
 #[test]
 fn links_with_spaces() {
@@ -978,26 +978,6 @@ fn a_marker_which_starts_no_line_is_not_escaped() {
 fn a_run_of_ordered_item_delimiters_opens_no_list() {
     assert_paragraph_survives("<p>1)))</p>", "1)))", "1)))");
     assert_paragraph_survives("<p>1.)</p>", "1.)", "1.)");
-}
-
-/// Takes `html` back to HTML the long way round: `convert_faithful` writes the
-/// Markdown, and pulldown-cmark reads that Markdown back.
-///
-/// What comes back is HTML *source*, not a DOM, so a character reference in it
-/// is decoded only later, by whatever HTML parser reads the result. That is why
-/// several assertions below still hold a `&#10;`: it decodes to the line ending
-/// it replaced, so the trip is faithful even though the strings differ. Where a
-/// trip loses something instead, the assertion says what.
-fn round_trip(html: &str) -> String {
-    render_markdown(&convert_faithful(html).unwrap(), CommonMarkOptions::empty())
-}
-
-/// The second half of a round trip: the CommonMark of the first half read back
-/// as HTML.
-fn render_markdown(markdown: &str, options: CommonMarkOptions) -> String {
-    let mut html_output = String::new();
-    pulldown_cmark::html::push_html(&mut html_output, Parser::new_ext(markdown, options));
-    html_output
 }
 
 /// `script` and `style` open a
