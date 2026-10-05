@@ -80,8 +80,10 @@ HTML node to examine the current context to be correctly translated.
 * Inlines, consisting of emphasis (`<em>`) and strong emphasis (`<strong>`),
   links (`<a>`), autolinks (`<a>`), and raw HTML, begin an inline context.
 * Inlines with no content (`<img>`, `<br>`) aren't affected by context.
-* Both code blocks and code spans create a literal context; this isn't
-  inheritable and is handled by the `<pre>` and `<code>` translators.
+* Both code blocks and code spans (`<pre>`, `<code>`) create a literal context.
+  Code blocks must occur in a block context to be translated to CommonMark. Any
+  HTML node discovered inside a literal context forces serialzation of the
+  entire enclosing `<pre>`/`<code>`.
 * Given an HTML node which cannot be translated to CommonMark:
   * HTML type 1-6 in a block context is emitted as an HTML block; the
     inline/block classification does not apply to these contents. In contrast,
@@ -183,105 +185,6 @@ the following table.
 | ------------------------------------ | ----------------------------------- | ----------------------------------- |
 | Paragraph starting with a `<iframe>` | `<p><iframe src="u">a</iframe></p>` | `<p><iframe src="u">a</iframe></p>` |
 
-Code
-----
-
-| Description                  | HTML in                                     | Faithful expected                           |
-| ---------------------------- | ------------------------------------------- | ------------------------------------------- |
-| `<br>`s in a code span       | `<p>a<code>x<br><br>...<br>y</code>b</p>`   | `a<code>x<br><br>...<br>y</code>b`          |
-| `<br>`s alone in a code span | `<p>a<code><br><br>...<br></code>b</p>`     | `a<code><br><br>...<br></code>b`            |
-| `<br>`s in a code block      | `<pre><code>a<br><br>...<br>b</code></pre>` | `<pre><code>a<br><br>...<br>b</code></pre>` |
-| `<br>`s-only code block      | `<pre><code><br><br>...<br></code></pre>`   | `<pre><code><br><br>...<br></code></pre>`   |
-
-**Special case:** The content of a
-[code span](https://spec.commonmark.org/0.31.2/#code-spans) or a
-[fenced code block](https://spec.commonmark.org/0.31.2/#fenced-code-blocks) is
-literal text: a `<br>` written inside one is four characters, not a break. No
-encoding of a break survives there, which is why all rows of the table use HTML
-blocks or raw HTML inlines instead of inline code spans or code blocks. A line
-ending in the text of a code span is the same case, and so is an empty one: the
-backticks meant to open an empty span close it instead, so CommonMark can spell
-no such span. Both go out as raw HTML inlines.
-
-Inline elements
----------------
-
-The principles derived in this section apply to all the following sections,
-since they are containers for inline elements. Notation: *text*, represented
-below as the characters `a`-`b`, stands for a character that is neither Unicode
-whitespace nor Unicode punctuation.
-
-| Description                                     | HTML in                                 | Faithful expected                |
-| ----------------------------------------------- | --------------------------------------- | -------------------------------- |
-| `<br>`s starting emphasis                       | `<p><em><br><br>...<br>a</em></p>`      | `<em><br><br>...<br>a</em>`      |
-| `<br>`s ending emphasis                         | `<p><em>a<br><br>...<br></em></p>`      | `<em>a<br><br>...<br></em>`      |
-| `<br>`s inside emphasis                         | `<p><em>a<br><br>...<br>b</em></p>`     | `*a<br><br>...<br>b*`            |
-| `<br>`s alone in emphasis with surrounding text | `<p>a<em><br><br>...<br></em>b</p>`     | `a<em><br><br>...<br></em>b`     |
-| `<br>`s alone in an untranslated element        | `<p>a<del><br><br>...<br></del>b</p>`   | `a<del><br><br>...<br></del>b`   |
-| `<br>`s alone in a `<span>`                     | `<p>a<span><br><br>...<br></span>b</p>` | `a<span><br><br>...<br></span>b` |
-| Whitespace-only emphasis                        | `<p>a<em>␣</em>b</p>`                   | `a<em>␣</em>b`                   |
-| Empty emphasis                                  | `<p>a<em></em>b</p>`                    | `a<em></em>b`                    |
-| Adjacent emphases                               | `<p><em>a</em><em>b</em></p>`           | `<em>a</em><em>b</em>`           |
-| Adjacent code spans                             | `<p><code>a</code><code>b</code></p>`   | `<code>a</code><code>b</code>`   |
-
-An emphasis [delimiter run](https://spec.commonmark.org/0.31.2/#delimiter-run)
-opens emphasis only if it is
-[left-flanking](https://spec.commonmark.org/0.31.2/#left-flanking-delimiter-run)
-and closes emphasis only if it is
-[right-flanking](https://spec.commonmark.org/0.31.2/#right-flanking-delimiter-run).
-`<` and `>` are
-[Unicode punctuation characters](https://spec.commonmark.org/0.31.2/#unicode-punctuation-character),
-so an emphasis delimiter placed against a raw `<br>` dies whenever the character
-on its far side is neither whitespace nor Unicode punctuation: `a*<br>*b` is the
-literal text `a*`, a break, and `*b`. Rows 1-2 show the conservative algorithm
-below at work; while these do have a CommonMark encoding, it is not used for
-simplicity.
-
-Rows 7-8 have no emphasis string at all once the whitespace is removed, and
-CommonMark cannot spell an emphasis empty: `**` is a literal pair of asterisks,
-not a strong emphasis holding nothing. Writing the whitespace on its own would
-drop the element, and row 8 has not even that much to write, so both are
-serialized.
-
-Rows 9-10 are a pair of elements which CommonMark, written plainly, reads back
-as one. `*a**b*` pairs its delimiter runs outside in, giving a single emphasis
-holding `a**b`; the
-[backtick strings](https://spec.commonmark.org/0.31.2/#backtick-string) of
-``` `a``b` ``` pair the same way, giving a single code span holding `a``b`. Pure
-mode writes the one element the pair reads as, combining the text of both, which
-is a spelling and not a translation: it loses an element, and loses the
-distinction between `<i>` and `<em>` or `<b>` and `<strong>` when the pair mixes
-them. Faithful mode serializes each element of such a run instead. This applies
-to a run of any inline element, so a pair which is already serialized —
-`<sub>a</sub><sub>b</sub>` — stays the two elements it was rather than being
-combined into one.
-
-Approach:
-
-1. If the emphasis string is empty once its leading and trailing whitespace is
-   removed, serialize the entire element as HTML. This comes before step 3,
-   which would otherwise write a bare pair of delimiters around nothing.
-2. If the first or last character of the emphasis string, after removing leading
-   and trailing whitespace, is a Unicode punctuation character, serialize the
-   entire element as HTML. (This is conservative; if the emphasis was preceded
-   or followed by Unicode whitespace, serialization isn't needed. However, the
-   current implementation makes this difficult to determine.)
-3. Move leading and trailing whitespace outside the emphasis string; surround
-   the string with the appropriate delimiters.
-
-Links
------
-
-| Description                   | HTML in                                     | Faithful expected         |
-| ----------------------------- | ------------------------------------------- | ------------------------- |
-| `<br>`s alone in a link       | `<p>a<a href="u"><br><br>...<br></a>b</p>`  | `a[<br><br>...<br>](u)b`  |
-| `<br>`s starting a link label | `<p>a<a href="u"><br><br>...<br>c</a>b</p>` | `a[<br><br>...<br>c](u)b` |
-| `<br>`s ending a link label   | `<p>a<a href="u">c<br><br>...<br></a>b</p>` | `a[c<br><br>...<br>](u)b` |
-
-Unlike emphasis (see the inline elements section), link text has no flanking
-rule: `[` and `]` delimit the label whatever characters sit next to them, which
-makes this encoding straightforward.
-
 At the document root
 --------------------
 
@@ -374,21 +277,6 @@ as a blank `>` line here. The first row is the root-level row one container
 down, and holds for the same reason. The second row is the paragraph row one
 container down: the `>` is stripped before the line is scanned, so the bare tag
 would re-open as an HTML block exactly as it does at the root.
-
-Math
-----
-
-Like an inline code span, the contents of
-[math expressions](https://pulldown-cmark.github.io/pulldown-cmark/specs/math.html)
-are literal text and are not parsed by CommonMark. However, newlines in
-single-line CommonMark blocks (such as a heading or a table cell) or blank lines
-in other blocks end the math span and begin another block. Since LaTeX
-mathematics ignores newlines and other forms of whitespace, all newlines are
-replaced with spaces in math expressions to prevent these mis-translations.
-However, this tradeoff causes LaTeX `%` comments to be mis-translated. In
-addition, leading and trailing whitespace is trimmed, since inline math may not
-begin or end with whitespace per the
-[pulldown-cmark spec](https://pulldown-cmark.github.io/pulldown-cmark/specs/math.html).
 
 Table cells
 -----------
