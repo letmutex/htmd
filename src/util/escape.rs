@@ -170,18 +170,21 @@ pub(crate) fn is_markdown_atx_heading(text: &str) -> bool {
 /// closes the first, leaving it no whitespace terminator. A digit run longer
 /// than the nine places CommonMark allows opens no list but still answers
 /// with an offset, which costs the caller a backslash it does not need.
+///
+/// A marker counts ASCII digits alone, so a Unicode numeric character is
+/// ordinary text and the run holding it opens nothing.
 pub(crate) fn index_of_markdown_ordered_item_delimiter(text: &str) -> Option<usize> {
-    let mut is_prev_ch_numeric = false;
+    let mut is_prev_ch_digit = false;
     let mut delimiter_byte_offset = 0;
     let mut is_prev_ch_delimiter = false;
     for (byte_offset, ch) in text.char_indices() {
-        if ch.is_numeric() {
+        if ch.is_ascii_digit() {
             if is_prev_ch_delimiter {
                 return None;
             }
-            is_prev_ch_numeric = true;
+            is_prev_ch_digit = true;
         } else if ch == '.' || ch == ')' {
-            if !is_prev_ch_numeric || is_prev_ch_delimiter {
+            if !is_prev_ch_digit || is_prev_ch_delimiter {
                 return None;
             }
             delimiter_byte_offset = byte_offset;
@@ -259,14 +262,17 @@ mod tests {
         assert_eq!(Some(1), index_of_markdown_ordered_item_delimiter("1)"));
     }
 
+    /// An [ordered list marker](https://spec.commonmark.org/0.31.2/#ordered-list-marker)
+    /// counts ASCII digits alone. A Unicode numeric character -- U+00BD (½),
+    /// general category No, or U+0661 (١), an Arabic-Indic digit -- is ordinary
+    /// text, and a run holding one opens no list to escape.
     #[test]
-    fn test_index_of_markdown_ordered_item_delimiter_multibyte() {
-        // U+00BD (½) is 2 bytes in UTF-8: the delimiter byte offset is 3, not 2
-        assert_eq!(
-            Some(3),
-            index_of_markdown_ordered_item_delimiter("2½. text")
-        );
-        // No delimiter, should return None
+    fn a_unicode_numeric_opens_no_ordered_item() {
+        assert_eq!(None, index_of_markdown_ordered_item_delimiter("2½. text"));
         assert_eq!(None, index_of_markdown_ordered_item_delimiter("2½"));
+        assert_eq!(None, index_of_markdown_ordered_item_delimiter("1١. text"));
+        // With only ASCII digits ahead of it, the delimiter offset counts them;
+        // a multibyte character after the delimiter leaves the offset alone.
+        assert_eq!(Some(2), index_of_markdown_ordered_item_delimiter("12. ½"));
     }
 }

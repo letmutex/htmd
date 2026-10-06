@@ -799,9 +799,8 @@ fn document_whitespace() {
 // cause a panic due to byte/char index confusion in escape_text.
 #[test]
 fn multibyte_ordered_list_escape_half() {
-    // U+00BD (½) is 2 bytes in UTF-8
     let md = convert_faithful("<p>2½. Long shot</p>").unwrap();
-    assert_eq!(r"2½\. Long shot", md);
+    assert_eq!("2½. Long shot", md);
 }
 
 #[test]
@@ -978,6 +977,17 @@ fn a_marker_which_starts_no_line_is_not_escaped() {
 fn a_run_of_ordered_item_delimiters_opens_no_list() {
     assert_paragraph_survives("<p>1)))</p>", "1)))", "1)))");
     assert_paragraph_survives("<p>1.)</p>", "1.)", "1.)");
+}
+
+/// An [ordered list marker](https://spec.commonmark.org/0.31.2/#ordered-list-marker)
+/// counts ASCII digits alone, so a run holding a Unicode numeric character
+/// opens no list and the paragraph carrying it needs no escape. A backslash
+/// reads back as the text it came from, which is why the trips below hold
+/// either way: what the escape costs is a character in the Markdown.
+#[test]
+fn a_paragraph_of_unicode_numerics_needs_no_escape() {
+    assert_paragraph_survives("<p>2½. text</p>", "2½. text", "2½. text");
+    assert_paragraph_survives("<p>1١. text</p>", "1١. text", "1١. text");
 }
 
 /// `script` and `style` open a
