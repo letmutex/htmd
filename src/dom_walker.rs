@@ -193,9 +193,10 @@ fn is_markdown_block_start(byte: u8) -> bool {
 }
 
 /// The bytes which carry CommonMark meaning wherever in a text node they
-/// appear, and so are escaped one by one.
+/// appear, and so are escaped one by one. A `&` could begin an
+/// [entity or numeric character reference](https://spec.commonmark.org/0.31.2/#entity-and-numeric-character-references).
 fn is_markdown_inline_special(byte: u8) -> bool {
-    matches!(byte, b'\\' | b'*' | b'_' | b'`' | b'[' | b']')
+    matches!(byte, b'\\' | b'&' | b'*' | b'_' | b'`' | b'[' | b']')
 }
 
 pub(crate) fn walk_children(
@@ -438,6 +439,7 @@ fn trim_output_end_spaces(output: &mut String) {
 ///
 /// ````text
 /// '\'        -> '\\'
+/// '&copy;'   -> '\&copy;'   // entity reference
 /// '==='      -> '\==='      // setext underline
 /// '---'      -> '\---'      // setext underline, thematic break
 /// '```'      -> '\`\`\`'    // code fence, escaped as three inline specials
@@ -498,6 +500,7 @@ fn escape_if_needed(text: Cow<'_, str>) -> Cow<'_, str> {
     for ch in text.chars() {
         match ch {
             '\\' => escaped.push_str("\\\\"),
+            '&' => escaped.push_str("\\&"),
             '*' => escaped.push_str("\\*"),
             '_' => escaped.push_str("\\_"),
             '`' => escaped.push_str("\\`"),

@@ -677,19 +677,25 @@ fn upper_case_tags() {
     assert_eq!("# Hello\n\nWorld", convert_faithful(html).unwrap());
 }
 
+/// Every `&` in a text node is escaped, since one which begins an
+/// [entity or numeric character reference](https://spec.commonmark.org/0.31.2/#entity-and-numeric-character-references)
+/// would otherwise be decoded.
 #[test]
 fn html_entities() {
     let html = r#"<p><a href="/my%20&amp;uri" title="my%20&amp;title">my%20&amp;link</a></p>"#;
     assert_eq!(
-        r#"[my%20&link](/my%20&uri "my%20&title")"#,
+        r#"[my%20\&link](/my%20&uri "my%20&title")"#,
         convert_faithful(html).unwrap()
     );
 
     let html_plain = r#"<p>This &amp; that, then &lt; &gt; now.</p>"#;
     assert_eq!(
-        r#"This & that, then < > now."#,
+        r#"This \& that, then < > now."#,
         convert_faithful(html_plain).unwrap()
     );
+
+    // `&amp;copy;` is the text `&copy;`, not the character it names.
+    assert_round_trips("<p>&amp;copy; &amp;#169; &amp;#xA9;</p>");
 }
 
 #[test]
@@ -1177,14 +1183,10 @@ fn round_trip_of_a_walked_raw_inline() {
     assert_round_trips("<h1>x<del>a&lt;b&gt;c</del>y</h1>");
     assert_round_trips("<h1>x<pre>a&lt;b&gt;c</pre>y</h1>");
     assert_round_trips("<h1>x<textarea>a&lt;b&gt;c</textarea>y</h1>");
-    // A raw text element decodes no reference, so this `<script>` holds the
-    // eleven characters `a&lt;b&gt;c` — and those are what comes back.
-    assert_round_trips("<h1>x<script>a&lt;b&gt;c</script>y</h1>");
 
     // A literal `&`.
     assert_round_trips("<h1>x<div>a&amp;b</div>y</h1>");
     assert_round_trips("<h1>x<pre>a&amp;b</pre>y</h1>");
-    assert_round_trips("<h1>x<script>a&amp;b</script>y</h1>");
 
     // Markdown specials.
     assert_round_trips("<h1>x<div>a*b_c[d]</div>y</h1>");
@@ -1219,6 +1221,17 @@ fn round_trip_losses_of_a_walked_raw_inline() {
     assert_eq!(
         "<h1>x<script>a&lt;em&gt;b&lt;/em&gt;c</script>y</h1>\n",
         round_trip("<h1>x<script>a<em>b</em>c</script>y</h1>")
+    );
+    // Its `&` goes the same way. A raw text element decodes no reference, so
+    // this `<script>` holds the characters `a&amp;b`; the text node's `&` is
+    // escaped, and CommonMark writes it back as `&amp;`.
+    assert_eq!(
+        "<h1>x<script>a&amp;amp;b</script>y</h1>\n",
+        round_trip("<h1>x<script>a&amp;b</script>y</h1>")
+    );
+    assert_eq!(
+        "<h1>x<script>a&amp;lt;b&amp;gt;c</script>y</h1>\n",
+        round_trip("<h1>x<script>a&lt;b&gt;c</script>y</h1>")
     );
 
     // `<b>` and `<i>` have no Markdown of their own, so the walk writes the
