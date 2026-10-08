@@ -288,6 +288,22 @@ fn multiline_raw_html_escaping() {
     );
 }
 
+/// An [email autolink](https://spec.commonmark.org/0.31.2/#email-autolink)
+/// needs the escape a tag gets, though its `<` may be followed by a digit, a
+/// `/` or a symbol rather than a letter.
+#[test]
+fn inline_email_autolink_escaping() {
+    let html = "<p>Mail &lt;1foo@bar.com&gt;, &lt;/1@b.co&gt; or &lt;+a@b.co&gt;.</p>";
+    assert_eq!(
+        r"Mail \<1foo@bar.com>, \</1@b.co> or \<+a@b.co>.",
+        convert_faithful(html).unwrap()
+    );
+    assert_eq!(
+        "<p>Mail &lt;1foo@bar.com&gt;, &lt;/1@b.co&gt; or &lt;+a@b.co&gt;.</p>\n",
+        round_trip(html)
+    );
+}
+
 #[test]
 fn html_escaping() {
     let html = indoc!(
