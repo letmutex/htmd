@@ -1,5 +1,5 @@
 use crate::{
-    Element,
+    Context, ContextKind, Element,
     element_handler::{
         HandlerResult, Handlers,
         element_util::{
@@ -19,7 +19,15 @@ pub(super) fn emphasis_handler(
     marker: &str,
 ) -> Option<HandlerResult> {
     serialize_if_extra_attrs!(handlers, element, 0);
-    let content = handlers.walk_children_content(element.node, element.context);
+    // Emphasis is an inline: its children begin an inline context, though text
+    // inside a `<pre>` stays literal.
+    let content = handlers.walk_children_content(
+        element.node,
+        Context {
+            kind: ContextKind::Inline,
+            ..element.context
+        },
+    );
     // Note: this is whitespace, NOT document whitespace, per the
     // [Commonmark spec](https://spec.commonmark.org/0.31.2/#emphasis-and-strong-emphasis).
     let (content, leading_whitespace) = content.strip_leading_whitespace();
