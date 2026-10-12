@@ -3,7 +3,7 @@ use htmd::{
     options::{LinkStyle, Options, TranslationMode},
 };
 mod common;
-use common::convert_faithful;
+use common::{convert_faithful, convert_faithful_options, convert_pure, round_trip};
 
 #[test]
 fn links() {
@@ -198,4 +198,56 @@ fn discard_links_in_table_falling_back_to_raw_html() {
         ),
         md
     );
+}
+
+/// A `!` immediately before a link would make it an image.
+#[test]
+fn a_bang_before_a_link_is_escaped() {
+    assert_eq!(
+        r"Hi\![t](x)",
+        convert_faithful(r#"<p>Hi!<a href="x">t</a></p>"#).unwrap()
+    );
+    assert_eq!(
+        "<p>Hi!<a href=\"x\">t</a></p>\n",
+        round_trip(r#"<p>Hi!<a href="x">t</a></p>"#)
+    );
+    assert_eq!(
+        r"Hi\![t][1]",
+        convert_referenced(r#"<p>Hi!<a href="x">t</a></p>"#)
+            .lines()
+            .next()
+            .unwrap()
+    );
+    // The link needn't be the `!`'s sibling.
+    assert_eq!(
+        r"Hi\![t](x)",
+        convert_pure(r#"<p>Hi!<span><a href="x">t</a></span></p>"#).unwrap()
+    );
+    // A `\` before the `!` is text, escaped by its own backslash.
+    assert_eq!(
+        r"\\\![t](x)",
+        convert_faithful(r#"<p>\!<a href="x">t</a></p>"#).unwrap()
+    );
+    // Anything between the two leaves the `!` alone.
+    assert_eq!(
+        "Hi! [t](x)",
+        convert_faithful(r#"<p>Hi! <a href="x">t</a></p>"#).unwrap()
+    );
+    assert_eq!(
+        "![a](i)![b](j)",
+        convert_faithful(r#"<p><img src="i" alt="a"><img src="j" alt="b"></p>"#).unwrap()
+    );
+}
+
+/// `convert_faithful` with [`LinkStyle::Referenced`], the style which writes
+/// the destination in a link reference definition rather than inline.
+fn convert_referenced(html: &str) -> String {
+    convert_faithful_options(
+        html,
+        Options {
+            link_style: LinkStyle::Referenced,
+            ..Default::default()
+        },
+    )
+    .unwrap()
 }
