@@ -3,11 +3,13 @@ use crate::{
     element_handler::element_util::serialize_if_extra_attrs,
     element_handler::{HandlerResult, Handlers},
     util::{
-        escape::{escape_link_destination, normalize_title},
+        escape::{escape_image_description, escape_link_destination, escape_link_title},
         text::concat_strings,
     },
 };
 
+/// Translates an `<img>` as an inline image, whatever the `LinkStyle`; see the
+/// images section of `overall_translation_approach.md`.
 pub(super) fn img_handler(handlers: &dyn Handlers, element: &Element) -> Option<HandlerResult> {
     let mut link: Option<String> = None;
     let mut alt: Option<String> = None;
@@ -27,23 +29,15 @@ pub(super) fn img_handler(handlers: &dyn Handlers, element: &Element) -> Option<
         }
     }
 
-    link.as_ref()?;
-
-    // Handle new lines in alt and in title
-    let alt = alt.as_deref().map(normalize_title);
-    let title = title.as_deref().map(normalize_title);
-
-    let link = link.map(escape_link_destination);
-
-    let has_spaces_in_link = link.as_ref().is_some_and(|link| link.contains(' '));
+    let link = escape_link_destination(&link?);
+    let alt = alt.as_deref().map(escape_image_description);
+    let title = title.as_deref().map(escape_link_title);
 
     let md = concat_strings!(
         "![",
-        alt.as_ref().unwrap_or(&String::new()),
+        alt.as_deref().unwrap_or_default(),
         "](",
-        if has_spaces_in_link { "<" } else { "" },
-        link.as_ref().unwrap_or(&String::new()),
-        if has_spaces_in_link { ">" } else { "" },
+        link,
         title
             .as_ref()
             .map_or(String::new(), |t| concat_strings!(" \"", t, "\"")),

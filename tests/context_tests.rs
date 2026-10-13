@@ -456,21 +456,18 @@ fn a_title_escapes_its_line_endings() {
         r#"# ![a&#10;b](i "c&#10;d")"#,
         convert_faithful("<h1><img src=\"i\" alt=\"a\nb\" title=\"c\nd\"></h1>").unwrap()
     );
-    // A blank line is dropped rather than encoded: the lines around it are
-    // joined by the one reference the surviving line break needs.
+    // A blank line is encoded.
     assert_eq!(
-        r#"[t](u "a&#10;b")"#,
+        r#"[t](u "a&#10;&#10;b")"#,
         convert_faithful("<p><a href=\"u\" title=\"a\n\nb\">t</a></p>").unwrap()
     );
     // A carriage return reaches the title only as a character reference, the
-    // parser having folded any literal CRLF into a line feed. `lines()` splits
-    // a CRLF, so that pair normalizes to the one reference a line break needs...
+    // parser having folded any literal CRLF into a line feed. Each line ending
+    // character is encoded where it stands, so the pair comes back intact.
     assert_eq!(
-        r#"# [t](u "a&#10;b")"#,
+        r#"# [t](u "a&#13;&#10;b")"#,
         convert_faithful("<h1><a href=\"u\" title=\"a&#13;&#10;b\">t</a></h1>").unwrap()
     );
-    // ...while a lone carriage return is no line break to `lines()` and so is
-    // encoded where it stands.
     assert_eq!(
         r#"# [t](u "a&#13;b")"#,
         convert_faithful("<h1><a href=\"u\" title=\"a&#13;b\">t</a></h1>").unwrap()

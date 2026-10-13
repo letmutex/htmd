@@ -693,14 +693,14 @@ fn upper_case_tags() {
     assert_eq!("# Hello\n\nWorld", convert_faithful(html).unwrap());
 }
 
-/// Every `&` in a text node is escaped, since one which begins an
+/// Every `&` is escaped, since one which begins an
 /// [entity or numeric character reference](https://spec.commonmark.org/0.31.2/#entity-and-numeric-character-references)
 /// would otherwise be decoded.
 #[test]
 fn html_entities() {
     let html = r#"<p><a href="/my%20&amp;uri" title="my%20&amp;title">my%20&amp;link</a></p>"#;
     assert_eq!(
-        r#"[my%20\&link](/my%20&uri "my%20&title")"#,
+        r#"[my%20\&link](/my%20\&uri "my%20\&title")"#,
         convert_faithful(html).unwrap()
     );
 

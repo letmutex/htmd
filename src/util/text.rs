@@ -56,13 +56,11 @@ pub(crate) trait StripWhitespace {
     /// Strip leading whitespace.
     ///
     /// A tuple of (striped_text, Option<leading_whitespace>) will be returned.
-    fn strip_leading_document_whitespace(&self) -> (&str, Option<&str>);
     fn strip_leading_whitespace(&self) -> (&str, Option<&str>);
 
     /// Strip trailing whitespace.
     ///
     /// A tuple of (striped_text, Option<trailing_whitespace>) will be returned.
-    fn strip_trailing_document_whitespace(&self) -> (&str, Option<&str>);
     fn strip_trailing_whitespace(&self) -> (&str, Option<&str>);
 }
 
@@ -82,33 +80,9 @@ where
         }
     }
 
-    fn strip_leading_document_whitespace(&self) -> (&str, Option<&str>) {
-        let text = self.as_ref();
-        let trimmed_text = text.trim_start_document_whitespace();
-        let stripped_len = text.len() - trimmed_text.len();
-        if stripped_len == 0 {
-            (text, None)
-        } else {
-            let start_index = stripped_len;
-            (&text[start_index..], Some(&text[..start_index]))
-        }
-    }
-
     fn strip_trailing_whitespace(&self) -> (&str, Option<&str>) {
         let text = self.as_ref();
         let trimmed_text = text.trim_end();
-        let stripped_len = text.len() - trimmed_text.len();
-        if stripped_len == 0 {
-            (text, None)
-        } else {
-            let end_index = trimmed_text.len();
-            (&text[..end_index], Some(&text[end_index..]))
-        }
-    }
-
-    fn strip_trailing_document_whitespace(&self) -> (&str, Option<&str>) {
-        let text = self.as_ref();
-        let trimmed_text = text.trim_end_document_whitespace();
         let stripped_len = text.len() - trimmed_text.len();
         if stripped_len == 0 {
             (text, None)

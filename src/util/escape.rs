@@ -1,7 +1,5 @@
 use std::borrow::Cow;
 
-use super::text::TrimDocumentWhitespace;
-
 /// Escape sequences that Markdown would treat as raw HTML or an autolink so that they stay as
 /// literal text.
 pub(crate) fn escape_html(text: Cow<'_, str>) -> Cow<'_, str> {
@@ -116,58 +114,74 @@ pub(crate) fn push_encoding_line_ending(output: &mut String, ch: char) {
     }
 }
 
-/// Escapes a [link destination](https://spec.commonmark.org/0.31.2/#link-destination):
-/// the parentheses which would close it early, and the line endings it may not
-/// hold at all. A line ending becomes a character reference for the reason
-/// [`normalize_title`] gives.
-pub(crate) fn escape_link_destination(link: String) -> String {
-    if !link.contains(['(', ')']) && !has_line_ending(&link) {
-        return link;
+/// Writes every line ending in `text` as the character reference
+/// [`push_encoding_line_ending`] gives it.
+pub(crate) fn encode_line_endings(text: &str) -> Cow<'_, str> {
+    if !has_line_ending(text) {
+        return Cow::Borrowed(text);
     }
+    let mut encoded = String::with_capacity(text.len() + 8);
+    for ch in text.chars() {
+        push_encoding_line_ending(&mut encoded, ch);
+    }
+    Cow::Owned(encoded)
+}
 
-    let mut escaped = String::with_capacity(link.len());
-    for ch in link.chars() {
-        match ch {
-            '(' => escaped.push_str("\\("),
-            ')' => escaped.push_str("\\)"),
-            _ => push_encoding_line_ending(&mut escaped, ch),
+/// Backslash-escapes each character of `text` which `needs_backslash` selects,
+/// and encodes its line endings.
+fn escape_inline_string(text: &str, needs_backslash: fn(char) -> bool) -> String {
+    let mut escaped = String::with_capacity(text.len());
+    for ch in text.chars() {
+        if needs_backslash(ch) {
+            escaped.push('\\');
+            escaped.push(ch);
+        } else {
+            push_encoding_line_ending(&mut escaped, ch);
         }
     }
     escaped
 }
 
-/// Normalizes an `alt` or `title` attribute value for Markdown: each line is
-/// trimmed of document whitespace, blank lines are dropped, every `"` is
-/// escaped so the value can sit inside a quoted title, and what is left is
-/// joined with `&#10;`.
-///
-/// The join is a character reference rather than the line ending it replaces
-/// because the value ends up inside a CommonMark inline — a link destination's
-/// title, or the label an image takes its alt text from — and a line ending
-/// there ends the leaf block holding it, truncating an ATX heading or a table
-/// row. CommonMark recognizes character references in both places, so `&#10;`
-/// decodes back to the line ending it replaced.
-pub(crate) fn normalize_title(text: &str) -> String {
-    let mut result = String::with_capacity(text.len());
-    for line in text.lines() {
-        let line = line.trim_document_whitespace();
-        if line.is_empty() {
-            continue;
-        }
-        if !result.is_empty() {
-            result.push_str("&#10;");
-        }
-        for ch in line.chars() {
-            match ch {
-                '"' => result.push_str("\\\""),
-                // `lines()` splits on a line feed, so a lone carriage return —
-                // which an attribute value can still hold, written as `&#13;` —
-                // reaches here intact and needs the same encoding.
-                _ => push_encoding_line_ending(&mut result, ch),
-            }
-        }
+/// Escapes a [link destination](https://spec.commonmark.org/0.31.2/#link-destination),
+/// switching to the pointy bracket form where the bare form cannot hold it. See
+/// the links section of `overall_translation_approach.md`.
+pub(crate) fn escape_link_destination(destination: &str) -> String {
+    let escaped = escape_inline_string(destination, |ch| matches!(ch, '\\' | '&' | '(' | ')'));
+    let needs_pointy_brackets = escaped.is_empty()
+        || escaped.starts_with('<')
+        || escaped.contains(|ch: char| ch.is_ascii_control() || ch == ' ');
+    if !needs_pointy_brackets {
+        return escaped;
     }
-    result
+
+    let mut bracketed = String::with_capacity(escaped.len() + 4);
+    bracketed.push('<');
+    for ch in escaped.chars() {
+        if matches!(ch, '<' | '>') {
+            bracketed.push('\\');
+        }
+        bracketed.push(ch);
+    }
+    bracketed.push('>');
+    bracketed
+}
+
+/// Escapes a [link title](https://spec.commonmark.org/0.31.2/#link-title) for
+/// writing between double quotes.
+pub(crate) fn escape_link_title(title: &str) -> String {
+    escape_inline_string(title, |ch| matches!(ch, '"' | '\\' | '&'))
+}
+
+/// Escapes an `alt` attribute value as the plain text of an
+/// [image description](https://spec.commonmark.org/0.31.2/#images), giving it
+/// the escapes `dom_walker::escape_if_needed` gives a text node.
+pub(crate) fn escape_image_description(alt: &str) -> String {
+    let escaped = escape_inline_string(alt, |ch| {
+        matches!(ch, '\\' | '&' | '*' | '_' | '`' | '[' | ']')
+    });
+    // `should_escape_html_like_sequence` reads a CDATA section in the spelling
+    // the backslash pass leaves behind, so that pass comes first.
+    escape_html(Cow::Owned(escaped)).into_owned()
 }
 
 /// Whether `text` opens an
@@ -242,7 +256,10 @@ pub(crate) fn index_of_markdown_ordered_item_delimiter(text: &str) -> Option<usi
 
 #[cfg(test)]
 mod tests {
-    use super::{escape_html, index_of_markdown_ordered_item_delimiter};
+    use super::{
+        escape_html, escape_image_description, escape_link_destination, escape_link_title,
+        index_of_markdown_ordered_item_delimiter,
+    };
 
     #[test]
     fn escapes_basic_tags() {
@@ -337,6 +354,57 @@ mod tests {
         assert_eq!(
             escape_html("<!\\[CDATA\\[already escaped]]>".into()),
             "<!\\[CDATA\\[already escaped]]>"
+        );
+    }
+
+    /// A backslash in a destination escapes whatever follows it, the `)` or `>`
+    /// which closes the destination included, so it is escaped itself.
+    /// `a_link_destination_escapes_its_backslashes` in `tests/link_tests.rs`
+    /// holds what an unescaped one costs.
+    #[test]
+    fn escapes_a_link_destination_backslash() {
+        assert_eq!(r"a\\", escape_link_destination(r"a\"));
+        assert_eq!(r"a\\\(b", escape_link_destination(r"a\(b"));
+        assert_eq!("ab", escape_link_destination("ab"));
+    }
+
+    /// Only the pointy bracket form needs its `<` and `>` escaped; see the
+    /// links section of `overall_translation_approach.md`.
+    #[test]
+    fn brackets_a_link_destination_the_bare_form_cannot_hold() {
+        assert_eq!("<>", escape_link_destination(""));
+        assert_eq!(r"<\<a\>>", escape_link_destination("<a>"));
+        assert_eq!(r"<a b\<c\>>", escape_link_destination("a b<c>"));
+        assert_eq!("<a\tb>", escape_link_destination("a\tb"));
+        assert_eq!("a<b>c", escape_link_destination("a<b>c"));
+        // An encoded line ending is no longer a control character.
+        assert_eq!("a&#10;b", escape_link_destination("a\nb"));
+    }
+
+    #[test]
+    fn escapes_a_link_destination_ampersand() {
+        assert_eq!(r"a\&copy;", escape_link_destination("a&copy;"));
+    }
+
+    /// A backslash in a title escapes whatever follows it, the `"` which closes
+    /// the title included, so it is escaped itself.
+    #[test]
+    fn escapes_a_title_backslash() {
+        assert_eq!(r#"a\\"#, escape_link_title(r#"a\"#));
+        assert_eq!(r#"a\\\"b"#, escape_link_title(r#"a\"b"#));
+    }
+
+    #[test]
+    fn escapes_a_title_ampersand_and_line_endings() {
+        assert_eq!(r"a\&copy;", escape_link_title("a&copy;"));
+        assert_eq!("a&#13;&#10;&#10;", escape_link_title("a\r\n\n"));
+    }
+
+    #[test]
+    fn escapes_an_image_description_as_text() {
+        assert_eq!(
+            r"a\&b\\c\*d\_e\`f\[g\]h&#10;\<em>",
+            escape_image_description("a&b\\c*d_e`f[g]h\n<em>")
         );
     }
 

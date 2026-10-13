@@ -1,5 +1,7 @@
 use std::cell::RefCell;
 
+use markup5ever_rcdom::NodeData;
+
 use crate::{
     Context, ContextKind, Element, ElementHandler, Options,
     element_handler::EventSubscription,
@@ -8,14 +10,17 @@ use crate::{
     element_handler::{HandlerResult, Handlers},
     options::{LinkReferenceStyle, LinkStyle},
     util::{
-        escape::{escape_link_destination, normalize_title},
-        text::{StripWhitespace, concat_strings},
+        escape::{encode_line_endings, escape_link_destination, escape_link_title},
+        text::concat_strings,
     },
 };
 
 /// Handler for HTML `<a>` (anchor) elements.
 ///
-/// Converts anchor tags to Markdown links (inlined, autolinks, or reference-style links).
+/// Converts anchor tags to Markdown links (inlined, autolinks, or reference-style links),
+/// following the links section of `overall_translation_approach.md`. Link text
+/// relies on the escapes `dom_walker` gives each text node; this handler adds
+/// only the encoding of line endings.
 ///
 /// When using [`LinkStyle::Referenced`], link reference definitions (e.g. `[1]: https://...`)
 /// are collected in a scoped thread-local buffer during DOM traversal.
@@ -137,14 +142,21 @@ impl ElementHandler for AnchorElementHandler {
 
         // Without an `href` this is no link: its content stands in its place,
         // in the context the `<a>` appears in.
-        let Some(link) = link else {
+        let Some(href) = link else {
             return Some(handlers.walk_children(element.node, element.context));
         };
 
-        // Handle new lines in title
-        let title = title.as_deref().map(normalize_title);
+        if handlers.options().link_style == LinkStyle::InlinedPreferAutolinks
+            && title.is_none()
+            && is_text_equal_to(element, &href)
+            && can_be_autolink(&href)
+        {
+            // An autolink's destination is written literally, without escapes.
+            return Some(concat_strings!("<", href, ">").into());
+        }
 
-        let link = escape_link_destination(link);
+        let link = escape_link_destination(&href);
+        let title = title.as_deref().map(escape_link_title);
 
         // A link is an inline: its children begin an inline context, though
         // text inside a `<pre>` stays literal.
@@ -155,76 +167,44 @@ impl ElementHandler for AnchorElementHandler {
                 ..element.context
             },
         );
-        let md = match handlers.options().link_style {
-            LinkStyle::Inlined => {
-                self.build_inlined_anchor(&content, &link, title.as_deref(), false)
-            }
-            LinkStyle::InlinedPreferAutolinks => {
-                self.build_inlined_anchor(&content, &link, title.as_deref(), true)
+        let content = encode_line_endings(&content);
+        let link_md = match handlers.options().link_style {
+            LinkStyle::Inlined | LinkStyle::InlinedPreferAutolinks => {
+                self.build_inlined_anchor(&content, &link, title.as_deref())
             }
             LinkStyle::Referenced => self.build_referenced_anchor(
                 &content,
-                link,
+                &link,
                 title,
                 &handlers.options().link_reference_style,
             ),
         };
 
-        Some(md.into())
+        Some(link_md.into())
     }
 }
 
 impl AnchorElementHandler {
-    fn build_inlined_anchor(
-        &self,
-        content: &str,
-        link: &str,
-        title: Option<&str>,
-        prefer_autolinks: bool,
-    ) -> String {
-        if prefer_autolinks && content == link {
-            let mut result = String::with_capacity(link.len() + 2);
-            result.push('<');
-            result.push_str(link);
-            result.push('>');
-            return result;
-        }
-
-        let has_spaces_in_link = link.contains(' ');
-        let (content, _) = content.strip_leading_document_whitespace();
-        let (content, trailing_whitespace) = content.strip_trailing_document_whitespace();
+    fn build_inlined_anchor(&self, content: &str, link: &str, title: Option<&str>) -> String {
         let title_len = title.map_or(0, |t| t.len() + 3);
-        let trailing_len = trailing_whitespace.map_or(0, str::len);
-        let wrapper_len = if has_spaces_in_link { 2 } else { 0 };
-        let mut result = String::with_capacity(
-            content.len() + link.len() + title_len + trailing_len + wrapper_len + 4,
-        );
+        let mut result = String::with_capacity(content.len() + link.len() + title_len + 4);
         result.push('[');
         result.push_str(content);
         result.push_str("](");
-        if has_spaces_in_link {
-            result.push('<');
-        }
         result.push_str(link);
-        if has_spaces_in_link {
-            result.push('>');
-        }
         if let Some(title) = title {
             result.push_str(" \"");
             result.push_str(title);
             result.push('"');
         }
         result.push(')');
-        if let Some(trailing_whitespace) = trailing_whitespace {
-            result.push_str(trailing_whitespace);
-        }
         result
     }
 
     fn build_referenced_anchor(
         &self,
         content: &str,
-        link: String,
+        link: &str,
         title: Option<String>,
         style: &LinkReferenceStyle,
     ) -> String {
@@ -251,4 +231,30 @@ impl AnchorElementHandler {
             current
         })
     }
+}
+
+/// Whether the content of `element` is a single text node equal to `text`.
+fn is_text_equal_to(element: &Element, text: &str) -> bool {
+    match element.node.children.borrow().as_slice() {
+        [child] => {
+            matches!(&child.data, NodeData::Text { contents } if &**contents.borrow() == text)
+        }
+        _ => false,
+    }
+}
+
+/// Whether `href` can be written as an
+/// [absolute URI autolink](https://spec.commonmark.org/0.31.2/#absolute-uri).
+/// This excludes a `&`, which an autolink would write as `&amp;`.
+fn can_be_autolink(href: &str) -> bool {
+    let Some(scheme_len) = href.find(':') else {
+        return false;
+    };
+    let scheme = &href[..scheme_len];
+    (2..=32).contains(&scheme.len())
+        && scheme.starts_with(|c: char| c.is_ascii_alphabetic())
+        && scheme[1..]
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '.' | '-'))
+        && !href.contains(|c: char| c.is_ascii_control() || matches!(c, ' ' | '&' | '<' | '>'))
 }
