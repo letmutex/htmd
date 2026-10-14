@@ -72,7 +72,7 @@ fn consecutive_referenced_links_with_title() {
 #[test]
 fn images() {
     let html = r#"
-        <img src="https://example.com" />
+        <img src="https://example.com" alt="" />
         <img src="https://example.com" alt="Image 1" />
         <img src="https://example.com" alt="Image 2" title="Hello" />
         "#;
@@ -86,7 +86,7 @@ fn images() {
 #[test]
 fn images_with_spaces_in_url() {
     let html = r#"
-        <img src="https://example.com/Some Image.jpg" />
+        <img src="https://example.com/Some Image.jpg" alt="" />
         "#;
     assert_eq!(
         "![](<https://example.com/Some Image.jpg>)",

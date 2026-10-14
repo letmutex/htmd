@@ -103,7 +103,7 @@ fn html_in_a_paragraph_is_a_raw_inline() {
     );
     assert_eq!(
         "<br>![](i)",
-        convert_faithful(r#"<p><br><img src="i"></p>"#).unwrap()
+        convert_faithful(r#"<p><br><img src="i" alt=""></p>"#).unwrap()
     );
 }
 
