@@ -12,7 +12,10 @@ use super::{
     util::{
         escape::{escape_html, index_of_markdown_ordered_item_delimiter, is_markdown_atx_heading},
         node::is_block_element,
-        text::{TrimDocumentWhitespace, compress_whitespace, concat_strings, frame_as_block},
+        text::{
+            TrimDocumentWhitespace, compress_whitespace, concat_strings, frame_as_block,
+            trim_newlines,
+        },
     },
 };
 
@@ -130,7 +133,9 @@ fn walk_element(
         let mut content = String::new();
         // A span holds inline content, so its children keep this context.
         let markdown_translated = walk_children(node, &mut content, handlers, false, context);
-        trim_newlines(&mut content);
+        if !context.literal {
+            trim_newlines(&mut content);
+        }
         append_normalized_content(output, content, context.literal);
         return markdown_translated;
     }
@@ -160,15 +165,6 @@ fn is_passthrough_span(
     handlers: &ElementHandlers,
 ) -> bool {
     tag == "span" && handlers.can_passthrough_span && !is_math_span(attrs)
-}
-
-fn trim_newlines(content: &mut String) {
-    let start = content.len() - content.trim_start_matches('\n').len();
-    if start > 0 {
-        content.drain(..start);
-    }
-    let end = content.trim_end_matches('\n').len();
-    content.truncate(end);
 }
 
 fn is_math_span(attrs: &[html5ever::Attribute]) -> bool {
@@ -393,9 +389,16 @@ fn combine_nodes(parent: &Rc<Node>, nodes: &[Rc<Node>]) -> Rc<Node> {
 /// Normalizes content before adding to output by:
 /// 1. Collapsing excessive newlines (max 2 consecutive newlines)
 /// 2. Collapsing adjacent spaces between inline elements
+///
+/// When `preserve_whitespace` is true, the content is appended without normalization.
 fn append_normalized_content(output: &mut String, mut content: String, preserve_whitespace: bool) {
     if output.is_empty() {
         *output = content;
+        return;
+    }
+
+    if preserve_whitespace {
+        output.push_str(&content);
         return;
     }
 
@@ -411,8 +414,7 @@ fn append_normalized_content(output: &mut String, mut content: String, preserve_
     }
 
     // Collapse adjacent spaces between inline elements
-    let content = if !preserve_whitespace
-        && last_newlines == 0
+    let content = if last_newlines == 0
         && content_newlines == 0
         && output.ends_with(' ')
         && content.starts_with(' ')
@@ -422,9 +424,7 @@ fn append_normalized_content(output: &mut String, mut content: String, preserve_
         &content
     };
 
-    if !preserve_whitespace {
-        escape_image_marker(output, content);
-    }
+    escape_image_marker(output, content);
     output.push_str(content);
 }
 

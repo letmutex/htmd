@@ -4,7 +4,7 @@ use crate::{
     Element,
     element_handler::element_util::serialize_if_extra_attrs,
     element_handler::{HandlerResult, Handlers},
-    util::text::concat_strings,
+    util::text::{concat_strings, trim_newlines},
 };
 
 pub(super) fn span_handler(handlers: &dyn Handlers, element: &Element) -> Option<HandlerResult> {
@@ -39,8 +39,10 @@ pub(super) fn span_handler(handlers: &dyn Handlers, element: &Element) -> Option
     serialize_if_extra_attrs!(handlers, element, -1);
 
     // Otherwise, just return the contents.
-    let content = handlers.walk_children_content(element.node, element.context);
-    let content = content.trim_matches('\n');
+    let mut content = handlers.walk_children_content(element.node, element.context);
+    if !element.context.literal {
+        trim_newlines(&mut content);
+    }
 
     Some(content.into())
 }
