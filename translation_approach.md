@@ -1,9 +1,28 @@
-CommonMark translation of HTML blocks and raw HTML inlines
-==========================================================
+Translation approach
+====================
 
-This design requires `TranslationMode::Faithful`, which outputs all `<br>`
-elements not as a CommonMark break, but as the HTML `<br>`. This choice is
-driven by [CommonMark](https://spec.commonmark.org/0.31.2/) rules:
+This document is organized to mirror the
+[CommonMark spec](https://spec.commonmark.org/0.31.2/). CommonMark extensions
+are governed by the
+[pulldown-cmark spec](https://pulldown-cmark.github.io/pulldown-cmark/specs.html),
+which also references the
+[GitHub Flavored Markdown Spec](https://github.github.com/gfm/). However, this
+document begins with a discussion of the translation of HTML blocks and raw HTML
+inlines, since these impact the entire translation process.
+
+The Faithful expected column is what a correct design should produce. Notation
+inside a cell: `⏎` is a newline; `␣` is a space; `<br><br>...<br>` stands for
+one or more `<br>` elements. Where one `<br>` and a run of them need different
+Markdown or produce different translations, they get a row each.
+
+CommonMark translation of HTML blocks and raw HTML inlines
+----------------------------------------------------------
+
+The majority of the document uses `TranslationMode::Faithful`, which outputs all
+`<br>` elements not as a CommonMark break, but as the HTML `<br>`. In contrast,
+`TranslationMode::Pure` outputs traditional CommonMark hard line breaks,
+sacrificing correctness for simpler output. This tradeoff is driven by
+[CommonMark](https://spec.commonmark.org/0.31.2/) rules:
 
 1. A [hard line break](https://spec.commonmark.org/0.31.2/#hard-line-breaks)
    must be followed by content **in the same block**. Neither `␣␣⏎` nor `\⏎` can
@@ -18,20 +37,14 @@ driven by [CommonMark](https://spec.commonmark.org/0.31.2/) rules:
    [raw HTML inlines](https://spec.commonmark.org/0.31.2/#raw-html) necessary in
    these cases.
 
-The Faithful expected column is what a correct design should produce. Notation
-inside a cell: `⏎` is a newline; `␣` is a space; `<br><br>...<br>` stands for
-one or more `<br>` elements. Where one `<br>` and a run of them need different
-Markdown or produce different translations, they get a row each.
-
-Analysis
---------
+### Analysis
 
 The CommonMark rules for HTML blocks and raw HTML inlines drive nearly every
-table row below. While this file focuses on `<br>` elements, the same principles
-apply to any HTML block (in some cases, over-conservatively) or raw HTML inline.
-An implementation ensuring correct `<br>` operation should not employ special
-cases for a `<br>` element, but rather generalize to any HTML block or raw HTML
-inline.
+table row below. While this section focuses on `<br>` elements, the same
+principles apply to any HTML block (in some cases, over-conservatively) or raw
+HTML inline. An implementation ensuring correct `<br>` operation should not
+employ special cases for a `<br>` element, but rather generalize to any HTML
+block or raw HTML inline.
 
 `br` is not a block-level tag name, so the only HTML block a raw `<br>` can open
 is [type 7](https://spec.commonmark.org/0.31.2/#html-blocks): a line that begins
@@ -53,8 +66,7 @@ before, and a following sibling item closes the block without one. Inside a
 [blockquote](https://spec.commonmark.org/0.31.2/#block-quotes) the separator is
 a blank `>` line, since a truly blank line would end the blockquote instead.
 
-Translating HTML nodes
-----------------------
+### Translating HTML nodes
 
 CommonMark blocks may only process their content into CommonMark in a block
 context; in an inline context, they should emit raw HTML inlines. For example:
@@ -75,15 +87,15 @@ HTML node to examine the current context to be correctly translated.
   CommonMark. They have no content.
 * Leaf blocks, which are headings (`<h1>`-`<h6>`), paragraphs (`<p>`), and
   tables (`<table>`, `<thead>`, `<tbody>`, `<tr>`), can only be translated as
-  CommonMark/GFM when they appear in a block context. Table cells
-  (`<td>`/`<th>`) begin an inline context.
+  CommonMark/GFM when they appear in a block context. Headings, paragraphs, and
+  table cells (`<td>`/`<th>`) begin an inline context.
 * Inlines, consisting of emphasis (`<em>`) and strong emphasis (`<strong>`),
   links (`<a>`), autolinks (`<a>`), and raw HTML, begin an inline context.
 * Inlines with no content (`<img>`, `<br>`) aren't affected by context.
 * Both code blocks and code spans (`<pre>`, `<code>`) create a literal context.
   Code blocks must occur in a block context to be translated to CommonMark. Any
-  HTML node discovered inside a literal context forces serialzation of the
-  entire enclosing `<pre>`/`<code>`.
+  HTML element discovered inside a literal context forces serialization of the
+  `<pre>`/`<code>` elements.
 * Given an HTML node which cannot be translated to CommonMark:
   * HTML type 1-6 in a block context is emitted as an HTML block; the
     inline/block classification does not apply to these contents. In contrast,
@@ -92,19 +104,20 @@ HTML node to examine the current context to be correctly translated.
   * HTML type 7 is always emitted as raw HTML inlines; the resulting context is
     inline. This choice is a tradeoff: it provides more natural behavior inside
     tight lists and when encountering text that's a direct child of `<body>`;
-    for example, it translates `This is <em>really</em> important.` as `This is
-    *really*  important.` instead of (as HTML blocks)
-    `This  is⏎⏎<em>⏎⏎really⏎⏎</em>⏎⏎important.` This approach, however, fails to
+    for example, it translates `<body>This is <em>really</em> important.</body>`
+    as `This is *really* important.` instead of (as HTML blocks) `This
+    is⏎⏎<em>⏎⏎really⏎⏎</em>⏎⏎important.` This approach, however, fails to
     preserve a possible faithful encoding of lone inline tags: `<br><br>` stays
     `<br><br>` in CommonMark, which re-translates to `<p><br><br></p>`.
     Translating to `<br>⏎⏎<br>` would preserve the original HTML.
 
 Newline encoding works exactly when the parser reading that position decodes
 character references there: the CommonMark parser in the text between raw HTML
-inlines, the HTML parser in the data and attribute values of an HTML block. It
-works nowhere else — inside a comment, a CDATA section, a declaration, or a raw
-text element the reference stays as the literal characters composing it. The
-rest of this section follows from this.
+inlines, the HTML parser in the data and attribute values of an HTML block or
+raw HTML inlines. It works nowhere else — inside a comment, a CDATA section, a
+declaration, a processing instruction (although the html5ever crate turns these
+into comments), or a raw text element the reference stays as the literal
+characters composing it. The rest of this section follows from this.
 
 Type 6 HTML blocks cannot contain blank lines; these must be encoded by
 replacing CR/LF characters in blank lines with `&#13;`/`&#10;`, where blank
@@ -122,8 +135,8 @@ interpreted by the HTML parser inside these tags. This requires a tradeoff: this
 type 1 content is walked like any other raw HTML inline, so the always-encoded
 characters in `<script>`/`<style>` tags are escaped and come back as character
 references, causing them to be mis-translated and newlines in
-`<pre>`/`<textarea>` are lost; the alternative of emitting this content as an
-HTML block would mis-translate this content placed in CommonMark blocks that
+`<pre>`/`<textarea>` tags are lost. The alternative of emitting this content as
+an HTML block would mis-translate this content placed in CommonMark blocks that
 cannot contain a newline (headings and tables). Walking ensures that CommonMark
 in the content is escaped, so `<h1>a<script>b*c*d</script>e</h1>` keeps its
 literal `*c*`.
@@ -147,7 +160,7 @@ result is incorrect. The correct result would be placing a blank line before the
 next nested type 1-5 block to start another block. Likewise, nesting a type 1-5
 block inside another type 1 block fails when the inner block contains any type 1
 termination condition followed by newlines: `<pre><style></style>⏎a</pre>`. Due
-to this complexity, the current translation is unspecified for simplicity.
+to this complexity, the current translation is unspecified.
 
 **Special case**: Content in `<iframe>`, `<xmp>`, `<noscript>` (scripting
 enabled), `<noembed>`, `<noframes>`, and `<plaintext>` tags comes back from the
@@ -165,28 +178,7 @@ above, so an inline context holds a single line. A handler which writes one
 anyway produces a translation this design does not describe, and the result is
 unspecified.
 
-Special case for paragraphs
----------------------------
-
-Classification alone is not enough: a paragraph containing only a lone type 7
-raw HTML inline or beginning with a type 1-6 raw HTML inline dissolves the
-paragraph containing it. Of the CommonMark leaf blocks above, only a paragraph
-and a setext heading are exposed. An ATX heading's `#` is leaf-block syntax the
-block scan matches before any HTML block start condition; a table cell's
-contents are parsed as inline content, so no block scan runs inside one at all;
-and a blockquote's `>` and a list item's marker are stripped before that scan
-and so protect nothing. Therefore, where a paragraph's content would be replaced
-by an HTML block, serialize the entire paragraph instead of its content; a
-setext heading falls back to ATX instead (see the headings section). See row 1
-of the paragraphs section and row 2 of the blockquotes section in addition to
-the following table.
-
-| Description                          | HTML in                             | Faithful expected                   |
-| ------------------------------------ | ----------------------------------- | ----------------------------------- |
-| Paragraph starting with a `<iframe>` | `<p><iframe src="u">a</iframe></p>` | `<p><iframe src="u">a</iframe></p>` |
-
-At the document root
---------------------
+### At the document root
 
 | Description           | HTML in                      | Faithful expected            |
 | --------------------- | ---------------------------- | ---------------------------- |
@@ -202,14 +194,16 @@ the whole element is an HTML block of
 [type 6](https://spec.commonmark.org/0.31.2/#html-blocks) and round-trips
 verbatim, however many `<br>`s it holds.
 
-Headings
---------
+Leaf blocks
+-----------
 
-The rows use `<h1>`. In the setext table, an `<h2>` underlines with `---`
-instead of `===`, or writes `##` in a row which falls back to ATX; levels 3-6
-have no setext form. In the ATX table, each level writes one more `#`.
+### Headings
 
-The special case for paragraphs section's criteria also apply to
+The rows use `<h1>`. In the setext rows, an `<h2>` underlines with `---` instead
+of `===`, or writes `##` in a row which falls back to ATX; levels 3-6 have no
+setext form. In ATX rows, each level writes one more `#`.
+
+The criteria of the paragraphs section below also apply to
 [Setext headings](https://spec.commonmark.org/0.31.2/#setext-headings); if a
 level 1 or level 2 heading (the only headings expressible using setext) meets
 these criteria, it must instead be encoded as an ATX heading, as the `<br>`-only
@@ -238,48 +232,57 @@ line.
 | `<br>` starting a heading | `<h1><br><em>b</em></h1>`  | `#␣<br>*b*`         |
 | `<br>` ending a heading   | `<h1><em>a</em><br></h1>`  | `#␣*a*<br>`         |
 
-Paragraphs
-----------
+### Code blocks and code spans
 
-| Description                          | HTML in                           | Faithful expected |
-| ------------------------------------ | --------------------------------- | ----------------- |
-| `<br>`-only paragraph (one `<br>`)   | `<p><br></p>`                     | `<p><br></p>`     |
-| `<br>`s-only paragraph (two or more) | `<p><br><br>...<br></p>`          | `<br><br>...<br>` |
-| `<br>` starting a paragraph          | `<p><br><em>b</em></p>`           | `<br>*b*`         |
-| `<br>` ending a paragraph            | `<p><em>a</em><br></p>`           | `*a*<br>`         |
-| `<br>` before an image               | `<p><br><img src="i" alt=""></p>` | `<br>![](i)`      |
-| `<br>` after an image                | `<p><img src="i" alt=""><br></p>` | `![](i)<br>`      |
+The content of a [code span](https://spec.commonmark.org/0.31.2/#code-spans) or
+an
+[indented](https://spec.commonmark.org/0.31.2/#indented-code-blocks)/[fenced code block](https://spec.commonmark.org/0.31.2/#fenced-code-blocks)
+is literal text: any raw HTML, such as a `<br>` written inside one, is four
+characters, not a break. No encoding of raw HTML survives there, which is why
+all rows of the table use HTML blocks or raw HTML inlines instead of inline code
+spans or code blocks. Adjacent code spans cannot be encoded; for example,
+``` `a``b` ``` produces a single code span holding `a``b`. The last row shows
+the required serialization in this case.
 
-The first row is the special case for paragraph section's rule that a paragraph
-writing out as a single complete tag must be serialized: a bare `<br>` re-opens
-as an HTML block, and the `<p>` around it would be lost.
+| Description                  | HTML in                                     | Faithful expected                           |
+| ---------------------------- | ------------------------------------------- | ------------------------------------------- |
+| `<br>`s in a code span       | `a<code>x<br><br>...<br>y</code>b`          | `a<code>x<br><br>...<br>y</code>b`          |
+| `<br>`s alone in a code span | `a<code><br><br>...<br></code>b`            | `a<code><br><br>...<br></code>b`            |
+| `<br>`s in a code block      | `<pre><code>a<br><br>...<br>b</code></pre>` | `<pre><code>a<br><br>...<br>b</code></pre>` |
+| `<br>`s-only code block      | `<pre><code><br><br>...<br></code></pre>`   | `<pre><code><br><br>...<br></code></pre>`   |
+| Adjacent code spans          | `<code>a</code><code>b</code>`              | `<code>a</code><code>b</code>`              |
 
-Two or more `<br>`s need nothing of the sort. The second tag keeps the line from
-being type 7, so the plain encoding is already an ordinary paragraph and
-round-trips as it stands.
+### Paragraphs
 
-Blockquotes
------------
+Classification alone is not enough: a paragraph containing only a lone type 7
+raw HTML inline or beginning with a type 1-6 raw HTML inline dissolves the
+paragraph containing it. Of the CommonMark leaf blocks, only a paragraph and a
+setext heading are exposed. An ATX heading's `#` is leaf-block syntax the block
+scan matches before any HTML block start condition; a table cell's contents are
+parsed as inline content, so no block scan runs inside one at all; and a
+blockquote's `>` and a list item's marker are stripped before that scan and so
+protect nothing. Therefore, where a paragraph's content would be replaced by an
+HTML block, serialize the entire paragraph instead of its content; a setext
+heading falls back to ATX instead (see the headings section). Rows 1-2 of the
+following table and row 2 of the blockquotes table show this rule.
 
-| Description                      | HTML in                                          | Faithful expected   |
-| -------------------------------- | ------------------------------------------------ | ------------------- |
-| `<br>`s-only blockquote          | `<blockquote><br><br>...<br></blockquote>`       | `>␣<br><br>...<br>` |
-| `<br>`-only blockquote paragraph | `<blockquote><p><br></p></blockquote>`           | `>␣<p><br></p>`     |
-| `<br>` starting a blockquote     | `<blockquote><p><br><em>b</em></p></blockquote>` | `>␣<br>*b*`         |
-| `<br>` ending a blockquote       | `<blockquote><p><em>a</em><br></p></blockquote>` | `>␣*a*<br>`         |
+| Description                          | HTML in                             | Faithful expected                   |
+| ------------------------------------ | ----------------------------------- | ----------------------------------- |
+| Paragraph starting with a `<iframe>` | `<p><iframe src="u">a</iframe></p>` | `<p><iframe src="u">a</iframe></p>` |
+| `<br>`-only paragraph (one `<br>`)   | `<p><br></p>`                       | `<p><br></p>`                       |
+| `<br>`s-only paragraph (two or more) | `<p><br><br>...<br></p>`            | `<br><br>...<br>`                   |
+| `<br>` starting a paragraph          | `<p><br><em>b</em></p>`             | `<br>*b*`                           |
+| `<br>` ending a paragraph            | `<p><em>a</em><br></p>`             | `*a*<br>`                           |
+| `<br>` before an image               | `<p><br><img src="i" alt=""></p>`   | `<br>![](i)`                        |
+| `<br>` after an image                | `<p><img src="i" alt=""><br></p>`   | `![](i)<br>`                        |
 
-Note that the row 1 translation is lossy: a `<p>` will be inserted when the
-CommonMark is translated back to HTML when there are two or more `<br>`s.
+The second row illustrates this section's rule that a paragraph writing out as a
+single complete tag must be serialized: a bare `<br>` re-opens as an HTML block,
+and the `<p>` around it would be lost. Two or more `<br>`s need nothing of the
+sort. The second tag keeps the line from being type 7, so the plain encoding is
+already an ordinary paragraph and round-trips as it stands.
 
-**Special case**: the blank line rule from the analysis section that puts a
-blank line on either side of an HTML block, such as a `<div></div>`, is written
-as a blank `>` line here. The first row is the root-level row one container
-down, and holds for the same reason. The second row is the paragraph row one
-container down: the `>` is stripped before the line is scanned, so the bare tag
-would re-open as an HTML block exactly as it does at the root.
-
-Table cells
------------
+### Tables
 
 The body-cell rows below are a one-column, one-row table —
 `<table><thead><tr><th>h</th></tr></thead><tbody><tr><td>…</td></tr></tbody></table>`.
@@ -288,7 +291,8 @@ Column padding is normalized here; the real output pads every cell to the column
 width. Table heading behavior is identical to body-cell behavior. In the
 *Faithful expected* column below, `\|` is
 [GFM](https://github.github.com/gfm/#tables-extension-)'s escape for the literal
-`|` which appears in the rendered output.
+`|` which appears in the rendered output and is the faithful expected output:
+the faithful expected output for row 1 is `|␣<br>*b*␣|`.
 
 A cell's contents are parsed as inline content, so no HTML block can open inside
 one; also, any instance of a `|` must be escaped as `\|`. That escape is read
@@ -317,8 +321,26 @@ narrower than the header.
 | `<br>` after text in a body cell  | `<td><em>a</em><br></td>`  | `\|␣*a*<br>␣\|`         |
 | `<br>`s-only body cell            | `<td><br><br>...<br></td>` | `\|␣<br><br>...<br>␣\|` |
 
-Lists
------
+Container blocks
+----------------
+
+### Blockquotes
+
+| Description                      | HTML in                                          | Faithful expected   |
+| -------------------------------- | ------------------------------------------------ | ------------------- |
+| `<br>`s-only blockquote          | `<blockquote><br><br>...<br></blockquote>`       | `>␣<br><br>...<br>` |
+| `<br>`-only blockquote paragraph | `<blockquote><p><br></p></blockquote>`           | `>␣<p><br></p>`     |
+| `<br>` starting a blockquote     | `<blockquote><p><br><em>b</em></p></blockquote>` | `>␣<br>*b*`         |
+| `<br>` ending a blockquote       | `<blockquote><p><em>a</em><br></p></blockquote>` | `>␣*a*<br>`         |
+
+Note that the row 1 translation is lossy: a `<p>` will be inserted when the
+CommonMark is translated back to HTML when there are two or more `<br>`s.
+
+As stated earlier, inside a
+[blockquote](https://spec.commonmark.org/0.31.2/#block-quotes) the separator is
+a blank `>` line, since a truly blank line would end the blockquote instead.
+
+### Lists
 
 **Important**: This section is under development. Ignore it.
 
@@ -330,9 +352,9 @@ Lists
 | `<br>`-only paragraph (one `<br>`)   | `<ul><li><p><br></p></li></ul>`            | `*␣␣␣<p><br></p>`     |
 | `<br>`s-only paragraph (two or more) | `<ul><li><p><br><br>...<br></p></li></ul>` | `*␣␣␣<br><br>...<br>` |
 
-Row 4 results from the special case for paragraphs section above: like a
-blockquote, a list item's marker is stripped like a `>`, so a bare tag re-opens
-as an HTML block.
+Row 4 results from the rule in the paragraphs section above: like a blockquote,
+a list item's marker is stripped like a `>`, so a bare tag re-opens as an HTML
+block.
 
 Note that the last row of this table produces the desired HTML only in a loose
 list; in a tight list, it produces the HTML for row 1. The algorithm below uses
@@ -416,3 +438,205 @@ Approach:
       direct children of each list item. If the child is a paragraph whose DOM
       begins with `<p>`, serialize it as HTML. Otherwise, leave it as
       CommonMark. Combine each list item with an intervening newline.
+
+Inlines
+-------
+
+### Emphasis and strong emphasis
+
+Notation: the characters `a` and `b` stand for characters which are neither
+Unicode whitespace nor Unicode punctuation.
+
+| Description                                     | HTML in                       | Faithful expected            |
+| ----------------------------------------------- | ----------------------------- | ---------------------------- |
+| `<br>`s starting emphasis                       | `<em><br><br>...<br>a</em>`   | `<em><br><br>...<br>a</em>`  |
+| `<br>`s ending emphasis                         | `<em>a<br><br>...<br></em>`   | `<em>a<br><br>...<br></em>`  |
+| `<br>`s inside emphasis                         | `<em>a<br><br>...<br>b</em>`  | `*a<br><br>...<br>b*`        |
+| `<br>`s alone in emphasis with surrounding text | `a<em><br><br>...<br></em>b`  | `a<em><br><br>...<br></em>b` |
+| Whitespace-only emphasis                        | `a<em>␣</em>b`                | `a<em>␣</em>b`               |
+| Empty emphasis                                  | `a<em></em>b`                 | `a<em></em>b`                |
+| Adjacent emphases                               | `<em>a</em><em>b</em>`        | `<em>a</em><em>b</em>`       |
+| Emphasis inside emphasis                        | `<em><em>a</em></em>`         | `<em>*a*</em>`               |
+| Emphasis inside strong emphasis                 | `<strong><em>a</em></strong>` | `<strong>*a*</strong>`       |
+
+An emphasis [delimiter run](https://spec.commonmark.org/0.31.2/#delimiter-run)
+opens emphasis only if it is
+[left-flanking](https://spec.commonmark.org/0.31.2/#left-flanking-delimiter-run)
+and closes emphasis only if it is
+[right-flanking](https://spec.commonmark.org/0.31.2/#right-flanking-delimiter-run).
+`<` and `>` are
+[Unicode punctuation characters](https://spec.commonmark.org/0.31.2/#unicode-punctuation-character),
+so an emphasis delimiter placed against a raw `<br>` dies whenever the character
+on its far side is neither whitespace nor Unicode punctuation: `a*<br>*b` is the
+literal text `a*`, a break, and `*b`. Rows 1-2 show the conservative algorithm
+below at work; while these do have a CommonMark encoding, it is not used for
+simplicity.
+
+Rows 5-6 have no emphasis string at all once the whitespace is removed, and
+CommonMark cannot encode an empty emphasis: `**` is a literal pair of asterisks,
+not a strong emphasis holding nothing. Both are serialized.
+
+Row 7 is a pair of elements which cannot be simply encoded as CommonMark.
+`*a**b*` pairs its delimiter runs outside in, giving a single emphasis holding
+`a**b`. While `*a*_b_` is valid, this requires additional complexity and special
+cases; this implementation chooses the simplicity shown in the table. Pure mode
+writes the one element the pair reads as, combining the text of both, which is a
+lossy encoding: it loses an element, and loses the distinction between `<i>` and
+`<em>` or `<b>` and `<strong>` when the pair mixes them. Faithful mode
+serializes each element of such a run instead. This applies to a run of any
+inline element, so a pair which is already serialized —
+`<sub>a</sub><sub>b</sub>` — stays the two elements it was rather than being
+combined into one.
+
+While strong emphasis nested inside strong emphasis (encoded as `****a****`) and
+strong emphasis nested inside emphasis (encoded as `***a***`) are simply
+translatable, emphasis nested inside strong emphasis (which could be encoded as
+`**_a_**`) and emphasis nested inside emphasis (perhaps `*_a_*`) are instead
+encoded using a mix of raw HTML inlines and CommonMark, as shown in the last two
+rows of the table. This avoids the additional complexity and special cases these
+encodings require.
+
+Approach:
+
+1. If the emphasis string is empty once its leading and trailing whitespace is
+   removed, serialize the entire element as HTML. This comes before step 3,
+   which would otherwise write a bare pair of delimiters around nothing.
+2. If the first or last character of the emphasis string, after removing leading
+   and trailing whitespace, is a Unicode punctuation character, serialize the
+   entire element as HTML. (This is conservative; if the emphasis was preceded
+   or followed by Unicode whitespace or punctuation, serialization isn't needed.
+   However, the current implementation makes this difficult to determine.)
+3. Move leading and trailing whitespace outside the emphasis string; surround
+   the string with the appropriate delimiters.
+
+The following is not implemented; it requires the ability to examine text
+preceding and following emphasis. It is kept for possible future improvements.
+
+> If the emphasis/strong emphasis has no content, it must be serialized.
+> Otherwise, consider `1*233..34*5`, where:
+>
+> * `1` is the character preceding em/strong and `5` is the character following
+>   it. If either character is missing due to the beginning or end of the line,
+>   treat the character as whitespace.
+> * `2` is the first character of the em/strong content and `4` is the last
+>   character. If the content is one character, note that `2` and `4` refer to
+>   the same character.
+> * `3` is zero or more following characters of content.
+>
+> To encode:
+>
+> 1. If `2` is whitespace, encode it as a character reference; em/strong cannot
+>    begin or end with whitespace.
+> 2. If `2` is punctuation (note that the previous step changes whitespace to
+>    punctuation for this step) and `1` is neither whitespace nor punctuation,
+>    encode `1` as a character reference.
+> 3. Apply rule 1 to `4` and rule 2 to `5`.
+
+### Links
+
+These are mainly implemented in [anchor.rs](src/element_handler/anchor.rs). The
+following rules primarily come from the
+[spec](https://spec.commonmark.org/0.31.2/#links).
+
+Links may be translated as inline, inline but an autolink preferred, or
+referenced. Referenced link labels consist of an incrementing whole number
+assigned by the translator. (While the library currently supports collapsed and
+shortcut links, these will be
+[deprecated or removed](https://github.com/letmutex/htmd/issues/126).)
+
+Emit an autolink when:
+
+* `LinkStyle::InlinedPreferAutolinks` is set,
+* the `<a>` element does not contain a `title` attribute,
+* its content is a single text node equal to the `href`,
+* the content begins with a [scheme](https://spec.commonmark.org/0.31.2/#scheme)
+  followed by a colon, and
+* the content does not contain
+  [ASCII control characters](https://spec.commonmark.org/0.31.2/#ascii-control-character),
+  [spaces](https://spec.commonmark.org/0.31.2/#space), `&`, `<`, or `>`
+  characters. (The `&` character in an autolink becomes `&amp;`, hence its
+  inclusion in characters to avoid.)
+
+Escaping rules:
+
+* If a `!` immediately precedes a link, it must be escaped, to prevent links
+  being interpreted as an image.
+
+* For link text, destinations, and titles:
+
+  * All `\` characters must be escaped, since they would otherwise escape the
+    following character.
+  * Newlines must be encoded as `&#10;`/`&#13;` since links are an inline
+    element; newlines in ATX headings, table cells, etc. would prematurely
+    terminate these items. In addition, newlines are not allowed in link
+    destinations. This is a conservative rule that simplifies the translation
+    but may insert unnecessary escapes. For example, newlines (but not blank
+    lines) are allowed in a link placed in a paragraph.
+  * All `&` characters must be escaped; for example, the HTML fragment
+    `&amp;copy;` which arrives as `&copy;` from the HTML parser becomes
+    `\&copy;` not the actual `&copy;` character entity.
+* Link text:
+
+  * All `[` and `]` characters must be escaped, per the spec. (The spec allows
+    matched pairs of brackets; this is omitted for simplicity.)
+  * All `<` characters which begin an autolink or a raw HTML inline must be
+    escaped. These inlines bind more tightly than a link.
+  * All `` ` `` must be escaped; per the spec, code spans bind more tightly than
+    a link.
+  * Hard line breaks (`<br>`) are translated correctly only in Faithful mode.
+
+  Because link text may contain HTML, it must be translated from HTML to
+  CommonMark.
+
+* Link destinations:
+
+  * All `(` and `)` characters must be escaped; these mark the beginning and end
+    of an inline link. (The spec allows matched pairs of parentheses; this is
+    omitted for simplicity.)
+  * If the escaped destination is empty, starts with `<`, or includes
+    [ASCII control characters](https://spec.commonmark.org/0.31.2/#ascii-control-character)
+    or [space](https://spec.commonmark.org/0.31.2/#space) characters:
+    * All `<` and `>` characters must be escaped per the spec.
+    * Prepend `<` and append `>` to the destination.
+* Link titles:
+
+  * All `"` characters must be escaped, since the `"` ends a title string. This
+    is a conservative selection that simplifies the translation but may insert
+    unnecessary escapes. For example, the title `Say "hi"` could be encoded as
+    `'Say "hi"'` instead of `"Say \"hi\""`.
+
+Some of these escapes are already performed by generic text-node escaping,
+covered in section TODO.
+
+### Images
+
+Per the [spec](https://spec.commonmark.org/0.31.2/#images), images follow the
+same rules as links. For simplicity, images are translated like inline links,
+even with `LinkStyle::Referenced`. In addition:
+
+* The image description follows link text rules. However, while link text can
+  contain HTML markup, the `<img>` tag's `alt` attribute is not interpreted as
+  HTML; its value should not be translated to CommonMark, but instead escaped as
+  plain text.
+* The image destination and title follow the same rules as the link destination
+  and title.
+* In Faithful mode, a missing `alt` attribute requires serialization of the tag
+  as HTML: `![](a)` translates to `<img src="a" alt="">`. Likewise, a `title=""`
+  attribute also requires serialization: `![](a "")` becomes `<img src="a"
+  alt="">`.
+
+### Math
+
+Like an inline code span, the contents of
+[math expressions](https://pulldown-cmark.github.io/pulldown-cmark/specs/math.html)
+are literal text and are not parsed by CommonMark. However, newlines in
+single-line CommonMark blocks (such as a heading or a table cell) or blank lines
+in other blocks end the math span and begin another block. Since LaTeX
+mathematics ignores newlines and other forms of whitespace except in comments,
+all newlines are replaced with spaces in math expressions to prevent these
+mis-translations. Before this replacement, comments are stripped by removing all
+characters from an unescaped `%` to the end of the line for each line of
+mathematics; the sequence `\%` is not treated as a comment. In addition, leading
+and trailing whitespace is trimmed, since inline math may not begin or end with
+whitespace per the
+[pulldown-cmark spec](https://pulldown-cmark.github.io/pulldown-cmark/specs/math.html).

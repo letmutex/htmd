@@ -34,7 +34,7 @@ pub(super) fn emphasis_handler(
     let (content, trailing_whitespace) = content.strip_trailing_whitespace();
     // Content which is whitespace, or nothing at all, leaves nothing to
     // emphasize, and CommonMark cannot spell an emphasis empty. See the
-    // "Inline elements" section of `unsupported_html.md`.
+    // "Emphasis and strong emphasis" section of `translation_approach.md`.
     serialize_element_when_faithful!(handlers, element, content.is_empty());
     // The element goes, but the whitespace it held still separates the text
     // around it. The trailing run is empty, the leading one having taken all of
@@ -42,7 +42,8 @@ pub(super) fn emphasis_handler(
     if content.is_empty() {
         return Some(leading_whitespace.unwrap_or("").into());
     }
-    // See the [spec](unsupported_html.md) section on Inline elements.
+    // See the "Emphasis and strong emphasis" section of
+    // `translation_approach.md`.
     if handlers.options().translation_mode == TranslationMode::Faithful
         && (content.starts_with(is_unicode_punctuation)
             || content.ends_with(is_unicode_punctuation))

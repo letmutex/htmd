@@ -39,7 +39,7 @@ pub(super) fn list_marker_spacing(spaces: usize) -> String {
 /// Every element handled here is part of a CommonMark block, so faithful mode
 /// also writes it as HTML when it appears in an inline context, where no block
 /// may begin; see the "Translating HTML nodes" section of
-/// `unsupported_html.md`. It does the same when the element carries more
+/// `translation_approach.md`. It does the same when the element carries more
 /// attributes than its Markdown translation can express, on the same terms as
 /// [`serialize_if_extra_attrs!`]: `num_attrs_allowed` of -1 rejects every
 /// attribute set, and [`i64::MAX`] accepts any. Either test serializes the same
@@ -92,7 +92,7 @@ fn try_serialize_element(handlers: &dyn Handlers, element: &Element) -> io::Resu
     // interrupt a paragraph and which swallows every following line down to the
     // next blank one; a raw HTML inline is what such a tag needs, whatever the
     // context. See the "Translating HTML nodes" section of
-    // `unsupported_html.md`.
+    // `translation_approach.md`.
     if element.context.is_block() && is_block_element(element.tag) {
         serialize_block_element(element)
     } else {
@@ -147,7 +147,7 @@ fn serialize_block_element(element: &Element) -> io::Result<String> {
     // which leaves its line endings — blank ones included — free to stand as
     // they are; escaping them would rewrite the script, style, or preformatted
     // text itself. See the "Translating HTML nodes" section of
-    // `unsupported_html.md`.
+    // `translation_approach.md`.
     let html = if is_type_1_element(element.tag) {
         html
     } else {
@@ -172,8 +172,8 @@ fn serialize_subtree(element: &Element) -> io::Result<String> {
 /// [GFM table](https://github.github.com/gfm/#tables-extension-) row. The
 /// contents are kept safe by the whitespace collapsing of the walk and by the
 /// `\|` of `table::normalize_cell_content`, but neither reaches an open tag:
-/// `unsupported_html.md` leaves an attribute value's whitespace alone, and a
-/// backslash escape written inside a tag stays the two characters it is. Both
+/// `translation_approach.md` leaves an attribute value's whitespace alone, and
+/// a backslash escape written inside a tag stays the two characters it is. Both
 /// are encoded instead — the open tag passes through CommonMark verbatim, and
 /// the HTML parser reading the result decodes the references back.
 fn encode_open_tag_specials(open_tag: &str) -> String {
@@ -282,8 +282,8 @@ pub(crate) use serialize_if_extra_attrs;
 /// block, which additionally needs a block context: a block can only be written
 /// where one may begin, so in an inline context the element is written as a raw
 /// HTML inline instead. See the "Translating HTML nodes" section of
-/// `unsupported_html.md`. Either test serializes the same element, so the order
-/// they are tried in does not matter.
+/// `translation_approach.md`. Either test serializes the same element, so the
+/// order they are tried in does not matter.
 macro_rules! serialize_if_extra_attrs_or_inline {
     ($handlers:expr, $element:expr, $num_attrs_allowed:expr) => {
         $crate::element_handler::element_util::serialize_element_when_faithful!(

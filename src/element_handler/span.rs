@@ -22,7 +22,7 @@ pub(super) fn span_handler(handlers: &dyn Handlers, element: &Element) -> Option
             _ => None,
         };
         if let Some(delimiter) = delimiter {
-            // Per the [spec](unsupported_html.md), process math.
+            // See the "Math" section of `translation_approach.md`.
             let contents = contents.borrow();
             let contents = contents.replace("\r\n", " ");
             let contents = contents.replace("\n", " ");

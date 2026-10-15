@@ -152,9 +152,9 @@ fn handle_inline_code(handlers: &dyn Handlers, element: &Element) -> Option<Hand
     // of it survives there. Neither has CommonMark an empty code span: the
     // backticks meant to open one close it instead, leaving them literal text
     // and the element gone. Either way it goes out as a raw HTML inline, whose
-    // contents the walk collapses. See the "Code" section of
-    // `unsupported_html.md`. The trim above can empty the content, so this runs
-    // after it.
+    // contents the walk collapses. See the "Code blocks and code spans" section
+    // of `translation_approach.md`. The trim above can empty the content, so
+    // this runs after it.
     serialize_element_when_faithful!(
         handlers,
         element,

@@ -1,6 +1,6 @@
 //! Tests for the block/inline context an element is translated in, following
 //! the "Given an HTML node that can't be encoded as CommonMark" rule of
-//! `unsupported_html.md`.
+//! `translation_approach.md`.
 
 use pretty_assertions::assert_eq;
 
@@ -146,8 +146,8 @@ fn html_in_a_list_item_is_a_block() {
         "*   <br>\n\n    a",
         convert_faithful("<ul><li><br><p>a</p></li></ul>").unwrap()
     );
-    // Row 1 of "Lists" in `unsupported_html.md` wants two HTML blocks here, but
-    // `br` is a type 7 tag, so the run stays inline.
+    // Row 1 of "Lists" in `translation_approach.md` wants two HTML blocks here,
+    // but `br` is a type 7 tag, so the run stays inline.
     assert_eq!(
         "*   <br><br>",
         convert_faithful("<ul><li><br><br></li></ul>").unwrap()
@@ -189,7 +189,7 @@ fn html_in_a_table_cell_is_a_raw_inline() {
 /// itself: a GFM row has nowhere to write one. The `<caption>` half of the same
 /// rule is covered by
 /// `basic_tests::faithful_mode_serializes_a_table_with_a_caption`. See the
-/// table cells section of `unsupported_html.md`.
+/// tables section of `translation_approach.md`.
 #[test]
 fn a_cell_attribute_writes_the_whole_table_as_html() {
     let with_colspan = "<table><thead><tr><th>h</th></tr></thead>\
@@ -265,7 +265,7 @@ fn a_raw_text_element_escapes_the_markdown_it_holds() {
     // The `<` escape buys nothing here: CommonMark writes `&lt;`, and an HTML
     // parser decodes no character reference inside a raw text element. That is
     // the tradeoff the "Translating HTML nodes" section of
-    // `unsupported_html.md` takes.
+    // `translation_approach.md` takes.
     assert_eq!(
         r"# <script>if(a\<b){}</script>",
         convert_faithful("<h1><script>if(a<b){}</script></h1>").unwrap()
@@ -313,8 +313,8 @@ fn an_rcdata_element_is_translated() {
 
 /// "All raw HTML inlines will have whitespace collapsed in their contents
 /// (including newlines, which would otherwise be problematic)" — the
-/// "Translating HTML nodes" section of `unsupported_html.md`. Encoding the line
-/// ending instead would need a parser which decodes a character reference
+/// "Translating HTML nodes" section of `translation_approach.md`. Encoding the
+/// line ending instead would need a parser which decodes a character reference
 /// there, and neither a comment nor a raw text element has one.
 #[test]
 fn a_raw_inline_collapses_the_whitespace_of_its_content() {

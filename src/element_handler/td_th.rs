@@ -14,7 +14,7 @@ pub(super) fn td_th_handler(handlers: &dyn Handlers, element: &Element) -> Optio
         // A cell's contents are parsed as inline content, so no HTML block can
         // open inside one: an element which only HTML can express becomes a raw
         // HTML inline here, whatever its tag. See the "Translating HTML nodes"
-        // section of `unsupported_html.md`.
+        // section of `translation_approach.md`.
         Context::INLINE,
     )
 }

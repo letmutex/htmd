@@ -9,7 +9,7 @@ use crate::{
 };
 
 /// Translates an `<img>` as an inline image, whatever the `LinkStyle`; see the
-/// images section of `overall_translation_approach.md`.
+/// images section of `translation_approach.md`.
 pub(super) fn img_handler(handlers: &dyn Handlers, element: &Element) -> Option<HandlerResult> {
     let mut link: Option<String> = None;
     let mut alt: Option<String> = None;

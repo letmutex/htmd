@@ -361,7 +361,7 @@ fn an_autolink_spells_its_destination_without_escapes() {
 }
 
 /// The conditions for an autolink are listed in the links section of
-/// `overall_translation_approach.md`; failing any one gives the inline form.
+/// `translation_approach.md`; failing any one gives the inline form.
 #[test]
 fn an_autolink_needs_every_condition() {
     // No autolink can hold a `<`.
