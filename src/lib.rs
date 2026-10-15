@@ -17,7 +17,7 @@ pub use markup5ever_rcdom::Node;
 use markup5ever_rcdom::RcDom;
 use options::Options;
 
-use crate::element_handler::Handlers;
+use crate::{element_handler::Handlers, text_util::trim_newlines};
 
 /// Convert HTML to Markdown.
 ///
@@ -133,12 +133,7 @@ impl HtmlToMarkdown {
         walk_node(tree, &mut content, &self.handlers, None, true, false);
 
         // Trim leading/trailing newlines in place instead of allocating a copy.
-        let start = content.len() - content.trim_start_matches('\n').len();
-        if start > 0 {
-            content.drain(..start);
-        }
-        let end = content.trim_end_matches('\n').len();
-        content.truncate(end);
+        trim_newlines(&mut content);
 
         let mut append = String::new();
         for handler in &self.handlers.handlers {

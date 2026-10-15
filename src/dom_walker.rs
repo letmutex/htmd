@@ -9,7 +9,7 @@ use super::{
     options::TranslationMode,
     text_util::{
         TrimDocumentWhitespace, compress_whitespace, index_of_markdown_ordered_item_dot,
-        is_markdown_atx_heading,
+        is_markdown_atx_heading, trim_newlines,
     },
 };
 
@@ -98,12 +98,9 @@ pub(crate) fn walk_node(
                 let markdown_translated =
                     walk_children(node, &mut content, handlers, false, is_pre);
 
-                let start = content.len() - content.trim_start_matches('\n').len();
-                if start > 0 {
-                    content.drain(..start);
+                if !is_pre {
+                    trim_newlines(&mut content);
                 }
-                let end = content.trim_end_matches('\n').len();
-                content.truncate(end);
 
                 append_normalized_content(output, content, is_pre);
                 return markdown_translated;
@@ -307,12 +304,18 @@ fn can_combine(n1: &Node, n2: &Node) -> Option<RefCell<Tendril<UTF8>>> {
     }
 }
 
-/// Normalizes content before adding to output by:
+/// Appends content to output. In preformatted context, content is appended verbatim.
+/// Otherwise, content is normalized by:
 /// 1. Collapsing excessive newlines (max 2 consecutive newlines)
-/// 2. Collapsing adjacent spaces between inline elements (when not in pre context)
+/// 2. Collapsing adjacent spaces between inline elements
 fn append_normalized_content(output: &mut String, mut content: String, is_pre: bool) {
     if output.is_empty() {
         *output = content;
+        return;
+    }
+
+    if is_pre {
+        output.push_str(&content);
         return;
     }
 
@@ -328,8 +331,7 @@ fn append_normalized_content(output: &mut String, mut content: String, is_pre: b
     }
 
     // Collapse adjacent spaces between inline elements (not in pre context)
-    if !is_pre
-        && last_newlines == 0
+    if last_newlines == 0
         && content_newlines == 0
         && output.ends_with(' ')
         && content.starts_with(' ')

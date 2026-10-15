@@ -289,6 +289,16 @@ pub(crate) fn index_of_markdown_ordered_item_dot(text: &str) -> Option<usize> {
     None
 }
 
+/// Trims leading and trailing newlines from a string in place.
+pub(crate) fn trim_newlines(content: &mut String) {
+    let start = content.len() - content.trim_start_matches('\n').len();
+    if start > 0 {
+        content.drain(..start);
+    }
+    let end = content.trim_end_matches('\n').len();
+    content.truncate(end);
+}
+
 macro_rules! concat_strings {
     ($($x:expr),*) => {{
         let mut len = 0;
@@ -331,5 +341,24 @@ mod tests {
         assert_eq!(Some(3), index_of_markdown_ordered_item_dot("2½. text"));
         // No dot, should return None
         assert_eq!(None, index_of_markdown_ordered_item_dot("2½"));
+    }
+
+    #[test]
+    fn test_trim_newlines() {
+        let mut s = String::from("\n\nhello\nworld\n\n");
+        super::trim_newlines(&mut s);
+        assert_eq!("hello\nworld", s);
+
+        let mut s = String::from("\n\n\n");
+        super::trim_newlines(&mut s);
+        assert_eq!("", s);
+
+        let mut s = String::from("");
+        super::trim_newlines(&mut s);
+        assert_eq!("", s);
+
+        let mut s = String::from("hello");
+        super::trim_newlines(&mut s);
+        assert_eq!("hello", s);
     }
 }
