@@ -214,3 +214,45 @@ fn processing_instruction_nodes_are_ignored() {
 
     assert_eq!("", HtmlToMarkdown::new().tree_to_markdown(&node));
 }
+
+// See https://github.com/letmutex/htmd/issues/138
+#[test]
+fn code_block_with_spans_ending_in_newline() {
+    let html = "<pre><code>\
+        <span class=\"line\"><span class=\"cl\">sudo apt update\n</span></span>\
+        <span class=\"line\"><span class=\"cl\">sudo apt install curl\n</span></span>\
+        </code></pre>";
+    assert_eq!(
+        "```\nsudo apt update\nsudo apt install curl\n```",
+        htmd::convert(html).unwrap()
+    );
+}
+
+#[test]
+fn code_block_with_blank_lines_and_indentation_in_spans() {
+    let html = r#"<pre><code class="language-python"><span class="line"><span class="cl"><span class="k">def</span> <span class="nf">foo</span><span class="p">():</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="mi">42</span>
+</span></span></code></pre>"#;
+    assert_eq!(
+        "```python\ndef foo():\n\n\n    return 42\n```",
+        htmd::convert(html).unwrap()
+    );
+}
+
+#[test]
+fn span_fallback_in_pre_preserves_newlines() {
+    let converter = HtmlToMarkdown::builder()
+        .add_handler(
+            vec!["span"],
+            |handlers: &dyn Handlers, element: &Element| handlers.fallback(element),
+        )
+        .build();
+
+    let html = "<pre><code><span>sudo apt update\n</span><span>sudo apt install curl\n</span></code></pre>";
+    assert_eq!(
+        "```\nsudo apt update\nsudo apt install curl\n```",
+        converter.convert(html).unwrap()
+    );
+}
