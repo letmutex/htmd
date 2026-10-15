@@ -34,6 +34,12 @@ pub(crate) fn escape_html(text: Cow<'_, str>) -> Cow<'_, str> {
     Cow::Owned(escaped)
 }
 
+/// Whether the `<` opening `fragment` may open raw HTML or an autolink.
+///
+/// The end of `fragment` may be only the end of a text node, which an inline
+/// sibling continues -- in pure mode, `&lt;<span>div</span> class&gt;` reads
+/// as `<div class>` -- so a sequence which that end cuts short is escaped too.
+/// That costs a backslash, never a wrong translation.
 fn should_escape_html_like_sequence(fragment: &str) -> bool {
     let mut chars = fragment.chars();
     let Some('<') = chars.next() else {
@@ -41,29 +47,30 @@ fn should_escape_html_like_sequence(fragment: &str) -> bool {
     };
 
     let Some(next) = chars.next() else {
-        return false;
+        return true;
     };
 
     match next {
-        // `escape_if_needed` escapes the brackets of a CDATA section before
-        // this runs, and `<!\[` opens neither a CDATA section nor a
-        // declaration: the escaped spelling is already literal text, while the
-        // unescaped one is raw HTML and needs the backslash.
-        '!' => !chars.as_str().starts_with("\\[CDATA\\["),
+        // `<!\` opens no comment, CDATA section or declaration, whatever
+        // follows, nor an email autolink, whose local part holds no `\`. It is
+        // the spelling `escape_if_needed` gives a CDATA section, whose brackets
+        // it escapes before this runs.
+        '!' => !chars.as_str().starts_with('\\'),
         '?' => true,
-        '/' if chars.next().is_some_and(|c| c.is_ascii_alphabetic()) => true,
+        '/' if chars.next().is_none_or(|c| c.is_ascii_alphabetic()) => true,
         // A URI autolink's scheme opens with a letter, which the tag arm
         // covers; an email autolink may open with a digit or a symbol.
         c if c.is_ascii_alphabetic() => true,
-        _ => starts_with_email_autolink(fragment),
+        _ => may_start_email_autolink(fragment),
     }
 }
 
 /// Whether `fragment` opens with an
-/// [email autolink](https://spec.commonmark.org/0.31.2/#email-autolink).
+/// [email autolink](https://spec.commonmark.org/0.31.2/#email-autolink), or
+/// with a prefix of one which the end of `fragment` cuts short.
 ///
 /// Neither scan crosses a `<`, so escaping a whole string stays linear.
-fn starts_with_email_autolink(fragment: &str) -> bool {
+fn may_start_email_autolink(fragment: &str) -> bool {
     let Some(address) = fragment.strip_prefix('<') else {
         return false;
     };
@@ -71,6 +78,9 @@ fn starts_with_email_autolink(fragment: &str) -> bool {
         .bytes()
         .take_while(|&byte| byte.is_ascii_alphanumeric() || b".!#$%&'*+/=?^_`{|}~-".contains(&byte))
         .count();
+    if local_part_len == address.len() {
+        return true;
+    }
     if local_part_len == 0 {
         return false;
     }
@@ -81,6 +91,9 @@ fn starts_with_email_autolink(fragment: &str) -> bool {
         .bytes()
         .take_while(|&byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.'))
         .count();
+    if domain_len == domain.len() {
+        return true;
+    }
     domain[domain_len..].starts_with('>') && domain[..domain_len].split('.').all(is_domain_label)
 }
 
@@ -303,7 +316,6 @@ mod tests {
     #[test]
     fn leaves_a_near_miss_email_autolink() {
         for text in [
-            "<1@b.co",
             "<@b.co>",
             "<1@>",
             "<1@-b.co>",
@@ -323,6 +335,17 @@ mod tests {
         );
         let too_long = format!("<1@{longest_label}a.co>");
         assert_eq!(escape_html(too_long.as_str().into()), too_long);
+    }
+
+    /// The text which follows may finish a tag or an autolink which the end of
+    /// the string cuts short; `a_sequence_finished_by_a_sibling_stays_text` in
+    /// `tests/basic_tests.rs` shows where that text comes from.
+    #[test]
+    fn escapes_a_sequence_cut_short() {
+        for text in ["a <", "</", "<1", "<1@", "<1@b.co"] {
+            assert_eq!(escape_html(text.into()), text.replacen('<', "\\<", 1));
+        }
+        assert_eq!(escape_html("a <= b".into()), "a <= b");
     }
 
     /// A [CDATA section](https://spec.commonmark.org/0.31.2/#cdata-section) is
@@ -347,14 +370,14 @@ mod tests {
     /// `<!\[` opens neither a CDATA section, which needs a literal `[CDATA[`,
     /// nor a [declaration](https://spec.commonmark.org/0.31.2/#declaration),
     /// which needs an ASCII letter after the `<!`. The escaped spelling is
-    /// already literal text, and it is the one the crate emits, so escaping it
-    /// again would put a stray backslash in every CDATA section htmd converts.
+    /// already literal text, whatever follows it, and it is the one the crate
+    /// emits, so escaping it again would put a stray backslash in every CDATA
+    /// section htmd converts.
     #[test]
     fn leaves_an_escaped_cdata_section() {
-        assert_eq!(
-            escape_html("<!\\[CDATA\\[already escaped]]>".into()),
-            "<!\\[CDATA\\[already escaped]]>"
-        );
+        for text in ["<!\\[CDATA\\[already escaped]]>", "<!\\[CDATA"] {
+            assert_eq!(escape_html(text.into()), text);
+        }
     }
 
     /// A backslash in a destination escapes whatever follows it, the `)` or `>`
