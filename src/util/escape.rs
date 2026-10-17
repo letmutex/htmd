@@ -106,8 +106,7 @@ fn is_domain_label(label: &str) -> bool {
         && bytes.last().is_some_and(u8::is_ascii_alphanumeric)
 }
 
-/// Whether `text` holds a line ending: the one place the set of line endings
-/// the escapes here and in `element_util` know about is written down.
+/// Whether `text` holds a [line ending](https://spec.commonmark.org/0.31.2/#line-ending).
 pub(crate) fn has_line_ending(text: &str) -> bool {
     text.contains(['\r', '\n'])
 }
