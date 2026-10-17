@@ -156,7 +156,7 @@ fn escape_inline_string(text: &str, needs_backslash: fn(char) -> bool) -> String
 
 /// Escapes a [link destination](https://spec.commonmark.org/0.31.2/#link-destination),
 /// switching to the pointy bracket form where the bare form cannot hold it. See
-/// the links section of `overall_translation_approach.md`.
+/// the links section of `translation_approach.md`.
 pub(crate) fn escape_link_destination(destination: &str) -> String {
     let escaped = escape_inline_string(destination, |ch| matches!(ch, '\\' | '&' | '(' | ')'));
     let needs_pointy_brackets = escaped.is_empty()
@@ -391,7 +391,7 @@ mod tests {
     }
 
     /// Only the pointy bracket form needs its `<` and `>` escaped; see the
-    /// links section of `overall_translation_approach.md`.
+    /// links section of `translation_approach.md`.
     #[test]
     fn brackets_a_link_destination_the_bare_form_cannot_hold() {
         assert_eq!("<>", escape_link_destination(""));

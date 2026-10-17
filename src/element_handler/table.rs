@@ -305,7 +305,7 @@ fn holds_only(node: &Rc<markup5ever_rcdom::Node>, tag: &str) -> bool {
 /// reaches inside a comment: a backslash escape is read only in CommonMark
 /// text, and a character reference stays the literal characters composing it.
 /// Only faithful mode can keep such a comment, by writing the table as HTML.
-/// See the "Table cells" section of `unsupported_html.md`.
+/// See the "Tables" section of `translation_approach.md`.
 fn holds_a_comment_with_a_pipe(node: &Rc<markup5ever_rcdom::Node>) -> bool {
     node.children.borrow().iter().any(|child| {
         matches!(&child.data, NodeData::Comment { contents } if contents.contains('|'))

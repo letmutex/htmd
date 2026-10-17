@@ -22,8 +22,8 @@ pub(super) fn headings_handler(
     // block opening would dissolve the heading; an ATX heading's `#` is leaf
     // block syntax the block scan matches first, so it is safe. Empty content
     // has no setext spelling at all -- its underline is empty too, leaving
-    // nothing behind -- so it falls back to ATX as well. See the "Special case
-    // for paragraphs" and "Headings" sections of `unsupported_html.md`.
+    // nothing behind -- so it falls back to ATX as well. See the "Headings" and
+    // "Paragraphs" sections of `translation_approach.md`.
     let use_setext = (level == 1 || level == 2)
         && handlers.options().heading_style == HeadingStyle::Setex
         && !content.is_empty()

@@ -14,8 +14,8 @@ pub(super) fn p_handler(handlers: &dyn Handlers, element: &Element) -> Option<Ha
     let content = handlers.walk_children_content(element.node, Context::INLINE);
     // An HTML block opening at the start of the content dissolves the paragraph
     // holding it, so writing the content alone would lose the `<p>`; the whole
-    // element goes out as HTML instead. See the "Special case for paragraphs"
-    // section of `unsupported_html.md`.
+    // element goes out as HTML instead. See the "Paragraphs" section of
+    // `translation_approach.md`.
     serialize_element_when_faithful!(handlers, element, starts_html_block(&content));
     Some(frame_as_block(&content).into())
 }

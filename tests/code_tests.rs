@@ -165,7 +165,7 @@ fn preformatted_inline_code_preserves_boundary_spaces() {
 }
 
 /// Pure mode has no HTML fallback for a code span holding a line ending, which
-/// `unsupported_html_tests::code_span_holding_a_line_ending` covers for
+/// `translation_approach_tests::code_span_holding_a_line_ending` covers for
 /// faithful mode. CommonMark reads such a line ending as a space, so writing
 /// the space keeps the rendered span and leaves the heading whole; the bare
 /// newline would end the heading and strand the rest of it in a paragraph.

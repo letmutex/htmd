@@ -65,7 +65,7 @@ pub(crate) fn walk_node(
 /// it is framed as a block and its line endings are left as they are.
 ///
 /// In an inline context it is a raw HTML inline, whose whitespace the
-/// "Translating HTML nodes" section of `unsupported_html.md` collapses.
+/// "Translating HTML nodes" section of `translation_approach.md` collapses.
 /// Encoding the line endings instead would be no use: no parser decodes a
 /// character reference inside a comment.
 fn walk_comment(contents: &str, output: &mut String, context: Context) {

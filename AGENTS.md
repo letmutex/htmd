@@ -87,6 +87,8 @@ Repository layout
   `link_tests.rs`, ...). Add cases to the file matching the feature, and convert
   through the helpers in `tests/common/mod.rs`, which default to
   `TranslationMode::Faithful`.
-* `unsupported_html.md` -- the design record for faithful translation: which
-  HTML has no CommonMark equivalent, and why each fallback was chosen. Read it
-  before changing how HTML blocks or raw HTML inlines are emitted.
+* `translation_approach.md` -- the design record for the overall translation
+  approach, organized to mirror the CommonMark spec: how each construct is
+  translated, which HTML has no CommonMark equivalent, and why each fallback was
+  chosen. Read it before changing how an element is translated, and in
+  particular how HTML blocks or raw HTML inlines are emitted.

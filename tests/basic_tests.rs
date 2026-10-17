@@ -229,10 +229,11 @@ fn pure_mode_merges_adjacent_inline_elements() {
     );
 }
 
-// Faithful mode keeps an emphasis with nothing to emphasize as HTML; see rows 7
-// and 8 of the "Inline elements" table of `unsupported_html.md`. Pure mode has
-// no such spelling, so the element goes and only the whitespace it held
-// survives, still separating the words around it.
+// Faithful mode keeps an emphasis with nothing to emphasize as HTML; see rows 5
+// and 6 of the "Emphasis and strong emphasis" table of
+// `translation_approach.md`. Pure mode has no such spelling, so the element
+// goes and only the whitespace it held survives, still separating the words
+// around it.
 #[test]
 fn blank_emphasis_leaves_its_whitespace_behind() {
     assert_eq!("a b", convert_pure("<p>a<em> </em>b</p>").unwrap());
@@ -935,7 +936,7 @@ fn assert_paragraph_survives(html: &str, expected_markdown: &str, expected_conte
     );
 }
 
-/// The "Special case for paragraphs" section of `unsupported_html.md` keeps a
+/// The "Paragraphs" section of `translation_approach.md` keeps a
 /// paragraph a paragraph where its content would otherwise open an HTML block.
 /// Content which opens any other leaf block dissolves it the same way, and for
 /// the same reason: the block scan reaches the content because nothing precedes
@@ -1088,9 +1089,10 @@ fn a_literal_cdata_section_is_lost_unescaped() {
 /// outside both lists is type 7, which is written as a raw HTML inline whatever
 /// the context.
 ///
-/// The tags the third "Special case" of `unsupported_html.md` sets aside —
-/// `iframe`, `xmp`, `noscript`, `noembed`, `noframes` and `plaintext` — are
-/// deliberately left uncovered here and in `round_trip_in_an_inline_context`.
+/// The tags a special case of the "Translating HTML nodes" section of
+/// `translation_approach.md` sets aside — `iframe`, `xmp`, `noscript`,
+/// `noembed`, `noframes` and `plaintext` — are deliberately left uncovered here
+/// and in `round_trip_in_an_inline_context`.
 /// The tokenizer hands their content back as literal characters, so neither the
 /// escape below nor the walk an inline context uses can encode a line ending
 /// inside one; this implementation ignores those cases.
@@ -1113,9 +1115,10 @@ fn round_trip_in_a_block_context() {
     assert_eq!("<div>a*b\n&#10;c</div>", round_trip("<div>a*b\n\nc</div>"));
 
     // Type 7 is a raw HTML inline, so CommonMark opens a paragraph around it —
-    // the tradeoff the "Translating HTML nodes" section of `unsupported_html.md`
-    // takes deliberately. The `*` survives, escaped as `a\*b`; the blank line
-    // does not, a raw HTML inline having its whitespace collapsed.
+    // the tradeoff the "Translating HTML nodes" section of
+    // `translation_approach.md` takes deliberately. The `*` survives, escaped
+    // as `a\*b`; the blank line does not, a raw HTML inline having its
+    // whitespace collapsed.
     assert_eq!(
         "<p><del>a*b c</del></p>\n",
         round_trip("<del>a*b\n\nc</del>")
@@ -1128,7 +1131,7 @@ fn round_trip_in_a_block_context() {
     assert_eq!("<br>", round_trip("<br>"));
 }
 
-/// The "Special case for paragraphs" section of `unsupported_html.md`: content
+/// The "Paragraphs" section of `translation_approach.md`: content
 /// which opens an HTML block dissolves the paragraph or setext heading holding
 /// it, so those two write themselves out whole instead. Each trip below would
 /// otherwise come back without its `<p>` or `<h1>`.
@@ -1181,8 +1184,8 @@ fn round_trip_setext(html: &str) -> String {
 
 /// A setext heading's content opens a line, so content which starts any leaf
 /// block dissolves the heading exactly as it dissolves a paragraph. The escape
-/// "Special case for paragraphs" puts on such content keeps the setext spelling
-/// whole, so the headings section's fallback to ATX is not needed here.
+/// a paragraph puts on such content keeps the setext spelling whole, so the
+/// headings section's fallback to ATX is not needed here.
 #[test]
 fn round_trip_of_a_setext_heading_of_leaf_block_syntax() {
     assert_eq!("<h1>-</h1>\n", round_trip_setext("<h1>-</h1>"));
@@ -1296,8 +1299,9 @@ fn round_trip_of_a_walked_raw_inline() {
 fn round_trip_losses_of_a_walked_raw_inline() {
     // The `<` of a raw text element: CommonMark writes `&lt;`, and an HTML
     // parser leaves that reference alone inside a `<script>`. This is the
-    // tradeoff the "Translating HTML nodes" section of `unsupported_html.md`
-    // takes; the alternative it names is serializing the containing block.
+    // tradeoff the "Translating HTML nodes" section of
+    // `translation_approach.md` takes; the alternative it names is serializing
+    // the containing block.
     assert_eq!(
         "<h1>x<script>if(a&lt;b){}</script>y</h1>\n",
         round_trip("<h1>x<script>if(a<b){}</script>y</h1>")
@@ -1340,7 +1344,7 @@ fn round_trip_losses_of_a_walked_raw_inline() {
     // A line ending inside a raw HTML inline is collapsed to a space. No one
     // encoding is decoded in every shape a raw HTML inline takes — a comment
     // and a raw text element decode none at all — which is why the
-    // "Translating HTML nodes" section of `unsupported_html.md` collapses.
+    // "Translating HTML nodes" section of `translation_approach.md` collapses.
     for (html, expected) in [
         ("<h1>x<div>a\nb</div>y</h1>", "<h1>x<div>a b</div>y</h1>\n"),
         ("<h1>x<pre>a\nb</pre>y</h1>", "<h1>x<pre>a b</pre>y</h1>\n"),

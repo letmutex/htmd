@@ -18,7 +18,7 @@ use crate::{
 /// Handler for HTML `<a>` (anchor) elements.
 ///
 /// Converts anchor tags to Markdown links (inlined, autolinks, or reference-style links),
-/// following the links section of `overall_translation_approach.md`. Link text
+/// following the links section of `translation_approach.md`. Link text
 /// relies on the escapes `dom_walker` gives each text node; this handler adds
 /// only the encoding of line endings.
 ///
