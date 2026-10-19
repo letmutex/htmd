@@ -96,6 +96,9 @@ HTML node to examine the current context to be correctly translated.
   Code blocks must occur in a block context to be translated to CommonMark. Any
   HTML element discovered inside a literal context forces serialization of the
   `<pre>`/`<code>` elements.
+* Math (a `<span>` of the form the math section describes) creates a literal
+  context when translated as `$...$` or `$$...$$`. A span holding an element or
+  a comment is not of that form, so it is translated like any other `<span>`.
 * Given an HTML node which cannot be translated to CommonMark:
   * HTML type 1-6 in a block context is emitted as an HTML block; the
     inline/block classification does not apply to these contents. In contrast,
@@ -484,9 +487,9 @@ writes the one element the pair reads as, combining the text of both, which is a
 lossy encoding: it loses an element, and loses the distinction between `<i>` and
 `<em>` or `<b>` and `<strong>` when the pair mixes them. Faithful mode
 serializes each element of such a run instead. This applies to a run of any
-inline element, so a pair which is already serialized —
-`<sub>a</sub><sub>b</sub>` — stays the two elements it was rather than being
-combined into one.
+inline element except math (see the math section), so a pair which is already
+serialized — `<sub>a</sub><sub>b</sub>` — stays the two elements it was rather
+than being combined into one.
 
 While strong emphasis nested inside strong emphasis (encoded as `****a****`) and
 strong emphasis nested inside emphasis (encoded as `***a***`) are simply
@@ -580,7 +583,8 @@ Escaping rules:
   * All `[` and `]` characters must be escaped, per the spec. (The spec allows
     matched pairs of brackets; this is omitted for simplicity.)
   * All `<` characters which begin an autolink or a raw HTML inline must be
-    escaped. These inlines bind more tightly than a link.
+    escaped; all `$` characters which begin a math expression must be escaped.
+    These inlines bind more tightly than a link.
   * All `` ` `` must be escaped; per the spec, code spans bind more tightly than
     a link.
   * Hard line breaks (`<br>`) are translated correctly only in Faithful mode.
@@ -627,16 +631,102 @@ even with `LinkStyle::Referenced`. In addition:
 
 ### Math
 
-Like an inline code span, the contents of
-[math expressions](https://pulldown-cmark.github.io/pulldown-cmark/specs/math.html)
-are literal text and are not parsed by CommonMark. However, newlines in
-single-line CommonMark blocks (such as a heading or a table cell) or blank lines
-in other blocks end the math span and begin another block. Since LaTeX
-mathematics ignores newlines and other forms of whitespace except in comments,
-all newlines are replaced with spaces in math expressions to prevent these
-mis-translations. Before this replacement, comments are stripped by removing all
-characters from an unescaped `%` to the end of the line for each line of
-mathematics; the sequence `\%` is not treated as a comment. In addition, leading
-and trailing whitespace is trimmed, since inline math may not begin or end with
-whitespace per the
-[pulldown-cmark spec](https://pulldown-cmark.github.io/pulldown-cmark/specs/math.html).
+pulldown-cmark writes a
+[math expression](https://pulldown-cmark.github.io/pulldown-cmark/specs/math.html)
+as a `<span>` whose only attribute is `class="math math-inline"` or `class="math
+math-display"`. A span of this form that is empty or whose only child is a text
+node is written as inline (`$...$`) or display (`$$...$$`) math unless one of
+the conditions below holds; any other span is translated like an ordinary
+`<span>`. The translation assumes its reader enables math, and no option
+disables it; without math, `$...$` reads back as CommonMark text.
+
+Like an inline code span, the contents of a math expression are literal text
+which CommonMark does not parse. Unlike a code span, which
+[yields to](https://spec.commonmark.org/0.31.2/#code-spans) raw HTML and
+autolinks, math binds more tightly than both: pulldown-cmark reads `$a<span>$
+x</span>` as math holding `a<span>`, not as a raw HTML inline. Therefore,
+nothing inside math is escaped, except in a table cell: there pulldown-cmark
+reads `\|` as `|`, so the escaping of `|` described in the tables section
+applies inside math as well.
+
+A character is escaped when an odd number of backslashes precedes it: the `$` of
+`\$` is escaped, while the `$` of `\\$` is not. This is how pulldown-cmark reads
+[backslash escapes](https://spec.commonmark.org/0.31.2/#backslash-escapes).
+LaTeX agrees on which characters are escaped, though not on why: a backslash and
+the non-letter after it form one control symbol, so `\\` is a line break rather
+than a literal backslash
+([see section 1.3.3 of The Not So Short Introduction to LaTeX 2ε](https://latex.us/info/lshort/english/lshort-letter.pdf#page=20)).
+
+The contents of a math expression are processed by:
+
+1. Stripping comments by replacing an unescaped comment character `%`, "the rest
+   of the present line, the line break, and all whitespace at the beginning of
+   the next line," (see
+   [section 1.3.4](https://latex.us/info/lshort/english/lshort-letter.pdf#page=21))
+   with a space. In this context, whitespace is defined by LaTeX: spaces and
+   tabs
+   ([see section 1.3.1](https://latex.us/info/lshort/english/lshort-letter.pdf#page=19)).
+   This approach correctly translates input such as `\alpha%c⏎x` to `\alpha x`,
+   since LaTeX control words are terminated by a comment. However, this adds a
+   space in text mode: `\text{fo%c⏎o}` becomes `\text{fo o}`, not `\text{foo}`.
+2. Replacing all newlines with spaces: "Most spaces and line breaks do not have
+   any significance"
+   ([section 3.2.1](https://latex.us/info/lshort/english/lshort-letter.pdf#page=64));
+   also, when in text mode (`\text{...}`), LaTeX treats all whitespace
+   characters as a space
+   ([see section 1.3.1](https://latex.us/info/lshort/english/lshort-letter.pdf#page=19)).
+   A newline preceded by `\` is replaced too, since both `\⏎` and `\␣` are
+   LaTeX's control space. A blank line, which math mode does not allow
+   ([section 3.2.1](https://latex.us/info/lshort/english/lshort-letter.pdf#page=64)),
+   becomes spaces as well, which repairs the expression. This follows CommonMark
+   requirements: a newline may end the math expression and begin another block,
+   as in `x $a⏎# b$`; in addition, per the section "Translating HTML nodes", "an
+   inline context holds a single line."
+3. For inline math, trimming leading and trailing whitespace. Per the
+   [pulldown-cmark spec](https://pulldown-cmark.github.io/pulldown-cmark/specs/math.html)
+   inline math must not begin with whitespace or end with whitespace. Whitespace
+   here is defined by pulldown-cmark: a space, tab, line feed, vertical tab,
+   form feed, or carriage return (see
+   [`is_ascii_whitespace`](https://github.com/pulldown-cmark/pulldown-cmark/blob/v0.13.4/pulldown-cmark/src/scanners.rs#L425-L427),
+   which, unlike Rust's
+   [`char::is_ascii_whitespace`](https://doc.rust-lang.org/std/primitive.char.html#method.is_ascii_whitespace),
+   includes a vertical tab).
+
+If the resulting string meets any of these conditions, serialize the span as
+HTML instead:
+
+1. it is empty and the span is inline math (see the
+   [pulldown-cmark spec](https://pulldown-cmark.github.io/pulldown-cmark/specs/math.html));
+2. it contains an unescaped `$`. This is a conservative, simpler rule, since
+   pulldown-cmark allows a `$` inside matching unescaped curly braces, such as
+   `\text{$a$}`;
+3. it ends in an unescaped `\`, which would escape the closing `$`. Trimming a
+   trailing control space `\␣` produces this case;
+4. its unescaped curly braces are unbalanced. pulldown-cmark pairs two
+   delimiters only when the braces between them balance, so it reads both
+   `$}a{$` and `$a{$` as text.
+
+The serialized span holds the result of steps 1-2, not its original text:
+written as a raw HTML inline, the span's newlines collapse to spaces, which
+would run each comment on to the end of the span. Skipping step 3 keeps any
+leading and trailing whitespace, so `<span class="math math-inline">%a</span>`
+is serialized as `<span class="math math-inline">␣</span>`. In
+`TranslationMode::Pure`, which writes no HTML, the span is dropped and the
+result of steps 1-2 is written as text: `\text{$a$}` reads back as that literal
+text, not as math, and an empty inline span vanishes.
+
+Adjacent math expressions are allowed; the combining of adjacent inline elements
+described in the emphasis section therefore does not apply to math.
+
+pulldown-cmark looks for math delimiters in all text, so a `$` in a text node
+must be escaped as `\$`; otherwise, `<p>$5,$6</p>` reads back as math holding
+`5,`. Since `\$` is an ordinary CommonMark escape, it renders the same when math
+is not enabled, at the cost of a backslash before every `$`.
+
+This translation loses source text, since it trims whitespace and replaces
+comments and newlines with spaces, but it rarely changes the rendered math.
+Trimming never does: a written expression has balanced braces (condition 4), so
+its ends lie in math mode, where whitespace has no significance, and condition 3
+catches the one significant trailing whitespace, a control space. LaTeX reads a
+single newline as a space, and math mode ignores the space which replaces a
+comment, so only a comment in text mode renders differently (see step 1).

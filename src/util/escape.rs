@@ -188,8 +188,11 @@ pub(crate) fn escape_link_title(title: &str) -> String {
 /// [image description](https://spec.commonmark.org/0.31.2/#images), giving it
 /// the escapes `dom_walker::escape_if_needed` gives a text node.
 pub(crate) fn escape_image_description(alt: &str) -> String {
+    // An input of `![$a\*b$](x)` produces `alt="$a\*b$"` with math enabled and
+    // `alt="$a*b$"` with math disabled. Escape `$`, which assumes math is
+    // enabled.
     let escaped = escape_inline_string(alt, |ch| {
-        matches!(ch, '\\' | '&' | '*' | '_' | '`' | '[' | ']')
+        matches!(ch, '\\' | '&' | '*' | '_' | '`' | '[' | ']' | '$')
     });
     // `should_escape_html_like_sequence` reads a CDATA section in the spelling
     // the backslash pass leaves behind, so that pass comes first.
