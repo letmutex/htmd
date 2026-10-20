@@ -280,8 +280,8 @@ fn an_image_alt_escapes_its_markdown_specials() {
         convert_faithful(r#"<img src="x" alt="a[b">"#).unwrap()
     );
     assert_eq!(
-        r"![a\\b\*c\_d\`e](x)",
-        convert_faithful(r#"<img src="x" alt="a\b*c_d`e">"#).unwrap()
+        r"![a\\b\*c\_d\`e\$f](x)",
+        convert_faithful(r#"<img src="x" alt="a\b*c_d`e$f">"#).unwrap()
     );
 }
 
@@ -474,6 +474,25 @@ fn a_link_escapes_its_ampersands() {
 
 [1]: a\&b",
         convert_referenced(r#"<a href="a&amp;b">t</a>"#)
+    );
+}
+
+/// A `$` in link text is escaped, since math binds more tightly than a link;
+/// for the same reason, math in link text needs no escapes.
+#[test]
+fn link_text_escapes_its_math_delimiters() {
+    let math = CommonMarkOptions::ENABLE_MATH;
+    let html = r#"<p><a href="u">$a](v)$</a></p>"#;
+    assert_eq!(r"[\$a\](v)\$](u)", convert_faithful(html).unwrap());
+    assert_eq!(
+        format!("{html}\n"),
+        render_markdown(&convert_faithful(html).unwrap(), math)
+    );
+    let html = r#"<p><a href="u"><span class="math math-inline">a](v)</span></a></p>"#;
+    assert_eq!("[$a](v)$](u)", convert_faithful(html).unwrap());
+    assert_eq!(
+        format!("{html}\n"),
+        render_markdown(&convert_faithful(html).unwrap(), math)
     );
 }
 
