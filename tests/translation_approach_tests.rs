@@ -1,5 +1,5 @@
-//! One test per table of `unsupported_html.md`, holding that table's rows in
-//! the order they are written there.
+//! One test per table of `translation_approach.md`, holding that table's rows
+//! in the order they are written there.
 //!
 //! Where a row writes `<br><br>...<br>` — one or more `<br>` elements — it is
 //! checked with one and with three, except where the table gives one `<br>` and
@@ -27,7 +27,8 @@ fn blocks_inside_inlines() {
     // An inline as HTML, then as the CommonMark expected for it with text at
     // each end of its content and with a block alone; `{}` stands for that
     // content. A raw HTML inline at the edge of an emphasis string would not
-    // flank, so the "Inline elements" approach writes that emphasis as HTML.
+    // flank, so the "Emphasis and strong emphasis" approach writes that
+    // emphasis as HTML.
     let inlines = [
         (r#"<a href="u">{}</a>"#, "[{}](u)", "[{}](u)"),
         ("<em>{}</em>", "*{}*", "<em>{}</em>"),
@@ -79,20 +80,12 @@ fn blocks_inside_inlines() {
     );
 }
 
-/// The "Special case for paragraphs" table. See also the first row of
-/// [`paragraphs`] and the second row of [`blockquotes`].
+/// Rows 1-4 of the "Code blocks and code spans" table. A code span's and a
+/// fenced code block's content is literal text, so every row writes HTML rather
+/// than a break. `basic_tests::faithful_mode_keeps_adjacent_code_spans_apart`
+/// covers row 5.
 #[test]
-fn special_case_for_paragraphs() {
-    assert_eq!(
-        r#"<p><iframe src="u">a</iframe></p>"#,
-        convert_faithful(r#"<p><iframe src="u">a</iframe></p>"#).unwrap()
-    );
-}
-
-/// The "Code" table. A code span's and a fenced code block's content is
-/// literal text, so every row writes HTML rather than a break.
-#[test]
-fn code() {
+fn code_blocks_and_code_spans() {
     assert_eq!(
         "a<code>x<br>y</code>b",
         convert_faithful("<p>a<code>x<br>y</code>b</p>").unwrap()
@@ -130,13 +123,13 @@ fn code() {
     );
 }
 
-/// A code span whose text holds a line ending. The "Code" section's special
-/// case — a code span's content is literal text, and no encoding of a break
-/// survives there — makes this the same situation as the `<br>` rows of
-/// [`code`]: the `<code>` has to go out as a raw HTML inline, whose contents
-/// the walk collapses to a single space. Writing the span itself would break
-/// the "Translating HTML nodes" rule that no handler may write a bare newline
-/// in an inline context.
+/// A code span whose text holds a line ending. A code span's content is literal
+/// text, and no encoding of a break survives there (see the "Code blocks and
+/// code spans" section), which makes this the same situation as the `<br>` rows
+/// of [`code_blocks_and_code_spans`]: the `<code>` has to go out as a raw HTML
+/// inline, whose contents the walk collapses to a single space. Writing the
+/// span itself would break the "Translating HTML nodes" rule that no handler
+/// may write a bare newline in an inline context.
 #[test]
 fn code_span_holding_a_line_ending() {
     // An ATX heading is a single line, so any line ending truncates it.
@@ -168,11 +161,10 @@ fn code_span_holding_a_line_ending() {
     );
 }
 
-/// A code span holding nothing. The "Code" section's special case again: the
-/// backticks meant to open an empty span close it instead, so CommonMark has no
-/// spelling for one and the `<code>` goes out as a raw HTML inline. The walk
-/// collapses its contents, which turns the whitespace-only spans below into the
-/// single space of the first row.
+/// A code span holding nothing. The backticks meant to open an empty span close
+/// it instead, so CommonMark has no spelling for one and the `<code>` goes out
+/// as a raw HTML inline. The walk collapses its contents, which turns the
+/// whitespace-only spans below into the single space of the first row.
 #[test]
 fn empty_code_span() {
     assert_eq!(
@@ -201,11 +193,13 @@ fn empty_code_span() {
     );
 }
 
-/// The "Inline elements" table. An emphasis delimiter placed against a raw
-/// `<br>` would not flank, so rows 1, 2 and 4 write the element as HTML; rows 7
-/// and 8 do so because they leave no emphasis string to delimit.
+/// Rows 1-6 of the "Emphasis and strong emphasis" table. An emphasis delimiter
+/// placed against a raw `<br>` would not flank, so rows 1, 2 and 4 write the
+/// element as HTML; rows 5 and 6 do so because they leave no emphasis string to
+/// delimit. `basic_tests::faithful_mode_keeps_adjacent_emphasis_apart` covers
+/// row 7.
 #[test]
-fn inline_elements() {
+fn emphasis_and_strong_emphasis() {
     assert_eq!(
         "<em><br>a</em>",
         convert_faithful("<p><em><br>a</em></p>").unwrap()
@@ -243,24 +237,6 @@ fn inline_elements() {
     );
 
     assert_eq!(
-        "a<del><br></del>b",
-        convert_faithful("<p>a<del><br></del>b</p>").unwrap()
-    );
-    assert_eq!(
-        "a<del><br><br><br></del>b",
-        convert_faithful("<p>a<del><br><br><br></del>b</p>").unwrap()
-    );
-
-    assert_eq!(
-        "a<span><br></span>b",
-        convert_faithful("<p>a<span><br></span>b</p>").unwrap()
-    );
-    assert_eq!(
-        "a<span><br><br><br></span>b",
-        convert_faithful("<p>a<span><br><br><br></span>b</p>").unwrap()
-    );
-
-    assert_eq!(
         "a<em> </em>b",
         convert_faithful("<p>a<em> </em>b</p>").unwrap()
     );
@@ -281,8 +257,31 @@ fn inline_elements() {
     );
 }
 
-/// The "Links" table. A link label has no flanking rule, so every row keeps
-/// its CommonMark link.
+/// `<br>`s alone in an inline which goes out as a raw HTML inline. GFM
+/// strikethrough has no handler, so `<del>` is one, like `<span>`.
+#[test]
+fn brs_alone_in_a_raw_html_inline() {
+    assert_eq!(
+        "a<del><br></del>b",
+        convert_faithful("<p>a<del><br></del>b</p>").unwrap()
+    );
+    assert_eq!(
+        "a<del><br><br><br></del>b",
+        convert_faithful("<p>a<del><br><br><br></del>b</p>").unwrap()
+    );
+
+    assert_eq!(
+        "a<span><br></span>b",
+        convert_faithful("<p>a<span><br></span>b</p>").unwrap()
+    );
+    assert_eq!(
+        "a<span><br><br><br></span>b",
+        convert_faithful("<p>a<span><br><br><br></span>b</p>").unwrap()
+    );
+}
+
+/// `<br>`s in link text, which the "Links" section translates as CommonMark. A
+/// link label has no flanking rule, so every case keeps its CommonMark link.
 #[test]
 fn links() {
     assert_eq!(
@@ -397,11 +396,17 @@ fn atx_headings() {
     );
 }
 
-/// The "Paragraphs" table. Row 1 is the "Special case for paragraphs" rule: a
-/// bare `<br>` re-opens as an HTML block, which would dissolve the `<p>` around
-/// it. A second tag keeps the line from being type 7, so row 2 needs nothing.
+/// The "Paragraphs" table. Rows 1 and 2 are the section's rule that a paragraph
+/// whose content would open an HTML block is serialized whole, since the block
+/// would dissolve the `<p>` around it: a leading `<iframe>` opens one, as does
+/// a bare `<br>`. A second tag keeps the line from being type 7, so row 3 needs
+/// nothing. See also the second row of [`blockquotes`].
 #[test]
 fn paragraphs() {
+    assert_eq!(
+        r#"<p><iframe src="u">a</iframe></p>"#,
+        convert_faithful(r#"<p><iframe src="u">a</iframe></p>"#).unwrap()
+    );
     assert_eq!("<p><br></p>", convert_faithful("<p><br></p>").unwrap());
     assert_eq!("<br><br>", convert_faithful("<p><br><br></p>").unwrap());
     assert_eq!(
@@ -420,11 +425,11 @@ fn paragraphs() {
 
     assert_eq!(
         "<br>![](i)",
-        convert_faithful(r#"<p><br><img src="i"></p>"#).unwrap()
+        convert_faithful(r#"<p><br><img src="i" alt=""></p>"#).unwrap()
     );
     assert_eq!(
         "![](i)<br>",
-        convert_faithful(r#"<p><img src="i"><br></p>"#).unwrap()
+        convert_faithful(r#"<p><img src="i" alt=""><br></p>"#).unwrap()
     );
 }
 
@@ -457,10 +462,10 @@ fn blockquotes() {
     );
 }
 
-/// The "Table cells" table. A cell's contents are parsed as inline content, so
-/// no HTML block can open inside one.
+/// The "Tables" table. A cell's contents are parsed as inline content, so no
+/// HTML block can open inside one.
 #[test]
-fn table_cells() {
+fn tables() {
     // The one-column, one-row table the rows describe, showing only the cell
     // which holds the `<br>`.
     fn convert_body_cell(cell: &str) -> String {
@@ -478,7 +483,7 @@ fn table_cells() {
     assert_eq!("| <br><br><br> |", convert_body_cell("<br><br><br>"));
 }
 
-/// The "Table cells" section's rule that the entire table is serialized when it
+/// The "Tables" section's rule that the entire table is serialized when it
 /// holds a child which could only be written as HTML. A cell carrying an
 /// attribute is the case that rule names; a row, a section, a `<tfoot>` and a
 /// `<colgroup>` are the same kind of child. `table::extract_table_content`

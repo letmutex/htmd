@@ -1,6 +1,6 @@
 use html5ever::tendril::{Tendril, fmt::UTF8};
 use markup5ever_rcdom::{Node, NodeData};
-use std::{borrow::Cow, cell::RefCell, rc::Rc};
+use std::{borrow::Cow, rc::Rc};
 
 use crate::{
     Context, Element,
@@ -11,8 +11,11 @@ use super::{
     options::TranslationMode,
     util::{
         escape::{escape_html, index_of_markdown_ordered_item_delimiter, is_markdown_atx_heading},
-        node::is_block_element,
-        text::{TrimDocumentWhitespace, compress_whitespace, concat_strings, frame_as_block},
+        node::{copy_element_holding_text, is_block_element},
+        text::{
+            TrimDocumentWhitespace, compress_whitespace, concat_strings, frame_as_block,
+            trim_newlines,
+        },
     },
 };
 
@@ -62,7 +65,7 @@ pub(crate) fn walk_node(
 /// it is framed as a block and its line endings are left as they are.
 ///
 /// In an inline context it is a raw HTML inline, whose whitespace the
-/// "Translating HTML nodes" section of `unsupported_html.md` collapses.
+/// "Translating HTML nodes" section of `translation_approach.md` collapses.
 /// Encoding the line endings instead would be no use: no parser decodes a
 /// character reference inside a comment.
 fn walk_comment(contents: &str, output: &mut String, context: Context) {
@@ -130,7 +133,9 @@ fn walk_element(
         let mut content = String::new();
         // A span holds inline content, so its children keep this context.
         let markdown_translated = walk_children(node, &mut content, handlers, false, context);
-        trim_newlines(&mut content);
+        if !context.literal {
+            trim_newlines(&mut content);
+        }
         append_normalized_content(output, content, context.literal);
         return markdown_translated;
     }
@@ -162,15 +167,6 @@ fn is_passthrough_span(
     tag == "span" && handlers.can_passthrough_span && !is_math_span(attrs)
 }
 
-fn trim_newlines(content: &mut String) {
-    let start = content.len() - content.trim_start_matches('\n').len();
-    if start > 0 {
-        content.drain(..start);
-    }
-    let end = content.trim_end_matches('\n').len();
-    content.truncate(end);
-}
-
 fn is_math_span(attrs: &[html5ever::Attribute]) -> bool {
     attrs.len() == 1
         && attrs[0].name.local.as_ref() == "class"
@@ -194,9 +190,11 @@ fn is_markdown_block_start(byte: u8) -> bool {
 
 /// The bytes which carry CommonMark meaning wherever in a text node they
 /// appear, and so are escaped one by one. A `&` could begin an
-/// [entity or numeric character reference](https://spec.commonmark.org/0.31.2/#entity-and-numeric-character-references).
+/// [entity or numeric character reference](https://spec.commonmark.org/0.31.2/#entity-and-numeric-character-references),
+/// and a `$` a math expression; see the math section of
+/// `translation_approach.md`.
 fn is_markdown_inline_special(byte: u8) -> bool {
-    matches!(byte, b'\\' | b'&' | b'*' | b'_' | b'`' | b'[' | b']')
+    matches!(byte, b'\\' | b'&' | b'*' | b'_' | b'`' | b'[' | b']' | b'$')
 }
 
 pub(crate) fn walk_children(
@@ -316,8 +314,10 @@ fn can_combine(n1: &Node, n2: &Node) -> bool {
         return false;
     }
 
-    // Don't combine adjacent hyperlinks.
+    // Don't combine adjacent hyperlinks, or adjacent math, which pulldown-cmark
+    // reads apart: `$a$$b$` is two math expressions.
     *name1.local != *"a"
+        && !(*name1.local == *"span" && is_math_span(&attrs1.borrow()))
         && (name1 == name2
             // Treat `i` and `em` tags as the same element; likewise for `b` and
             // `strong`.
@@ -355,16 +355,6 @@ fn append_serialized_inline(
 }
 
 fn combine_nodes(parent: &Rc<Node>, nodes: &[Rc<Node>]) -> Rc<Node> {
-    let NodeData::Element {
-        name,
-        attrs,
-        template_contents,
-        mathml_annotation_xml_integration_point,
-    } = &nodes[0].data
-    else {
-        unreachable!("only compatible element nodes are combined")
-    };
-
     let mut text = Tendril::<UTF8>::new();
     for node in nodes {
         let children = node.children.borrow();
@@ -373,29 +363,22 @@ fn combine_nodes(parent: &Rc<Node>, nodes: &[Rc<Node>]) -> Rc<Node> {
         };
         text.push_tendril(&contents.borrow());
     }
-
-    let combined = Node::new(NodeData::Element {
-        name: name.clone(),
-        attrs: RefCell::new(attrs.borrow().clone()),
-        template_contents: RefCell::new(template_contents.borrow().clone()),
-        mathml_annotation_xml_integration_point: *mathml_annotation_xml_integration_point,
-    });
-    combined.parent.set(Some(Rc::downgrade(parent)));
-
-    let text_node = Node::new(NodeData::Text {
-        contents: RefCell::new(text),
-    });
-    text_node.parent.set(Some(Rc::downgrade(&combined)));
-    combined.children.borrow_mut().push(text_node);
-    combined
+    copy_element_holding_text(&nodes[0], Some(parent), text)
 }
 
 /// Normalizes content before adding to output by:
 /// 1. Collapsing excessive newlines (max 2 consecutive newlines)
 /// 2. Collapsing adjacent spaces between inline elements
+///
+/// When `preserve_whitespace` is true, the content is appended without normalization.
 fn append_normalized_content(output: &mut String, mut content: String, preserve_whitespace: bool) {
     if output.is_empty() {
         *output = content;
+        return;
+    }
+
+    if preserve_whitespace {
+        output.push_str(&content);
         return;
     }
 
@@ -411,8 +394,7 @@ fn append_normalized_content(output: &mut String, mut content: String, preserve_
     }
 
     // Collapse adjacent spaces between inline elements
-    let content = if !preserve_whitespace
-        && last_newlines == 0
+    let content = if last_newlines == 0
         && content_newlines == 0
         && output.ends_with(' ')
         && content.starts_with(' ')
@@ -422,9 +404,7 @@ fn append_normalized_content(output: &mut String, mut content: String, preserve_
         &content
     };
 
-    if !preserve_whitespace {
-        escape_image_marker(output, content);
-    }
+    escape_image_marker(output, content);
     output.push_str(content);
 }
 
@@ -458,6 +438,7 @@ fn trim_output_end_spaces(output: &mut String) {
 /// ````text
 /// '\'        -> '\\'
 /// '&copy;'   -> '\&copy;'   // entity reference
+/// '$5'       -> '\$5'       // math delimiter
 /// '==='      -> '\==='      // setext underline
 /// '---'      -> '\---'      // setext underline, thematic break
 /// '```'      -> '\`\`\`'    // code fence, escaped as three inline specials
@@ -524,6 +505,7 @@ fn escape_if_needed(text: Cow<'_, str>) -> Cow<'_, str> {
             '`' => escaped.push_str("\\`"),
             '[' => escaped.push_str("\\["),
             ']' => escaped.push_str("\\]"),
+            '$' => escaped.push_str("\\$"),
             _ => escaped.push(ch),
         }
     }

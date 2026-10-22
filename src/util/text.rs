@@ -226,3 +226,13 @@ pub(crate) fn indent_text_except_first_line(
     }
     result
 }
+
+/// Trims leading and trailing newlines from a string in place.
+pub(crate) fn trim_newlines(content: &mut String) {
+    let end = content.trim_end_matches('\n').len();
+    content.truncate(end);
+    let start = content.len() - content.trim_start_matches('\n').len();
+    if start > 0 {
+        content.drain(..start);
+    }
+}

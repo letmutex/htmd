@@ -158,12 +158,12 @@ after the break</pre>
 after the break</pre>
 </div>
 
-<div class="case" data-name="img with no alt">
+<div class="case" data-name="img with no alt" data-options='{"translationMode": "Pure"}'>
   <div class="input"><img src="http://example.com/logo.png" /></div>
   <pre class="expected">![](http://example.com/logo.png)</pre>
 </div>
 
-<div class="case" data-name="img with relative src">
+<div class="case" data-name="img with relative src" data-options='{"translationMode": "Pure"}'>
   <div class="input"><img src="logo.png"></div>
   <pre class="expected">![](logo.png)</pre>
 </div>
@@ -173,7 +173,7 @@ after the break</pre>
   <pre class="expected">![img with alt](logo.png)</pre>
 </div>
 
-<div class="case" data-name="img with no src">
+<div class="case" data-name="img with no src" data-options='{"translationMode": "Pure"}'>
   <div class="input"><img></div>
   <pre class="expected"></pre>
 </div>
@@ -191,7 +191,7 @@ after the break</pre>
   <pre class="expected">![img with<!-- line feed -->    <!-- line feed -->    alt](logo.png)</pre>
 </div>
 
-<div class="case" data-name="img with new lines in title">
+<div class="case" data-name="img with new lines in title" data-options='{"translationMode": "Pure"}'>
   <div class="input"><img src="logo.png" title="the
     
     title"></div>
@@ -965,7 +965,7 @@ Baz</pre>
   <pre class="expected">Hello world</pre>
 </div>
 
-<div class="case" data-name="elements with a single void element">
+<div class="case" data-name="elements with a single void element" data-options='{"translationMode": "Pure"}'>
   <div class="input">
     <p><img src="http://example.com/logo.png" /></p>
   </div>

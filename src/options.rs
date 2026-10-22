@@ -97,7 +97,7 @@ pub enum LinkStyle {
     /// Will convert links whose text is the URL to
     /// [Autolinks](https://spec.commonmark.org/0.31.2/#autolink) where one can
     /// hold that URL and the link has no title; see the links section of
-    /// `overall_translation_approach.md`.
+    /// `translation_approach.md`.
     InlinedPreferAutolinks,
     Referenced,
 }

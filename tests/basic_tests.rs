@@ -72,7 +72,7 @@ fn consecutive_referenced_links_with_title() {
 #[test]
 fn images() {
     let html = r#"
-        <img src="https://example.com" />
+        <img src="https://example.com" alt="" />
         <img src="https://example.com" alt="Image 1" />
         <img src="https://example.com" alt="Image 2" title="Hello" />
         "#;
@@ -86,7 +86,7 @@ fn images() {
 #[test]
 fn images_with_spaces_in_url() {
     let html = r#"
-        <img src="https://example.com/Some Image.jpg" />
+        <img src="https://example.com/Some Image.jpg" alt="" />
         "#;
     assert_eq!(
         "![](<https://example.com/Some Image.jpg>)",
@@ -229,10 +229,43 @@ fn pure_mode_merges_adjacent_inline_elements() {
     );
 }
 
-// Faithful mode keeps an emphasis with nothing to emphasize as HTML; see rows 7
-// and 8 of the "Inline elements" table of `unsupported_html.md`. Pure mode has
-// no such spelling, so the element goes and only the whitespace it held
-// survives, still separating the words around it.
+/// pulldown-cmark reads `$a$$b$` as two math expressions, so adjacent math
+/// spans, unlike other runs of inline elements, are neither merged nor written
+/// as HTML.
+#[test]
+fn adjacent_math_spans_stay_math() {
+    for (html, markdown) in [
+        (
+            r#"<p><span class="math math-inline">a</span><span class="math math-inline">b</span></p>"#,
+            "$a$$b$",
+        ),
+        (
+            r#"<p><span class="math math-display">a</span><span class="math math-display">b</span></p>"#,
+            "$$a$$$$b$$",
+        ),
+        (
+            r#"<p><span class="math math-inline">a</span><span class="math math-display">b</span></p>"#,
+            "$a$$$b$$",
+        ),
+        (
+            r#"<p><span class="math math-display">a</span><span class="math math-inline">b</span></p>"#,
+            "$$a$$$b$",
+        ),
+    ] {
+        assert_eq!(markdown, convert_faithful(html).unwrap());
+        assert_eq!(markdown, convert_pure(html).unwrap());
+        assert_eq!(
+            format!("{html}\n"),
+            render_markdown(markdown, CommonMarkOptions::ENABLE_MATH)
+        );
+    }
+}
+
+// Faithful mode keeps an emphasis with nothing to emphasize as HTML; see rows 5
+// and 6 of the "Emphasis and strong emphasis" table of
+// `translation_approach.md`. Pure mode has no such spelling, so the element
+// goes and only the whitespace it held survives, still separating the words
+// around it.
 #[test]
 fn blank_emphasis_leaves_its_whitespace_behind() {
     assert_eq!("a b", convert_pure("<p>a<em> </em>b</p>").unwrap());
@@ -302,6 +335,48 @@ fn inline_email_autolink_escaping() {
         "<p>Mail &lt;1foo@bar.com&gt;, &lt;/1@b.co&gt; or &lt;+a@b.co&gt;.</p>\n",
         round_trip(html)
     );
+}
+
+/// Pure mode writes a `span`, an `a` without an `href` and an empty `em` as
+/// their bare content, so the text node after one continues the text node
+/// before it. A `<` opening a tag or an autolink which the first ends partway
+/// through is escaped, since that node cannot see whether the rest follows.
+/// Unescaped, each of these reads back as raw HTML or a link instead of the
+/// text it was.
+#[test]
+fn a_sequence_finished_by_a_sibling_stays_text() {
+    for (html, expected_markdown, expected_content) in [
+        (
+            "<p>&lt;<span>div</span> class&gt;x</p>",
+            r"\<div class>x",
+            "&lt;div class&gt;x",
+        ),
+        (
+            "<p>&lt;<a>!--</a> x --&gt; y</p>",
+            r"\<!-- x --> y",
+            "&lt;!-- x --&gt; y",
+        ),
+        ("<p>a&lt;<em></em>b&gt;c</p>", r"a\<b>c", "a&lt;b&gt;c"),
+        ("<p>&lt;/<span>p</span> &gt;</p>", r"\</p >", "&lt;/p &gt;"),
+        (
+            "<p>&lt;<span>http://x.y</span>&gt;</p>",
+            r"\<http://x.y\>",
+            "&lt;http://x.y&gt;",
+        ),
+        (
+            "<p>&lt;1<span>@b.co&gt;</span></p>",
+            r"\<1@b.co>",
+            "&lt;1@b.co&gt;",
+        ),
+    ] {
+        let markdown = convert_pure(html).unwrap();
+        assert_eq!(
+            format!("<p>{expected_content}</p>\n"),
+            render_markdown(&markdown, CommonMarkOptions::empty()),
+            "round trip of {html}"
+        );
+        assert_eq!(expected_markdown, markdown, "markdown for {html}");
+    }
 }
 
 #[test]
@@ -800,6 +875,129 @@ fn math() {
     );
 }
 
+/// Faithful translations of math which `render_markdown` must read back as the
+/// HTML it came from.
+fn assert_math_round_trips(html: &str, markdown: &str) {
+    assert_eq!(markdown, convert_faithful(html).unwrap());
+    assert_eq!(
+        format!("{html}\n"),
+        render_markdown(
+            markdown,
+            CommonMarkOptions::ENABLE_MATH | CommonMarkOptions::ENABLE_TABLES
+        )
+    );
+}
+
+/// pulldown-cmark reads `$$$$` as display math holding nothing, but inline math
+/// cannot be empty: it reads `$$` as display math's delimiter.
+#[test]
+fn empty_math_span() {
+    assert_math_round_trips(r#"<p><span class="math math-display"></span></p>"#, "$$$$");
+    assert_math_round_trips(
+        r#"<p><span class="math math-inline"></span></p>"#,
+        r#"<span class="math math-inline"></span>"#,
+    );
+    assert_eq!(
+        "",
+        convert_pure(r#"<p><span class="math math-inline"></span></p>"#).unwrap()
+    );
+}
+
+/// Inline math cannot begin or end with whitespace, so it is trimmed; display
+/// math keeps its whitespace.
+#[test]
+fn math_span_whitespace() {
+    assert_eq!(
+        "$x$",
+        convert_faithful("<p><span class=\"math math-inline\"> \u{b}x\t</span></p>").unwrap()
+    );
+    assert_math_round_trips(
+        r#"<p><span class="math math-display"> x </span></p>"#,
+        "$$ x $$",
+    );
+    // Trimming a control space leaves a trailing `\`, which would escape the
+    // closing `$`; display math keeps the space, so needs no HTML.
+    assert_math_round_trips(
+        r#"<p><span class="math math-inline">a\ </span></p>"#,
+        r#"<span class="math math-inline">a\\ </span>"#,
+    );
+    assert_math_round_trips(
+        r#"<p><span class="math math-display">a\ </span></p>"#,
+        r"$$a\ $$",
+    );
+}
+
+/// Math which pulldown-cmark would not read back between `$`s is written as
+/// HTML. A backslash escapes the character after it, so an escaped `\` escapes
+/// nothing else.
+#[test]
+fn unwritable_math_span() {
+    for (math, markdown) in [
+        // An unescaped `$` ends the expression early.
+        ("a$b", r"a\$b"),
+        (r"a\\$b", r"a\\\\\$b"),
+        // A trailing `\` escapes the closing `$`.
+        (r"a\", r"a\\"),
+        // pulldown-cmark pairs delimiters only around balanced braces.
+        ("}a{", "}a{"),
+        ("a{", "a{"),
+        (r"\\{a", r"\\\\{a"),
+    ] {
+        assert_math_round_trips(
+            &format!(r#"<p><span class="math math-inline">{math}</span></p>"#),
+            &format!(r#"<span class="math math-inline">{markdown}</span>"#),
+        );
+    }
+    for math in [r"a\$b", r"a\\", "{a}", r"\{a", r"a\}"] {
+        assert_math_round_trips(
+            &format!(r#"<p><span class="math math-inline">{math}</span></p>"#),
+            &format!("${math}$"),
+        );
+    }
+}
+
+/// Only a span whose sole attribute is its math class and which holds nothing
+/// or a single text node is math; any other is translated like an ordinary
+/// span.
+#[test]
+fn span_not_of_the_math_form() {
+    let html = r#"<p><span class="math math-inline">a<em>b</em></span></p>"#;
+    assert_math_round_trips(html, r#"<span class="math math-inline">a*b*</span>"#);
+    assert_eq!("a*b*", convert_pure(html).unwrap());
+    let html = r#"<p><span class="math math-inline">a<!--c--></span></p>"#;
+    assert_math_round_trips(html, r#"<span class="math math-inline">a<!--c--></span>"#);
+    assert_eq!("a", convert_pure(html).unwrap());
+    let html = r#"<p><span class="math math-inline" id="x">a</span></p>"#;
+    assert_math_round_trips(html, r#"<span class="math math-inline" id="x">a</span>"#);
+    assert_eq!("a", convert_pure(html).unwrap());
+}
+
+/// pulldown-cmark reads `\|` in a table cell as `|` even inside math, so a `|`
+/// there takes the escape it takes in text.
+#[test]
+fn math_span_in_a_table_cell() {
+    assert_math_round_trips(
+        concat!(
+            "<table><thead><tr><th>h</th></tr></thead><tbody>\n",
+            r#"<tr><td><span class="math math-inline">\|x\| = a|b</span></td></tr>"#,
+            "\n</tbody></table>"
+        ),
+        concat!(
+            "| h                |\n",
+            "| ---------------- |\n",
+            r"| $\\|x\\| = a\|b$ |"
+        ),
+    );
+}
+
+/// pulldown-cmark looks for math delimiters in all text, so a text `$` is
+/// escaped; without the escape, this reads back as math holding `5,`.
+#[test]
+fn dollar_sign_in_text() {
+    assert_math_round_trips("<p>$5,$6</p>", r"\$5,\$6");
+    assert_eq!(r"\$5,\$6", convert_pure("<p>$5,$6</p>").unwrap());
+}
+
 // Document white space characters don't include non-breaking spaces; these should be preserved.
 #[test]
 fn document_whitespace() {
@@ -893,7 +1091,7 @@ fn assert_paragraph_survives(html: &str, expected_markdown: &str, expected_conte
     );
 }
 
-/// The "Special case for paragraphs" section of `unsupported_html.md` keeps a
+/// The "Paragraphs" section of `translation_approach.md` keeps a
 /// paragraph a paragraph where its content would otherwise open an HTML block.
 /// Content which opens any other leaf block dissolves it the same way, and for
 /// the same reason: the block scan reaches the content because nothing precedes
@@ -1046,9 +1244,10 @@ fn a_literal_cdata_section_is_lost_unescaped() {
 /// outside both lists is type 7, which is written as a raw HTML inline whatever
 /// the context.
 ///
-/// The tags the third "Special case" of `unsupported_html.md` sets aside —
-/// `iframe`, `xmp`, `noscript`, `noembed`, `noframes` and `plaintext` — are
-/// deliberately left uncovered here and in `round_trip_in_an_inline_context`.
+/// The tags a special case of the "Translating HTML nodes" section of
+/// `translation_approach.md` sets aside — `iframe`, `xmp`, `noscript`,
+/// `noembed`, `noframes` and `plaintext` — are deliberately left uncovered here
+/// and in `round_trip_in_an_inline_context`.
 /// The tokenizer hands their content back as literal characters, so neither the
 /// escape below nor the walk an inline context uses can encode a line ending
 /// inside one; this implementation ignores those cases.
@@ -1071,9 +1270,10 @@ fn round_trip_in_a_block_context() {
     assert_eq!("<div>a*b\n&#10;c</div>", round_trip("<div>a*b\n\nc</div>"));
 
     // Type 7 is a raw HTML inline, so CommonMark opens a paragraph around it —
-    // the tradeoff the "Translating HTML nodes" section of `unsupported_html.md`
-    // takes deliberately. The `*` survives, escaped as `a\*b`; the blank line
-    // does not, a raw HTML inline having its whitespace collapsed.
+    // the tradeoff the "Translating HTML nodes" section of
+    // `translation_approach.md` takes deliberately. The `*` survives, escaped
+    // as `a\*b`; the blank line does not, a raw HTML inline having its
+    // whitespace collapsed.
     assert_eq!(
         "<p><del>a*b c</del></p>\n",
         round_trip("<del>a*b\n\nc</del>")
@@ -1086,7 +1286,7 @@ fn round_trip_in_a_block_context() {
     assert_eq!("<br>", round_trip("<br>"));
 }
 
-/// The "Special case for paragraphs" section of `unsupported_html.md`: content
+/// The "Paragraphs" section of `translation_approach.md`: content
 /// which opens an HTML block dissolves the paragraph or setext heading holding
 /// it, so those two write themselves out whole instead. Each trip below would
 /// otherwise come back without its `<p>` or `<h1>`.
@@ -1139,8 +1339,8 @@ fn round_trip_setext(html: &str) -> String {
 
 /// A setext heading's content opens a line, so content which starts any leaf
 /// block dissolves the heading exactly as it dissolves a paragraph. The escape
-/// "Special case for paragraphs" puts on such content keeps the setext spelling
-/// whole, so the headings section's fallback to ATX is not needed here.
+/// a paragraph puts on such content keeps the setext spelling whole, so the
+/// headings section's fallback to ATX is not needed here.
 #[test]
 fn round_trip_of_a_setext_heading_of_leaf_block_syntax() {
     assert_eq!("<h1>-</h1>\n", round_trip_setext("<h1>-</h1>"));
@@ -1254,8 +1454,9 @@ fn round_trip_of_a_walked_raw_inline() {
 fn round_trip_losses_of_a_walked_raw_inline() {
     // The `<` of a raw text element: CommonMark writes `&lt;`, and an HTML
     // parser leaves that reference alone inside a `<script>`. This is the
-    // tradeoff the "Translating HTML nodes" section of `unsupported_html.md`
-    // takes; the alternative it names is serializing the containing block.
+    // tradeoff the "Translating HTML nodes" section of
+    // `translation_approach.md` takes; the alternative it names is serializing
+    // the containing block.
     assert_eq!(
         "<h1>x<script>if(a&lt;b){}</script>y</h1>\n",
         round_trip("<h1>x<script>if(a<b){}</script>y</h1>")
@@ -1298,7 +1499,7 @@ fn round_trip_losses_of_a_walked_raw_inline() {
     // A line ending inside a raw HTML inline is collapsed to a space. No one
     // encoding is decoded in every shape a raw HTML inline takes — a comment
     // and a raw text element decode none at all — which is why the
-    // "Translating HTML nodes" section of `unsupported_html.md` collapses.
+    // "Translating HTML nodes" section of `translation_approach.md` collapses.
     for (html, expected) in [
         ("<h1>x<div>a\nb</div>y</h1>", "<h1>x<div>a b</div>y</h1>\n"),
         ("<h1>x<pre>a\nb</pre>y</h1>", "<h1>x<pre>a b</pre>y</h1>\n"),

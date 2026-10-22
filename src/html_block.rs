@@ -3,9 +3,9 @@
 //!
 //! A leaf block whose content opens an HTML block is dissolved by it: the
 //! `<p>` or setext underline around the content is lost when the CommonMark is
-//! read back. The "Special case for paragraphs" section of
-//! `unsupported_html.md` asks the containers which are exposed to this — a
-//! paragraph and a setext heading — to check their content for it.
+//! read back. The "Paragraphs" section of `translation_approach.md` asks the
+//! containers which are exposed to this — a paragraph and a setext heading — to
+//! check their content for it.
 
 use crate::util::node::{is_block_element, is_type_1_element};
 

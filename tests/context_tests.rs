@@ -1,11 +1,11 @@
 //! Tests for the block/inline context an element is translated in, following
 //! the "Given an HTML node that can't be encoded as CommonMark" rule of
-//! `unsupported_html.md`.
+//! `translation_approach.md`.
 
 use pretty_assertions::assert_eq;
 
 mod common;
-use common::convert_faithful;
+use common::{convert_faithful, convert_pure};
 
 #[test]
 fn html_at_the_document_root_is_a_block() {
@@ -103,7 +103,7 @@ fn html_in_a_paragraph_is_a_raw_inline() {
     );
     assert_eq!(
         "<br>![](i)",
-        convert_faithful(r#"<p><br><img src="i"></p>"#).unwrap()
+        convert_faithful(r#"<p><br><img src="i" alt=""></p>"#).unwrap()
     );
 }
 
@@ -146,8 +146,8 @@ fn html_in_a_list_item_is_a_block() {
         "*   <br>\n\n    a",
         convert_faithful("<ul><li><br><p>a</p></li></ul>").unwrap()
     );
-    // Row 1 of "Lists" in `unsupported_html.md` wants two HTML blocks here, but
-    // `br` is a type 7 tag, so the run stays inline.
+    // Row 1 of "Lists" in `translation_approach.md` wants two HTML blocks here,
+    // but `br` is a type 7 tag, so the run stays inline.
     assert_eq!(
         "*   <br><br>",
         convert_faithful("<ul><li><br><br></li></ul>").unwrap()
@@ -189,7 +189,7 @@ fn html_in_a_table_cell_is_a_raw_inline() {
 /// itself: a GFM row has nowhere to write one. The `<caption>` half of the same
 /// rule is covered by
 /// `basic_tests::faithful_mode_serializes_a_table_with_a_caption`. See the
-/// table cells section of `unsupported_html.md`.
+/// tables section of `translation_approach.md`.
 #[test]
 fn a_cell_attribute_writes_the_whole_table_as_html() {
     let with_colspan = "<table><thead><tr><th>h</th></tr></thead>\
@@ -265,7 +265,7 @@ fn a_raw_text_element_escapes_the_markdown_it_holds() {
     // The `<` escape buys nothing here: CommonMark writes `&lt;`, and an HTML
     // parser decodes no character reference inside a raw text element. That is
     // the tradeoff the "Translating HTML nodes" section of
-    // `unsupported_html.md` takes.
+    // `translation_approach.md` takes.
     assert_eq!(
         r"# <script>if(a\<b){}</script>",
         convert_faithful("<h1><script>if(a<b){}</script></h1>").unwrap()
@@ -313,8 +313,8 @@ fn an_rcdata_element_is_translated() {
 
 /// "All raw HTML inlines will have whitespace collapsed in their contents
 /// (including newlines, which would otherwise be problematic)" — the
-/// "Translating HTML nodes" section of `unsupported_html.md`. Encoding the line
-/// ending instead would need a parser which decodes a character reference
+/// "Translating HTML nodes" section of `translation_approach.md`. Encoding the
+/// line ending instead would need a parser which decodes a character reference
 /// there, and neither a comment nor a raw text element has one.
 #[test]
 fn a_raw_inline_collapses_the_whitespace_of_its_content() {
@@ -612,4 +612,73 @@ fn a_math_span_replaces_its_line_endings_with_spaces() {
         "$a b$",
         convert_faithful("<p><span class=\"math math-inline\">a&#13;b</span></p>").unwrap()
     );
+    // An escaped line ending is LaTeX's control space, which an escaped space
+    // spells as well.
+    assert_eq!(
+        r"$a\ b$",
+        convert_faithful("<p><span class=\"math math-inline\">a\\\nb</span></p>").unwrap()
+    );
+}
+
+/// Joining a math span's lines would extend a LaTeX comment over every line
+/// after it, so each comment is replaced first. As in LaTeX, a comment runs
+/// through its line ending and the whitespace beginning the next line; a space
+/// replaces it, since that ends a control word as the comment did.
+#[test]
+fn a_math_span_strips_its_comments() {
+    assert_eq!(
+        r"$\alpha x$",
+        convert_faithful("<p><span class=\"math math-inline\">\\alpha%c\n  \tx</span></p>")
+            .unwrap()
+    );
+    // The space is wrong in text mode, where the comment joined two letters.
+    assert_eq!(
+        r"$\text{fo o}$",
+        convert_faithful("<p><span class=\"math math-inline\">\\text{fo%c\no}</span></p>").unwrap()
+    );
+    // Every line ending bounds a comment: a CRLF pair and a lone carriage
+    // return included.
+    assert_eq!(
+        "$$a b c d$$",
+        convert_faithful(
+            "<p><span class=\"math math-display\">a%x&#13;&#10;b&#13;c%y&#13;d</span></p>"
+        )
+        .unwrap()
+    );
+    // A comment on the last line still leaves its space, which only inline math
+    // trims.
+    assert_eq!(
+        "$$a $$",
+        convert_faithful("<p><span class=\"math math-display\">a%b</span></p>").unwrap()
+    );
+    // `\%` is a literal percent sign...
+    assert_eq!(
+        r"$a\%b$",
+        convert_faithful(r#"<p><span class="math math-inline">a\%b</span></p>"#).unwrap()
+    );
+    // ...but `\\` is a control symbol, leaving the `%` after it unescaped.
+    assert_eq!(
+        r"$a\\$",
+        convert_faithful(r#"<p><span class="math math-inline">a\\%b</span></p>"#).unwrap()
+    );
+    // A span which is all comment holds no math. Inline math cannot be empty,
+    // so the span goes out as HTML, holding the space which replaced the
+    // comment.
+    assert_eq!(
+        r#"<span class="math math-inline"> </span>"#,
+        convert_faithful(r#"<p><span class="math math-inline">%a</span></p>"#).unwrap()
+    );
+}
+
+/// A math span written as HTML holds its comment-stripped, single-line source:
+/// serializing collapses the line ending of the original, which would leave
+/// `d` inside the comment.
+#[test]
+fn an_unwritable_math_span_strips_its_comments() {
+    let html = "<p><span class=\"math math-inline\">a$b%c\nd</span></p>";
+    assert_eq!(
+        r#"<span class="math math-inline">a\$b d</span>"#,
+        convert_faithful(html).unwrap()
+    );
+    assert_eq!(r"a\$b d", convert_pure(html).unwrap());
 }

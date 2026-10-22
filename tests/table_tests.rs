@@ -638,7 +638,7 @@ mod table_tests_1 {
 
     /// A cell's contents are parsed as inline content, so a block element in a
     /// cell is written as a raw HTML inline and the table stays a table. See
-    /// the "Translating HTML nodes" section of `unsupported_html.md`.
+    /// the "Translating HTML nodes" section of `translation_approach.md`.
     #[test]
     fn test_table_block_cells() {
         assert_eq!(

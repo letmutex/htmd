@@ -1,5 +1,6 @@
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
+use html5ever::tendril::StrTendril;
 use markup5ever_rcdom::{Node, NodeData};
 use phf::phf_set;
 
@@ -16,6 +17,40 @@ pub(crate) fn get_parent_node(node: &Rc<Node>) -> Option<Rc<Node>> {
     let parent = value.as_ref().and_then(|parent| parent.upgrade());
     node.parent.set(value);
     parent
+}
+
+/// A copy of the element `node` whose only child is a text node holding
+/// `text`. The copy names `parent` as its parent, though `parent` does not list
+/// it among its children.
+pub(crate) fn copy_element_holding_text(
+    node: &Node,
+    parent: Option<&Rc<Node>>,
+    text: StrTendril,
+) -> Rc<Node> {
+    let NodeData::Element {
+        name,
+        attrs,
+        template_contents,
+        mathml_annotation_xml_integration_point,
+    } = &node.data
+    else {
+        unreachable!("only an element node is copied")
+    };
+
+    let copy = Node::new(NodeData::Element {
+        name: name.clone(),
+        attrs: RefCell::new(attrs.borrow().clone()),
+        template_contents: RefCell::new(template_contents.borrow().clone()),
+        mathml_annotation_xml_integration_point: *mathml_annotation_xml_integration_point,
+    });
+    copy.parent.set(parent.map(Rc::downgrade));
+
+    let text_node = Node::new(NodeData::Text {
+        contents: RefCell::new(text),
+    });
+    text_node.parent.set(Some(Rc::downgrade(&copy)));
+    copy.children.borrow_mut().push(text_node);
+    copy
 }
 
 pub(crate) fn parent_tag_name_equals(node: &Rc<Node>, tag_names: &[&str]) -> bool {
