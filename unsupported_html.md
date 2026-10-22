@@ -1,6 +1,8 @@
 CommonMark translation of HTML blocks and raw HTML inlines
 ==========================================================
 
+# <span id="cc-P9-HxGXlsg">CommonMark translation of HTML blocks and raw HTML inlines</span>
+
 This design requires `TranslationMode::Faithful`, which outputs all `<br>`
 elements not as a CommonMark break, but as the HTML `<br>`. This choice is
 driven by [CommonMark](https://spec.commonmark.org/0.31.2/) rules:
@@ -182,6 +184,8 @@ the following table.
 | Description                          | HTML in                             | Faithful expected                   |
 | ------------------------------------ | ----------------------------------- | ----------------------------------- |
 | Paragraph starting with a `<iframe>` | `<p><iframe src="u">a</iframe></p>` | `<p><iframe src="u">a</iframe></p>` |
+
+### <span id="cc-JuuPpvyUTY" data-gather=cc-KktP8aFkra>Implementation</span>
 
 Code
 ----
