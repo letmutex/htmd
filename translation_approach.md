@@ -730,3 +730,127 @@ its ends lie in math mode, where whitespace has no significance, and condition 3
 catches the one significant trailing whitespace, a control space. LaTeX reads a
 single newline as a space, and math mode ignores the space which replaces a
 comment, so only a comment in text mode renders differently (see step 1).
+
+### Footnotes
+----------------------------------
+
+<strong>Scope and identification:</strong>
+
+* This covers longer footnotes linked to later note targets. Short `title`
+  annotations, side notes, and figure or table notes are out of scope.
+* Because the converter receives no page URL, treat only same-document links as
+  same-page candidates: the `href` must be `#` followed by a nonempty fragment.
+  Do not infer same-page status from relative or absolute URLs. If the document
+  has a `<base href>`, do not classify its fragment links; without the page URL
+  the converter cannot determine whether the base points to the current page.
+* Match the fragment to exactly one target `id` in the parsed document. Compare
+  the literal fragment first, then its UTF-8 percent-decoded value, following
+  HTML fragment matching. The target must occur later in parsed DOM order.
+* For the cue checks below:
+  * A reference wrapper is an ancestor element of the in-text `<a>` that
+    contains no non-whitespace text or element descendant other than the `<a>`
+    and its descendants.
+  * A note-entry block is the target itself when it is a `<li>`, the nearest
+    containing `<li>` when the target is a `<p>` inside one, and otherwise the
+    target `<p>` itself.
+  * A note container is any ancestor of the note-entry block whose tag is
+    `<ol>`, `<ul>`, `<section>`, or `<div>`.
+* Classify the link as a footnote when it has either one strong cue or three
+  supporting cues. Each numbered supporting cue counts at most once per link,
+  even when multiple elements satisfy it:
+  * Strong:
+    1. A link inside the target or its note-entry block points back to an ID on
+       the in-text `<a>` or its immediate inline parent. That ID must occur on
+       exactly one element in the document. Do not use an ID from a more distant
+       ancestor.
+  * Supporting:
+    1. The marker text is the in-text `<a>`'s descendant text nodes concatenated
+       in DOM order, with ASCII whitespace runs collapsed to one space and
+       leading and trailing whitespace removed. It qualifies if it is one or
+       more ASCII digits, optionally enclosed in matching square brackets, or
+       exactly one of `*`, `**`, `†`, `‡`, `§`, or `¶`. Ignore CSS visibility,
+       generated content, `aria-label`, and image `alt` text when reading it.
+    2. An HTML `class` token on the in-text `<a>`, any reference wrapper, the
+       target, its note-entry block, or a note container contains the substring
+       `footnote`, using ASCII case-insensitive matching. Split class attributes
+       on ASCII whitespace; examples include `footnote`, `footnote-ref`,
+       `footnote-reference`, `footnotes`, and `footnote-item`.
+    3. The target ID starts with `fn`, `footnote`, or `cite_note`, or the ID on
+       the in-text `<a>` or a reference wrapper starts with `fnref`,
+       `footnote-ref`, or `cite_ref`. Match prefixes using ASCII
+       case-insensitive comparison; for example, `FN-1` and `cite_note42` match,
+       while `section-fn1` does not.
+    4. The target belongs to a cluster of at least two distinct targets that are
+       direct children of the same `<ol>` or `<ul>` (as `<li>` elements), or the
+       same `<section>` (as `<p>` or `<li>` elements). Each target must have at
+       least one earlier same-document fragment link that resolves uniquely to
+       it. A link to any target in that cluster gets one cluster cue.
+    5. The in-text `<a>` has a `<sup>` ancestor. Count this cue once even if
+       `<sup>` elements are nested.
+* Classify each link independently using the cues above. A cue on one link does
+  not classify other links merely because they point to the same target.
+* Before extracting a target, account for every same-document link that resolves
+  to it. Excluding recognized backlinks that will be removed with the note, each
+  such link must either be classified as a footnote reference and rewritten, or
+  the target must remain in place so the link still resolves.
+* Leave unmatched or ambiguous links as ordinary links.
+* Convert a target only when its `id` is on a `<p>` or `<li>`; that element is
+  the note unit. Leave inline targets and targets on other elements in HTML.
+* If a note unit contains another classified target, leave all affected targets
+  and references in HTML.
+
+<strong>Markdown Translation:</strong>
+
+CommonMark itself does not define footnote syntax. Translation will use
+[GitHub's documented Markdown footnote syntax](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#footnotes).
+
+These rules depend on translation mode:
+
+* In `TranslationMode::Pure`, convert eligible notes to GitHub Markdown
+  footnotes. This adds a GitHub-specific extension to Pure output; the result is
+  not strict CommonMark.
+
+* In `TranslationMode::Faithful`, do not apply this footnote rewrite. Leave
+  references and targets in their original positions and process them with the
+  existing element handlers, including any HTML preservation those handlers
+  require.
+
+* After all other conversion checks pass, assign convertible targets sequential
+  decimal labels starting at `1`, ordered by their first in-text reference. Use
+  each label for all references to that target and its definition.
+
+* Replace each classified in-text reference at its original position with
+  `[^label]`. Remove the source `<a>` and its displayed contents, including its
+  `href` and other attributes. Also remove each enclosing inline wrapper whose
+  only non-whitespace content is that reference, such as `<sup>`, and discard
+  its attributes. Preserve surrounding text and punctuation. If an enclosing
+  wrapper contains other content, keep it and replace only the link.
+
+* Emit one definition per target at the end of the Markdown, separated from
+  preceding content by a blank line so the definitions begin a new Markdown
+  block. Translate the note unit's contents with the normal element handlers,
+  excluding recognized backlinks and the source list marker.
+
+* Convert a note only when its translated content fits in a single paragraph.
+  Otherwise, keep its source content and references in HTML.
+
+* Treat conversion as all-or-nothing for a target: if any check fails, do not
+  emit a definition or remove source content for that target. In
+  `TranslationMode::Pure`, preserve the original HTML for every classified
+  reference subtree (the `<a>` and its enclosing inline wrappers) and the note
+  target, including their attributes and contents. Bypass normal Pure handlers
+  for those subtrees, and translate unrelated content normally.
+
+* If an unconvertible target is on a `<li>`, preserve the containing list as
+  original HTML, keep every reference to targets in that list in HTML, and do
+  not extract any notes from that list. Apply the same fallback to overlapping
+  target groups, such as when one note contains another.
+
+* For a successfully converted note, remove the selected note unit from its
+  original position. If its containing `<li>` is then empty apart from
+  whitespace, remove it; remove its parent list only if no items remain. Keep
+  other ancestors and content. If removing an `<li>` leaves an ordered list with
+  items, renumber the remaining items consecutively in their new order, honoring
+  the list's `start` value.
+
+* Leave unmatched or ambiguous links as ordinary links.
