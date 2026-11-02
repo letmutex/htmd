@@ -442,7 +442,7 @@ Approach:
       begins with `<p>`, serialize it as HTML. Otherwise, leave it as
       CommonMark. Combine each list item with an intervening newline.
 
-#### Tasks
+### Tasks
 
 Task lists are translated to GitHub Flavored Markdown using HTML's `<ul>` (or `<ol>` for ordered lists) and `<li>`
 tags to designate lists and list elements (tasks), respectively. This
