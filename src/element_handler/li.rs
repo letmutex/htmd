@@ -1,8 +1,12 @@
+use std::rc::Rc;
+
+use markup5ever_rcdom::{Node, NodeData};
+
 use crate::{
     Context, Element,
     element_handler::element_util::{list_marker_spacing, serialize_if_extra_attrs_or_inline},
     element_handler::{HandlerResult, Handlers},
-    options::BulletListMarker,
+    options::{BulletListMarker, TranslationMode},
     util::{
         node::{get_node_tag_name, get_parent_node},
         text::{TrimDocumentWhitespace, concat_strings, indent_text_except_first_line},
@@ -15,7 +19,13 @@ pub(super) fn list_item_handler(
 ) -> Option<HandlerResult> {
     serialize_if_extra_attrs_or_inline!(handlers, element, 0);
     // A list item is a container block: its children begin a block context.
-    let mut content = handlers.walk_children_content(element.node, Context::BLOCK);
+    let mut content = handlers.walk_children_content(
+        element.node,
+        Context {
+            task_markers: true,
+            ..Context::BLOCK
+        },
+    );
     let start = content.len() - content.trim_start_document_whitespace().len();
     if start > 0 {
         content.drain(..start);
@@ -45,5 +55,134 @@ pub(super) fn list_item_handler(
         ol_li()
     } else {
         ul_li()
+    }
+}
+
+fn is_whitespace(node: &Rc<Node>) -> bool {
+    matches!(&node.data, NodeData::Text { contents } if contents.borrow().trim_document_whitespace().is_empty())
+}
+
+fn is_ignorable_prefix(node: &Rc<Node>, mode: TranslationMode) -> bool {
+    is_whitespace(node)
+        || (mode == TranslationMode::Pure && matches!(&node.data, NodeData::Comment { .. }))
+}
+
+fn is_checkbox(node: &Rc<Node>) -> bool {
+    matches!(&node.data, NodeData::Element { name, attrs, .. }
+        if &name.local == "input" && attrs.borrow().iter().any(|attr|
+            &attr.name.local == "type" && attr.value.eq_ignore_ascii_case("checkbox")))
+}
+
+fn count_checkboxes(node: &Rc<Node>) -> usize {
+    usize::from(is_checkbox(node))
+        + node
+            .children
+            .borrow()
+            .iter()
+            .map(count_checkboxes)
+            .sum::<usize>()
+}
+fn has_task_description(node: &Rc<Node>, mode: TranslationMode) -> bool {
+    match &node.data {
+        NodeData::Text { contents } => !contents.borrow().trim_document_whitespace().is_empty(),
+        NodeData::Element { name, attrs, .. } => match name.local.as_ref() {
+            "br" => mode == TranslationMode::Faithful,
+            "img" => {
+                mode == TranslationMode::Faithful
+                    || attrs.borrow().iter().any(|attr| &attr.name.local == "src")
+            }
+            _ => node
+                .children
+                .borrow()
+                .iter()
+                .any(|node| has_task_description(node, mode)),
+        },
+        _ => false,
+    }
+}
+fn task_checkbox(item: &Rc<Node>, mode: TranslationMode) -> Option<Rc<Node>> {
+    let children = item.children.borrow();
+    let first = children
+        .iter()
+        .find(|node| !is_ignorable_prefix(node, mode))?;
+    let paragraph = if get_node_tag_name(first) == Some("p") {
+        if mode == TranslationMode::Faithful
+            && let NodeData::Element { attrs, .. } = &first.data
+            && !attrs.borrow().is_empty()
+        {
+            return None;
+        }
+        first
+    } else {
+        item
+    };
+    let content = paragraph.children.borrow();
+    let checkbox = content
+        .iter()
+        .find(|node| !is_ignorable_prefix(node, mode))?;
+    if !is_checkbox(checkbox) {
+        return None;
+    }
+    let count = content
+        .iter()
+        .take_while(|node| {
+            !get_node_tag_name(node).is_some_and(crate::util::node::is_block_element)
+        })
+        .map(count_checkboxes)
+        .sum::<usize>();
+    if count != 1 {
+        return None;
+    }
+    let has_description = content
+        .iter()
+        .take_while(|node| {
+            !get_node_tag_name(node).is_some_and(crate::util::node::is_block_element)
+        })
+        .skip_while(|node| !Rc::ptr_eq(node, checkbox))
+        .skip(1)
+        .any(|node| has_task_description(node, mode));
+
+    if !has_description {
+        return None;
+    }
+    if mode == TranslationMode::Faithful
+        && let NodeData::Element { attrs, .. } = &checkbox.data
+        && attrs
+            .borrow()
+            .iter()
+            .any(|attr| !matches!(attr.name.local.as_ref(), "type" | "checked"))
+    {
+        return None;
+    }
+    Some(Rc::clone(checkbox))
+}
+
+pub(super) fn input_handler(handlers: &dyn Handlers, element: &Element) -> Option<HandlerResult> {
+    let parent = get_parent_node(element.node);
+    let item = parent.and_then(|parent| {
+        if get_node_tag_name(&parent) == Some("p") {
+            get_parent_node(&parent)
+        } else {
+            Some(parent)
+        }
+    });
+    if element.context.task_markers
+        && item.as_ref().is_some_and(|item| {
+            get_node_tag_name(item) == Some("li")
+                && task_checkbox(item, handlers.options().translation_mode)
+                    .is_some_and(|checkbox| Rc::ptr_eq(&checkbox, element.node))
+        })
+    {
+        let checked = element
+            .attrs
+            .iter()
+            .any(|attr| &attr.name.local == "checked");
+        Some(if checked { "[x] " } else { "[ ] " }.into())
+    } else if handlers.options().translation_mode == TranslationMode::Pure {
+        Some("".into())
+    } else {
+        Some(super::element_util::serialize_element_result(
+            handlers, element,
+        ))
     }
 }

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <h2>Basic states</h2>
+    <ul>
+        <li><input type="checkbox"> Incomplete task</li>
+        <li><input type="checkbox" checked> Completed task</li>
+        <li><input type="checkbox" checked="false"> Still completed: checked is present</li>
+    </ul>
+
+    <h2>Mixed items and formatting</h2>
+    <ul>
+        <li>Ordinary item</li>
+        <li><input type="checkbox"> Read <strong>chapter 3</strong></li>
+        <li><input type="checkbox" checked> Visit <a href="https://example.com">the website</a></li>
+        <li><input type="checkbox"> Run <code>cargo test</code></li>
+    </ul>
+
+    <h2>Whitespace and paragraph wrappers</h2>
+    <ul>
+        <li>
+            <input type="checkbox">
+            Task after leading whitespace
+        </li>
+        <li><p><input type="checkbox" checked> Task inside a paragraph</p></li>
+    </ul>
+
+    <h2>Nested tasks</h2>
+    <ul>
+        <li><input type="checkbox"> Parent task
+            <ul>
+                <li><input type="checkbox" checked> Completed child</li>
+                <li><input type="checkbox"> Incomplete child</li>
+                <li>Ordinary child</li>
+            </ul>
+        </li>
+        <li>Ordinary parent
+            <ul>
+                <li><input type="checkbox"> Independent child task</li>
+            </ul>
+        </li>
+    </ul>
+
+    <h2>Ordered tasks</h2>
+    <ol start="3">
+        <li><input type="checkbox" checked> Third task</li>
+        <li><input type="checkbox"> Fourth task</li>
+    </ol>
+
+    <h2>Ineligible checkboxes</h2>
+    <ul>
+        <li>Description before checkbox <input type="checkbox"></li>
+        <li><input type="checkbox"> <input type="checkbox"> Two checkboxes</li>
+        <li><input type="radio"> Radio input</li>
+    </ul>
+
+    <h2>Only the first paragraph determines eligibility</h2>
+    <ul>
+        <li>
+            <p><input type="checkbox"> First paragraph is a task</p>
+            <p>Later checkbox: <input type="checkbox" checked></p>
+        </li>
+        <li>
+            <p>First paragraph is ordinary</p>
+            <p><input type="checkbox"> Later paragraph does not make this a task</p>
+        </li>
+    </ul>
+
+    <h2>Attributes requiring Faithful preservation</h2>
+    <ul>
+        <li><input type="checkbox" disabled> Disabled checkbox</li>
+        <li><p class="task-description"><input type="checkbox"> Paragraph with an attribute</p></li>
+        <li id="task-42"><input type="checkbox"> Item with an attribute</li>
+    </ul>
+    <ul class="task-list">
+        <li><input type="checkbox"> List with an attribute</li>
+    </ul>
+
+    <h2>Normal tasks</h2>
+<ul>
+    <li><input type="checkbox"> Incomplete</li>
+    <li><p><input type="checkbox" checked> Completed inside paragraph</p></li>
+</ul>
+
+<h2>Empty descriptions</h2>
+<ul>
+    <li><input type="checkbox"></li>
+    <li><input type="checkbox" checked></li>
+</ul>
+
+<h2>Image description</h2>
+<ul>
+    <li><input type="checkbox"><img src="task.png" alt="Task"></li>
+</ul>
+
+<h1><ul><li><input type="checkbox"> Task inside heading</li></ul></h1>
+</body>
+</html>

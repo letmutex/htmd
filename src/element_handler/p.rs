@@ -11,7 +11,13 @@ use crate::{
 pub(super) fn p_handler(handlers: &dyn Handlers, element: &Element) -> Option<HandlerResult> {
     serialize_if_extra_attrs_or_inline!(handlers, element, 0);
     // A paragraph is a leaf block: its children begin an inline context.
-    let content = handlers.walk_children_content(element.node, Context::INLINE);
+    let content = handlers.walk_children_content(
+        element.node,
+        Context {
+            task_markers: element.context.task_markers,
+            ..Context::INLINE
+        },
+    );
     // An HTML block opening at the start of the content dissolves the paragraph
     // holding it, so writing the content alone would lose the `<p>`; the whole
     // element goes out as HTML instead. See the "Paragraphs" section of

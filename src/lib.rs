@@ -52,16 +52,21 @@ pub struct Context {
     /// Whether text in this context is literal
     /// (preserving whitespace without Markdown escaping).
     pub literal: bool,
+    /// Whether eligible list-item checkboxes may become GFM task markers.
+    pub task_markers: bool,
 }
 
 impl Context {
     pub const BLOCK: Self = Self {
         kind: ContextKind::Block,
         literal: false,
+        task_markers: false,
     };
+
     pub const INLINE: Self = Self {
         kind: ContextKind::Inline,
         literal: false,
+        task_markers: false,
     };
 
     /// Whether only inline content may appear here, in which case an element
@@ -180,6 +185,7 @@ impl HtmlToMarkdown {
             Context {
                 kind: ContextKind::Block,
                 literal: is_inside_pre(tree),
+                task_markers: false,
             },
         );
 
