@@ -488,6 +488,10 @@ It should also be noted that although the above test cases utilize `-` dash symb
 to signify task elements in Markdown, htmd and GitHub Flavored Markdown provide many
 different symbols to denote task and list elements such as asterisks and plus signs.
 
+An ordered list whose emitted numbers would exceed nine digits is preserved as
+HTML in Faithful mode. Pure mode restarts numbering at `1` so every marker
+remains valid GFM.
+
 Approach:
 
   * To identify a task list, htmd recognizes task list items by the task contained within `<li>` tags as well as the presence of 
@@ -512,7 +516,14 @@ Approach:
   marker is placed at the beginning of the list item's first paragraph.
 
   * As for leading indentations, they are just considered to be whitespace and do
-  not affect recognition of task list elements.
+  not affect recognition of task list elements. Recognition uses the same ASCII
+  whitespace classification as text conversion, including form feeds.
+
+  * Task markers are finalized after the first paragraph's description has been
+  converted. If that description becomes whitespace-only, including when a
+  custom handler skips it, Pure mode discards the checkbox and Faithful mode
+  preserves its HTML. Later paragraphs and nested lists cannot supply the
+  missing description.
 
   * As for multiple checkboxes within a single `<li>` element, they are not considered valid or to be task list elements as task list elements only require a single
   checkbox. It should be noted however that this rule does not apply to nested, or
@@ -538,10 +549,10 @@ Determine state   Ordinary list
 Generate list marker
       |
       v
-Insert [x] or [ ] marker
+Convert task description
       |
       v
-Convert task description
+Finalize [x] or [ ] marker
       |
       v
 Preserve nested-list structure

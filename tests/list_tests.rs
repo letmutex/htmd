@@ -352,3 +352,146 @@ fn descriptions_dropped_in_pure_mode_do_not_leave_task_markers() {
         assert!(!markdown.contains("[ ]"), "{html}: {markdown}");
     }
 }
+
+fn task_states(markdown: &str) -> Vec<bool> {
+    use pulldown_cmark::{Event, Options as MarkdownOptions, Parser};
+
+    Parser::new_ext(markdown, MarkdownOptions::ENABLE_TASKLISTS)
+        .filter_map(|event| match event {
+            Event::TaskListMarker(checked) => Some(checked),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn task_whitespace_matches_text_conversion() {
+    for wrapped in [false, true] {
+        for checked in [false, true] {
+            let checked_attr = if checked { " checked" } else { "" };
+            for description in ["Task", "\x0c"] {
+                let content = format!("\x0c<input type=checkbox{checked_attr}>{description}");
+                let content = if wrapped {
+                    format!("<p>{content}</p>")
+                } else {
+                    content
+                };
+                let html = format!("<ul><li>{content}</li></ul>");
+
+                for markdown in [
+                    common::convert_pure(&html).unwrap(),
+                    convert_faithful(&html).unwrap(),
+                ] {
+                    if description == "Task" {
+                        assert_eq!(task_states(&markdown), vec![checked], "{html}: {markdown}");
+                    } else {
+                        assert!(task_states(&markdown).is_empty(), "{html}: {markdown}");
+                        assert!(!markdown.contains("[x]"));
+                        assert!(!markdown.contains("[ ]"));
+                    }
+                }
+                if description != "Task" {
+                    assert!(convert_faithful(&html).unwrap().contains("<input"));
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn converted_empty_descriptions_do_not_use_later_content() {
+    for description in [
+        "<span class=\"math math-inline\">% comment</span>",
+        "<span class=\"math math-inline\">% comment</span><br>",
+    ] {
+        for wrapped in [false, true] {
+            let content = format!("<input type=checkbox checked>{description}");
+            let content = if wrapped {
+                format!("<p>{content}</p>")
+            } else {
+                content
+            };
+            for suffix in [
+                "",
+                "<p>Later paragraph</p>",
+                "<ul><li><input type=checkbox>Child</li></ul>",
+            ] {
+                let html = format!("<ul><li>{content}{suffix}</li></ul>");
+                let markdown = common::convert_pure(&html).unwrap();
+                let expected = if suffix.contains("Child") {
+                    vec![false]
+                } else {
+                    vec![]
+                };
+
+                assert_eq!(task_states(&markdown), expected, "{html}: {markdown}");
+                assert!(!markdown.contains("[x]"), "{html}: {markdown}");
+            }
+        }
+    }
+}
+
+#[test]
+fn skipped_task_descriptions_are_converted_once() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    use htmd::{Element, HtmlToMarkdown, element_handler::Handlers, options::TranslationMode};
+
+    for mode in [TranslationMode::Pure, TranslationMode::Faithful] {
+        for wrapped in [false, true] {
+            let calls = Arc::new(AtomicUsize::new(0));
+            let recorded_calls = Arc::clone(&calls);
+            let converter = HtmlToMarkdown::builder()
+                .options(Options {
+                    translation_mode: mode,
+                    ..Default::default()
+                })
+                .add_handler(vec!["img"], move |_: &dyn Handlers, _: &Element| {
+                    recorded_calls.fetch_add(1, Ordering::Relaxed);
+                    None
+                })
+                .build();
+            let content = "<input type=checkbox checked><img src=task.png alt=Task>";
+            let content = if wrapped {
+                format!("<p>{content}</p>")
+            } else {
+                content.to_owned()
+            };
+            let html = format!("<ul><li>{content}</li></ul>");
+            let markdown = converter.convert(&html).unwrap();
+
+            assert!(task_states(&markdown).is_empty(), "{mode:?}: {markdown}");
+            assert!(!markdown.contains("[x]"), "{mode:?}: {markdown}");
+            assert_eq!(calls.load(Ordering::Relaxed), 1, "{mode:?}: {markdown}");
+            if mode == TranslationMode::Faithful {
+                assert!(markdown.contains("<input type=\"checkbox\" checked=\"\">"));
+            }
+        }
+    }
+}
+
+#[test]
+fn ordered_tasks_stay_within_the_marker_digit_limit() {
+    for start in [999_999_998, 999_999_999, 1_000_000_000] {
+        let html = format!(
+            "<ol start={start}><li><input type=checkbox checked>First</li><li><input type=checkbox>Second</li></ol>"
+        );
+        let pure = common::convert_pure(&html).unwrap();
+        let faithful = convert_faithful(&html).unwrap();
+
+        assert_eq!(task_states(&pure), vec![true, false], "{pure}");
+        if start == 999_999_998 {
+            assert_eq!(task_states(&faithful), vec![true, false]);
+            assert!(faithful.starts_with("999999998."));
+        } else {
+            assert!(pure.starts_with("1."));
+            assert!(faithful.starts_with(&format!("<ol start=\"{start}\">")));
+            assert_eq!(faithful.matches("<input").count(), 2);
+            assert!(!faithful.contains("[x]"));
+            assert!(!faithful.contains("[ ]"));
+        }
+    }
+}

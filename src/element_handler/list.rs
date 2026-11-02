@@ -11,6 +11,8 @@ use crate::{
     },
 };
 
+const MAX_ORDERED_MARKER: usize = 999_999_999;
+
 pub(super) fn list_handler(handlers: &dyn Handlers, element: &Element) -> Option<HandlerResult> {
     // In faithful mode, ...
     if handlers.options().translation_mode == TranslationMode::Faithful {
@@ -74,7 +76,7 @@ struct ListChildContent {
 
 fn get_ol_content(handlers: &dyn Handlers, element: &Element) -> (String, bool) {
     let mut buffer: Vec<ListChildContent> = Vec::new();
-    let mut li_count = 0;
+    let mut li_count = 0usize;
     let mut all_translated = true;
 
     let start_idx = element
@@ -108,8 +110,21 @@ fn get_ol_content(handlers: &dyn Handlers, element: &Element) -> (String, bool) 
         }
     }
 
-    // `start_idx` is one-based, not zero-based
-    let highest_index = start_idx + li_count - 1;
+    let highest_index = start_idx.saturating_add(li_count.saturating_sub(1));
+    if highest_index > MAX_ORDERED_MARKER
+        && handlers.options().translation_mode == TranslationMode::Faithful
+    {
+        return (String::new(), false);
+    }
+
+    let start_idx = if highest_index > MAX_ORDERED_MARKER {
+        1
+    } else {
+        start_idx
+    };
+    let highest_index = start_idx
+        .saturating_add(li_count.saturating_sub(1))
+        .min(MAX_ORDERED_MARKER);
 
     let mut curr_li_idx = start_idx - 1;
 
@@ -117,7 +132,7 @@ fn get_ol_content(handlers: &dyn Handlers, element: &Element) -> (String, bool) 
     let mut contents = String::with_capacity(capacity);
     for content in buffer {
         let rendered = if content.is_li {
-            curr_li_idx += 1;
+            curr_li_idx = curr_li_idx.saturating_add(1).min(MAX_ORDERED_MARKER);
             add_ol_li_marker(
                 handlers.options(),
                 &content.text,

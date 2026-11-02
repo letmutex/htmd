@@ -4,7 +4,7 @@ use std::{borrow::Cow, rc::Rc};
 
 use crate::{
     Context, Element,
-    element_handler::{ElementHandlers, element_util::serialize_element},
+    element_handler::{ElementHandlers, PendingTask, element_util::serialize_element},
 };
 
 use super::{
@@ -213,6 +213,9 @@ pub(crate) fn walk_children(
         _ => None,
     };
     let mut markdown_translated = true;
+    let mut in_first_paragraph =
+        context.task_markers && !context.literal && matches!(tag, Some("li" | "p"));
+    let mut pending_task: Option<PendingTask> = None;
     let children = node.children.borrow();
     let mut index = 0;
     while index < children.len() {
@@ -247,6 +250,13 @@ pub(crate) fn walk_children(
             _ => false,
         };
 
+        if is_block {
+            if let Some(task) = pending_task.take() {
+                markdown_translated &= task.finish(handlers, output);
+            }
+            in_first_paragraph = false;
+        }
+
         // Preformatted content keeps every space it holds, so a block inside
         // one trims nothing.
         let trims_spaces = is_block && !context.literal;
@@ -261,12 +271,20 @@ pub(crate) fn walk_children(
         markdown_translated &=
             walk_node(child, output, handlers, tag, trim_leading_spaces, context);
 
+        if in_first_paragraph && pending_task.is_none() {
+            pending_task = PendingTask::from_output(child, output_len, output);
+        }
+
         if output.len() > output_len {
             // Something was appended, update the flag
             trim_leading_spaces = trims_spaces;
         }
 
         index = run_end;
+    }
+
+    if let Some(task) = pending_task {
+        markdown_translated &= task.finish(handlers, output);
     }
 
     markdown_translated

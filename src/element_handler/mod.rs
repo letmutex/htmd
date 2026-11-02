@@ -40,6 +40,7 @@ use hr::hr_handler;
 use html::html_handler;
 use html5ever::Attribute;
 use img::img_handler;
+pub(crate) use li::PendingTask;
 use li::{input_handler, list_item_handler};
 use list::list_handler;
 use markup5ever_rcdom::Node;
