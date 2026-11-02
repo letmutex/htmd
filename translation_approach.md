@@ -444,21 +444,21 @@ Approach:
 
 #### Tasks
 
-Task lists are translated to GitHub Flavored Markdown using HTML's `<ul>` and `<li>`
-tags to designate unordered lists and list elements (tasks), respectively. This
+Task lists are translated to GitHub Flavored Markdown using HTML's `<ul>` (or `<ol>` for ordered lists) and `<li>`
+tags to designate lists and list elements (tasks), respectively. This
 frames each of the tasks of the task list as parsable, bulleted elements.
 
 Checkboxes, another element of task lists, are also accounted for when translating HTML to GitHub Flavored Markdown. Checkboxes represent completion indicators regarding tasks.
 When placed between the `<li>` tags, the `<input type="checkbox">` element denotes a checkbox preceding the task description and represents the completion
 of the task listed within the `<li>` element.
-To mark the box as checked, a `checked` flag must be placed after
-`"checkbox"` to classify the input as checked. When translating to GFM syntax, an almost identical approach is used with marked and unmarked checkboxes
+To mark the box as checked, a `checked` flag must be present to classify the input as checked and 
+mark the task completed. When translating to GFM syntax, an almost identical approach is used with marked and unmarked checkboxes
 both being represented with `[x]` and `[ ]` symbols respectively.
 
 
 To summarize, htmd's translation behavior for task lists is as follows:
 
-| Description        | HTML in                                  | Faithful expected       |
+| Description        | HTML in                                  | Pure expected       |
 | ------------------ | ---------------------------------------- | ----------------------- |
 | Unchecked box      | `<ul> <li><input type="checkbox"> Complete report</li></ul>`                |    `- [ ] Complete report`                |
 | Checked box        |`<ul> <li><input type="checkbox" checked> Complete report</li></ul>`        |    `- [x] Complete report`                |
@@ -470,16 +470,22 @@ To summarize, htmd's translation behavior for task lists is as follows:
 |Checkbox after task| `<ul> <li> Complete report <input type = "checkbox"></li></ul>`| `- Complete report` |
 |Two checkboxes in a single element (not nested element)|`<ul> <li><input type="checkbox"> <input type="checkbox"> Complete report</li></ul>` |`- Complete report` |
 
-Regarding Faithful and Pure mode differences, any attributes that are not related
-to the task description or the formatting of the HTML and GFM are discarded in both modes as any attributes besides the task description and formatting are not considered relevant.
+Regarding Faithful and Pure mode differences, when Pure mode is activated, any attributes that are not related
+to the task description or the formatting of the HTML and GFM are discarded as any attributes besides the task description and formatting are not considered relevant. In 
+Faithful mode, attributes that Pure mode may discard are preserved through HTML. This extends to `<p>` wrappers. If GFM is not able
+to accurately represent additional attributes, Faithful mode
+falls back to using regular HTML. Task marker insertion is also
+determine by default marker selection and spacing normalization
+settings.
 
-It should be noted that the task list output must respect settings such as `bullet_list_marker`
-and `ul_bullet_spacing` settings. In the above test cases, it is assumed that `bullet_list_marker`
+It should be noted that settings such as `bullet_list_marker`
+and `ul_bullet_spacing` are required for task list formatting. In the above test cases, it is assumed that `bullet_list_marker`
 is set to `BulletListMarker::Dash`, `ul_bullet_spacing` is set to `1`
 and `ol_number_spacing` is set to `1`. Other
-configurations should retain their existing behavior.
+configurations should retain their existing behavior, although even when
+the configured spacing is unsuitable, task list output remains valid GFM.
 It should also be noted that although the above test cases utilize `-` dash symbols
-to signify task elements in Markdown, htmd and Git Flavored Markdown provide many
+to signify task elements in Markdown, htmd and GitHub Flavored Markdown provide many
 different symbols to denote task and list elements such as asterisks and plus signs.
 
 Approach:
@@ -494,7 +500,12 @@ Approach:
 
   * Task descriptions and nested list structure/indents are preserved.
 
-  * A list element with the task positioned before the `<input type="checkbox">` tag is not considered a task element and the checkbox tag is disregarded.
+  * A list element with the task positioned before the `<input 
+  type="checkbox">` tag is not considered a task element and the checkbox tag is disregarded. 
+  In Pure mode, the checkbox will be discarded and the 
+  element will be treated as a regular list element. In Faithful mode, the
+  checkbox will remain, but the element will still be treated as a 
+  regular element. 
 
   * A task checkbox is replaced by the GitHub Flavored Markdown task marker rather than emitted a second time as raw HTML. Checkboxes that do not qualify
   do not cause the element to be converted into a task. Instead, the regular list (`-`,`*`,`1.`)
@@ -505,8 +516,36 @@ Approach:
 
   * As for multiple checkboxes within a single `<li>` element, they are not considered valid or to be task list elements as task list elements only require a single
   checkbox. It should be noted however that this rule does not apply to nested, or
-  parent-child list elements, only elements with more than one checkbox within the 
-  task's own first paragraph.
+  parent-child list elements as these are evaluated separately. Only elements with checkboxes belonging to the first paragraph should
+  influence that classification of the element as part of a task list. 
+
+  In general, the classification for task list items is as follows:
+
+  ```
+  Examine list item's initial content
+              |
+              v
+Determine checkbox eligibility
+              |
+      +-------+-------+
+      |               |
+   Eligible       Not eligible
+      |               |
+      v               v
+Determine state   Ordinary list
+      |            conversion
+      v
+Generate list marker
+      |
+      v
+Insert [x] or [ ] marker
+      |
+      v
+Convert task description
+      |
+      v
+Preserve nested-list structure
+  ```
 
 Inlines
 -------
