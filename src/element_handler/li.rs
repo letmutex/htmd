@@ -1,5 +1,6 @@
-use std::{ops::Range, rc::Rc};
+use std::{cell::Cell, ops::Range, rc::Rc};
 
+use html5ever::tokenizer::{BufferQueue, TagKind, Token, TokenSink, TokenSinkResult, Tokenizer};
 use markup5ever_rcdom::{Node, NodeData};
 
 use crate::{
@@ -97,23 +98,66 @@ fn count_checkboxes(node: &Rc<Node>) -> usize {
     count
 }
 
-fn has_task_description(node: &Rc<Node>, mode: TranslationMode) -> bool {
-    match &node.data {
-        NodeData::Text { contents } => has_non_whitespace_text(&contents.borrow()),
-        NodeData::Element { name, attrs, .. } => match name.local.as_ref() {
-            "br" => mode == TranslationMode::Faithful,
-            "svg" => mode == TranslationMode::Faithful,
-            "img" => {
-                mode == TranslationMode::Faithful
-                    || attrs.borrow().iter().any(|attr| &attr.name.local == "src")
-            }
-            _ => node
-                .children
-                .borrow()
-                .iter()
-                .any(|node| has_task_description(node, mode)),
+fn has_task_description(description: &str, mode: TranslationMode) -> bool {
+    let normalized = description.replace("\r\n", "\n").replace('\r', "\n");
+    let mut paragraph = String::new();
+    for (index, line) in normalized.split_inclusive('\n').enumerate() {
+        if index > 0 && line.trim_matches([' ', '\t', '\n']).is_empty() {
+            break;
+        }
+        paragraph.push_str(line);
+    }
+    let paragraph = paragraph.replace("\\\n", "");
+    if !paragraph.contains(['<', '&']) {
+        return has_non_whitespace_text(&paragraph);
+    }
+
+    let input = BufferQueue::default();
+    input.push_back(paragraph.into());
+    let tokenizer = Tokenizer::new(
+        TaskDescription {
+            has_content: Cell::new(false),
+            mode,
         },
-        _ => false,
+        Default::default(),
+    );
+    let _ = tokenizer.feed(&input);
+    tokenizer.end();
+    tokenizer.sink.has_content.get()
+}
+
+struct TaskDescription {
+    has_content: Cell<bool>,
+    mode: TranslationMode,
+}
+
+impl TokenSink for TaskDescription {
+    type Handle = ();
+
+    fn process_token(&self, token: Token, _: u64) -> TokenSinkResult<()> {
+        let has_content = match token {
+            Token::CharacterTokens(text) => has_non_whitespace_text(&text),
+            Token::TagToken(tag) => {
+                // HTML tokenization also reads Markdown autolinks as tags.
+                let is_autolink_or_text = tag
+                    .name
+                    .bytes()
+                    .any(|byte| !byte.is_ascii_alphanumeric() && byte != b'-');
+                is_autolink_or_text
+                    || (tag.kind == TagKind::StartTag
+                        && match tag.name.as_ref() {
+                            "br" | "svg" => self.mode == TranslationMode::Faithful,
+                            "img" => {
+                                self.mode == TranslationMode::Faithful
+                                    || tag.attrs.iter().any(|attr| &attr.name.local == "src")
+                            }
+                            _ => false,
+                        })
+            }
+            _ => false,
+        };
+        self.has_content.set(self.has_content.get() || has_content);
+        TokenSinkResult::Continue
     }
 }
 
@@ -145,7 +189,10 @@ impl PendingTask {
 
     /// Removes empty task markers, returning whether the result remains Markdown.
     pub(crate) fn finish(self, handlers: &dyn Handlers, output: &mut String) -> bool {
-        if has_non_whitespace_text(&output[self.marker_range.end..]) {
+        if has_task_description(
+            &output[self.marker_range.end..],
+            handlers.options().translation_mode,
+        ) {
             return true;
         }
 
@@ -206,18 +253,6 @@ fn task_checkbox(item: &Rc<Node>, candidate: &Rc<Node>, mode: TranslationMode) -
             (count < 2).then_some(count)
         });
     if count != Some(1) {
-        return None;
-    }
-    let has_description = content
-        .iter()
-        .take_while(|node| {
-            !get_node_tag_name(node).is_some_and(crate::util::node::is_block_element)
-        })
-        .skip_while(|node| !Rc::ptr_eq(node, checkbox))
-        .skip(1)
-        .any(|node| has_task_description(node, mode));
-
-    if !has_description {
         return None;
     }
     if mode == TranslationMode::Faithful

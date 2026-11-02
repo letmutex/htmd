@@ -74,6 +74,23 @@ struct ListChildContent {
     is_li: bool,
 }
 
+fn ordered_list_start(value: &str) -> usize {
+    let digits = value.strip_prefix('+').unwrap_or(value);
+    if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+        return 1;
+    }
+
+    digits
+        .bytes()
+        .fold(0usize, |number, digit| {
+            number
+                .saturating_mul(10)
+                .saturating_add(usize::from(digit - b'0'))
+                .min(MAX_ORDERED_MARKER + 1)
+        })
+        .max(1)
+}
+
 fn get_ol_content(handlers: &dyn Handlers, element: &Element) -> (String, bool) {
     let mut buffer: Vec<ListChildContent> = Vec::new();
     let mut li_count = 0usize;
@@ -83,7 +100,7 @@ fn get_ol_content(handlers: &dyn Handlers, element: &Element) -> (String, bool) 
         .attrs
         .iter()
         .find(|attr| &attr.name.local == "start")
-        .map(|attr| attr.value.to_string().parse::<i32>().unwrap_or(1).max(1) as usize)
+        .map(|attr| ordered_list_start(&attr.value))
         .unwrap_or(1);
 
     for child in element.node.children.borrow().iter() {

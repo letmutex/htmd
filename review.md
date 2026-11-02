@@ -31,3 +31,150 @@
 4.5. Updated the Tasks section of translation_approach.md, ran cargo fmt, and preserved existing file line endings, including CRLF in the rewritten CRLF files. Verified cargo build, cargo clippy -- --deny warnings, and cargo test all pass.
 
 4.6. Recommend additional tests for SVG-only descriptions in both modes, multiple checkboxes inside a paragraph wrapper, nested ordered-list HTML fallback, and custom handlers that return nonempty descriptions or literal marker-like text.
+
+
+
+Final review:
+
+The complete [correction patch](/tmp/htmd-task-corrections.patch) is ready. The code below was validated in a temporary copy; your repository is unchanged.
+
+1. In [li.rs:1](/home/generadium/Projects/School/htmd-raf322/src/element_handler/li.rs:1), update these imports:
+
+```rust
+use std::{cell::Cell, ops::Range, rc::Rc};
+
+use html5ever::tokenizer::{BufferQueue, TagKind, Token, TokenSink, TokenSinkResult, Tokenizer};
+use markup5ever_rcdom::{Node, NodeData};
+```
+
+Replace `has_task_description` at [li.rs:100](/home/generadium/Projects/School/htmd-raf322/src/element_handler/li.rs:100) with this code. It checks converted content, stops at a blank line, and ignores break-only output and empty HTML wrappers.
+
+```rust
+fn has_task_description(description: &str, mode: TranslationMode) -> bool {
+    let normalized = description.replace("\r\n", "\n").replace('\r', "\n");
+    let mut paragraph = String::new();
+    for (index, line) in normalized.split_inclusive('\n').enumerate() {
+        if index > 0 && line.trim_matches([' ', '\t', '\n']).is_empty() {
+            break;
+        }
+        paragraph.push_str(line);
+    }
+    let paragraph = paragraph.replace("\\\n", "");
+    if !paragraph.contains(['<', '&']) {
+        return has_non_whitespace_text(&paragraph);
+    }
+
+    let input = BufferQueue::default();
+    input.push_back(paragraph.into());
+    let tokenizer = Tokenizer::new(
+        TaskDescription {
+            has_content: Cell::new(false),
+            mode,
+        },
+        Default::default(),
+    );
+    let _ = tokenizer.feed(&input);
+    tokenizer.end();
+    tokenizer.sink.has_content.get()
+}
+
+struct TaskDescription {
+    has_content: Cell<bool>,
+    mode: TranslationMode,
+}
+
+impl TokenSink for TaskDescription {
+    type Handle = ();
+
+    fn process_token(&self, token: Token, _: u64) -> TokenSinkResult<()> {
+        let has_content = match token {
+            Token::CharacterTokens(text) => has_non_whitespace_text(&text),
+            Token::TagToken(tag) => {
+                // HTML tokenization also reads Markdown autolinks as tags.
+                let is_autolink_or_text = tag
+                    .name
+                    .bytes()
+                    .any(|byte| !byte.is_ascii_alphanumeric() && byte != b'-');
+                is_autolink_or_text
+                    || (tag.kind == TagKind::StartTag
+                        && match tag.name.as_ref() {
+                            "br" | "svg" => self.mode == TranslationMode::Faithful,
+                            "img" => {
+                                self.mode == TranslationMode::Faithful
+                                    || tag.attrs.iter().any(|attr| &attr.name.local == "src")
+                            }
+                            _ => false,
+                        })
+            }
+            _ => false,
+        };
+        self.has_content.set(self.has_content.get() || has_content);
+        TokenSinkResult::Continue
+    }
+}
+```
+
+2. In `PendingTask::finish`, replace its opening condition at [li.rs:148](/home/generadium/Projects/School/htmd-raf322/src/element_handler/li.rs:148) with:
+
+```rust
+if has_task_description(
+    &output[self.marker_range.end..],
+    handlers.options().translation_mode,
+) {
+    return true;
+}
+```
+
+Keep the remainder of `finish`.
+
+In `task_checkbox`, delete the following block at [li.rs:211](/home/generadium/Projects/School/htmd-raf322/src/element_handler/li.rs:211). Description eligibility is now determined after conversion.
+
+```rust
+let has_description = content
+    .iter()
+    .take_while(|node| {
+        !get_node_tag_name(node).is_some_and(crate::util::node::is_block_element)
+    })
+    .skip_while(|node| !Rc::ptr_eq(node, checkbox))
+    .skip(1)
+    .any(|node| has_task_description(node, mode));
+
+if !has_description {
+    return None;
+}
+```
+
+3. In [list.rs:77](/home/generadium/Projects/School/htmd-raf322/src/element_handler/list.rs:77), insert this helper immediately before `get_ol_content`. Oversized positive numbers retain a value above the Markdown limit, allowing the existing fallback to run.
+
+```rust
+fn ordered_list_start(value: &str) -> usize {
+    let digits = value.strip_prefix('+').unwrap_or(value);
+    if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+        return 1;
+    }
+
+    digits
+        .bytes()
+        .fold(0usize, |number, digit| {
+            number
+                .saturating_mul(10)
+                .saturating_add(usize::from(digit - b'0'))
+                .min(MAX_ORDERED_MARKER + 1)
+        })
+        .max(1)
+}
+```
+
+Replace the `start_idx` initializer inside `get_ol_content` with:
+
+```rust
+let start_idx = element
+    .attrs
+    .iter()
+    .find(|attr| &attr.name.local == "start")
+    .map(|attr| ordered_list_start(&attr.value))
+    .unwrap_or(1);
+```
+
+The proposed changes pass build, Clippy with warnings denied, the full test suite, and five additional regression tests.
+Build repair: Restored the PendingTask type and its from_output/finish methods required by dom_walker.rs, removed the incompatible unused finish_task_paragraph helper, and restored validation of converted task descriptions. Verified cargo build, cargo clippy -- --deny warnings, cargo test (including all 26 list tests), and cargo fmt -- --check pass. Preserved CRLF line endings.

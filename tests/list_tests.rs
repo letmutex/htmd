@@ -495,3 +495,185 @@ fn ordered_tasks_stay_within_the_marker_digit_limit() {
         }
     }
 }
+
+#[test]
+fn custom_task_descriptions_are_checked_after_conversion() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    use htmd::{
+        Element, HtmlToMarkdown,
+        element_handler::{HandlerResult, Handlers},
+        options::TranslationMode,
+    };
+
+    for mode in [TranslationMode::Pure, TranslationMode::Faithful] {
+        for wrapped in [false, true] {
+            for html_description in [false, true] {
+                let calls = Arc::new(AtomicUsize::new(0));
+                let recorded_calls = Arc::clone(&calls);
+                let converter = HtmlToMarkdown::builder()
+                    .options(Options {
+                        translation_mode: mode,
+                        ..Default::default()
+                    })
+                    .add_handler(vec!["span"], move |_: &dyn Handlers, _: &Element| {
+                        recorded_calls.fetch_add(1, Ordering::Relaxed);
+                        Some(if html_description {
+                            HandlerResult {
+                                content: "<span>Task</span>".into(),
+                                markdown_translated: false,
+                            }
+                        } else {
+                            "Task".into()
+                        })
+                    })
+                    .build();
+                let content = "<input type=checkbox checked><span data-label=Task></span>";
+                let content = if wrapped {
+                    format!("<p>{content}</p>")
+                } else {
+                    content.to_owned()
+                };
+                let html = format!("<ul><li>{content}</li></ul>");
+                let markdown = converter.convert(&html).unwrap();
+
+                assert_eq!(task_states(&markdown), vec![true], "{mode:?}: {markdown}");
+                assert_eq!(calls.load(Ordering::Relaxed), 1, "{mode:?}: {markdown}");
+            }
+        }
+    }
+}
+
+#[test]
+fn custom_later_paragraphs_do_not_supply_task_descriptions() {
+    use htmd::{Element, HtmlToMarkdown, element_handler::Handlers, options::TranslationMode};
+
+    for mode in [TranslationMode::Pure, TranslationMode::Faithful] {
+        for replacement in ["\n\nTask", "\r\n \t\r\nTask", "\r\rTask"] {
+            let converter = HtmlToMarkdown::builder()
+                .options(Options {
+                    translation_mode: mode,
+                    ul_bullet_spacing: 1,
+                    ..Default::default()
+                })
+                .add_handler(vec!["img"], move |_: &dyn Handlers, _: &Element| {
+                    Some(replacement.into())
+                })
+                .build();
+            let markdown = converter
+                .convert(
+                    "<ul><li><input type=checkbox checked><img src=task.png alt=Task></li></ul>",
+                )
+                .unwrap();
+
+            assert!(task_states(&markdown).is_empty(), "{mode:?}: {markdown}");
+            let html =
+                common::render_markdown(&markdown, pulldown_cmark::Options::ENABLE_TASKLISTS);
+            let document = scraper::Html::parse_fragment(&html);
+            let item = document
+                .select(&scraper::Selector::parse("li").unwrap())
+                .next()
+                .unwrap();
+            assert!(item.text().collect::<String>().contains("Task"), "{html}");
+            if mode == TranslationMode::Faithful {
+                assert!(markdown.contains("<input type=\"checkbox\" checked=\"\">"));
+            }
+        }
+    }
+}
+
+#[test]
+fn a_backslash_break_cannot_supply_a_task_description() {
+    use htmd::{HtmlToMarkdown, options::BrStyle};
+
+    let converter = HtmlToMarkdown::builder()
+        .options(Options {
+            br_style: BrStyle::Backslash,
+            ..Default::default()
+        })
+        .build();
+    for suffix in [
+        "",
+        "<p>Later paragraph</p>",
+        "<ul><li><input type=checkbox>Child</li></ul>",
+    ] {
+        let html = format!(
+            "<ul><li><input type=checkbox checked><span class=\"math math-inline\">%comment</span><br>{suffix}</li></ul>"
+        );
+        let markdown = converter.convert(&html).unwrap();
+        let expected = if suffix.contains("Child") {
+            vec![false]
+        } else {
+            vec![]
+        };
+        assert_eq!(task_states(&markdown), expected, "{markdown}");
+    }
+}
+
+#[test]
+fn oversized_ordered_task_starts_preserve_faithful_html() {
+    for start in [
+        "2147483648",
+        "18446744073709551616",
+        "999999999999999999999999999999999999999999",
+        "+2147483648",
+    ] {
+        let html = format!("<ol start={start}><li><input type=checkbox checked>Task</li></ol>");
+        let pure = common::convert_pure(&html).unwrap();
+        let faithful = convert_faithful(&html).unwrap();
+
+        assert!(pure.starts_with("1."), "{pure}");
+        assert_eq!(task_states(&pure), vec![true], "{pure}");
+        assert!(
+            faithful.starts_with(&format!("<ol start=\"{start}\">")),
+            "{faithful}"
+        );
+        assert!(faithful.contains("<input type=\"checkbox\" checked=\"\">"));
+        assert!(task_states(&faithful).is_empty());
+    }
+}
+
+#[test]
+fn converted_task_descriptions_keep_autolinks_and_ignore_empty_html() {
+    use htmd::{
+        HtmlToMarkdown,
+        options::{LinkStyle, TranslationMode},
+    };
+
+    for mode in [TranslationMode::Pure, TranslationMode::Faithful] {
+        for destination in ["https://example.com", "mailto:a@example.com"] {
+            let html = format!(
+                "<ul><li><input type=checkbox checked><a href=\"{destination}\">{destination}</a></li></ul>"
+            );
+            let options = Options {
+                link_style: LinkStyle::InlinedPreferAutolinks,
+                ..Default::default()
+            };
+            let markdown = if mode == TranslationMode::Faithful {
+                convert_faithful_options(&html, options).unwrap()
+            } else {
+                HtmlToMarkdown::builder()
+                    .options(options)
+                    .build()
+                    .convert(&html)
+                    .unwrap()
+            };
+            assert_eq!(task_states(&markdown), vec![true], "{markdown}");
+        }
+    }
+
+    let html = "<ul><li><input type=checkbox checked><span></span></li></ul>";
+    for markdown in [
+        common::convert_pure(html).unwrap(),
+        convert_faithful(html).unwrap(),
+    ] {
+        assert!(task_states(&markdown).is_empty(), "{markdown}");
+    }
+
+    let html = "<ul><li><input type=checkbox checked><svg><circle r=4></circle></svg></li></ul>";
+    assert!(task_states(&common::convert_pure(html).unwrap()).is_empty());
+    assert_eq!(task_states(&convert_faithful(html).unwrap()), vec![true]);
+}
