@@ -21,8 +21,8 @@ CommonMark translation of HTML blocks and raw HTML inlines
 The majority of the document uses `TranslationMode::Faithful`, which outputs all
 `<br>` elements not as a CommonMark break, but as the HTML `<br>`. In contrast,
 `TranslationMode::Pure` outputs traditional CommonMark hard line breaks,
-sacrificing correctness for simpler output. This tradeoff is driven by
-[CommonMark](https://spec.commonmark.org/0.31.2/) rules:
+sacrificing correctness for simpler and in some cases incorrect output. This
+tradeoff is driven by [CommonMark](https://spec.commonmark.org/0.31.2/) rules:
 
 1. A [hard line break](https://spec.commonmark.org/0.31.2/#hard-line-breaks)
    must be followed by content **in the same block**. Neither `␣␣⏎` nor `\⏎` can
@@ -85,7 +85,7 @@ HTML node to examine the current context to be correctly translated.
   context; they begin a (new) block context.
 * Thematic breaks (`<hr>`) must occur in a block context to be translated to
   CommonMark. They have no content.
-* Leaf blocks, which are headings (`<h1>`-`<h6>`), paragraphs (`<p>`), and
+* Leaf blocks, which are headings (`<h1>`\-`<h6>`), paragraphs (`<p>`), and
   tables (`<table>`, `<thead>`, `<tbody>`, `<tr>`), can only be translated as
   CommonMark/GFM when they appear in a block context. Headings, paragraphs, and
   table cells (`<td>`/`<th>`) begin an inline context.
@@ -202,38 +202,40 @@ Leaf blocks
 
 ### Headings
 
-The rows use `<h1>`. In the setext rows, an `<h2>` underlines with `---` instead
-of `===`, or writes `##` in a row which falls back to ATX; levels 3-6 have no
-setext form. In ATX rows, each level writes one more `#`.
+An `<h1>`\-`<h6>` element is a heading whose level is the digit in its tag name.
+A CommonMark heading holds only a level and inline content, in one of two
+encodings: ATX, the default, or setext, which `HeadingStyle::Setex` requests.
+Setext is a preference, since some headings can only be encoded using ATX.
 
-The criteria of the paragraphs section below also apply to
-[Setext headings](https://spec.commonmark.org/0.31.2/#setext-headings); if a
-level 1 or level 2 heading (the only headings expressible using setext) meets
-these criteria, it must instead be encoded as an ATX heading, as the `<br>`-only
-heading row below shows. A heading holding nothing falls back to ATX for a
-different reason: its underline is empty as well, so the setext spelling is two
-blank lines and the heading is lost.
+Approach:
 
-| Description                        | HTML in                    | Faithful expected                 |
-| ---------------------------------- | -------------------------- | --------------------------------- |
-| Empty heading                      | `<h1></h1>`                | `#`                               |
-| `<br>`-only heading (one `<br>`)   | `<h1><br></h1>`            | `#␣<br>`                          |
-| `<br>`s-only heading (two or more) | `<h1><br><br>...<br></h1>` | `<br><br>...<br>⏎===============` |
-| `<br>` starting a heading          | `<h1><br><em>b</em></h1>`  | `<br>*b*⏎=======`                 |
-| `<br>` ending a heading            | `<h1><em>a</em><br></h1>`  | `*a*<br>⏎=======`                 |
-
-An [ATX heading](https://spec.commonmark.org/0.31.2/#atx-headings) is a single
-line. The `#` has already opened the line, so a raw `<br>` is safe anywhere in
-the heading (see the analysis section). A heading with no content is the `#`s
-alone: a space with nothing after it would leave trailing whitespace on the
-line.
-
-| Description               | HTML in                    | Faithful expected   |
-| ------------------------- | -------------------------- | ------------------- |
-| Empty heading             | `<h1></h1>`                | `#`                 |
-| `<br>`s-only heading      | `<h1><br><br>...<br></h1>` | `#␣<br><br>...<br>` |
-| `<br>` starting a heading | `<h1><br><em>b</em></h1>`  | `#␣<br>*b*`         |
-| `<br>` ending a heading   | `<h1><em>a</em><br></h1>`  | `#␣*a*<br>`         |
+1. In `TranslationMode::Faithful`, serialize the entire element as HTML if it is
+   in an inline context or has any attribute, even one with an empty value;
+   CommonMark has no syntax for a heading's attributes. `h1`\-`h6` are type 6
+   tag names, so the result is an HTML block in a block context and raw HTML
+   inlines in an inline context (see "Translating HTML nodes").
+   `TranslationMode::Pure` skips this step and drops attributes. In an inline
+   context, it writes only the translated content from step 2, with no heading
+   marker.
+2. Translate the children in an inline context, then remove the content's
+   leading and trailing whitespace: spaces, tabs, line feeds, and carriage
+   returns. A non-breaking space is content, so `<h1>&nbsp;</h1>` is not empty.
+   Text in a heading receives the same generic text-node escaping as text
+   anywhere else.
+3. Use setext if `HeadingStyle::Setex` is selected, the level is 1 or 2, the
+   content is not empty (its underline would be empty too, losing the heading),
+   and the content does not open an HTML block, which would dissolve the heading
+   (see the paragraphs section). Otherwise, use ATX.
+4. Write the chosen encoding with a blank line before and after it:
+   * Setext: the content, a newline, then an underline of `=` for level 1 or `-`
+     for level 2. The underline has one character per Unicode scalar value of
+     the content as written, so escapes and tags count toward it. CommonMark
+     accepts any length, so this is only a convention.
+   * ATX: one `#` per level, then a space and the content if there is any. If
+     the content written by step 2 is a run of `#`s, or ends in one which
+     follows a space or tab, escape the run's first `#`, so that the run is not
+     parsed as an
+     [optional closing sequence](https://spec.commonmark.org/0.31.2/#atx-headings).
 
 ### Code blocks and code spans
 

@@ -10,7 +10,9 @@ use htmd::{
     options::{LinkStyle, Options, TranslationMode},
 };
 mod common;
-use common::{convert_faithful, convert_pure, render_markdown, round_trip};
+use common::{
+    convert_faithful, convert_faithful_setext, convert_pure, render_markdown, round_trip,
+};
 
 #[test]
 fn links_with_spaces() {
@@ -122,6 +124,65 @@ fn headings() {
              #### Heading 4\n\n##### Heading 5\n\n###### Heading 6",
         convert_faithful(html).unwrap(),
     )
+}
+
+/// Step 1 of the headings approach in `translation_approach.md`: an inline
+/// context holds no block, so pure mode writes only a heading's content there.
+/// Faithful mode writes a raw HTML inline instead; see `context_tests.rs`.
+#[test]
+fn pure_heading_in_an_inline_context() {
+    assert_eq!("*b*", convert_pure("<em><h2>b</h2></em>").unwrap());
+    assert_eq!(
+        "[b](u)",
+        convert_pure(r#"<a href="u"><h2>b</h2></a>"#).unwrap()
+    );
+    assert_eq!(
+        "| b |\n| - |",
+        convert_pure("<table><thead><tr><th><h2>b</h2></th></tr></thead></table>").unwrap()
+    );
+    // The content is trimmed as it is in a block context. Its `#` run is
+    // escaped by the enclosing heading, the only one spelled as ATX.
+    assert_eq!(
+        r"# a \#",
+        convert_pure("<h1><div><h2> a # </h2></div></h1>").unwrap()
+    );
+}
+
+/// Step 2 of the headings approach: only document whitespace is trimmed from
+/// a heading's content, so a non-breaking space is content.
+#[test]
+fn heading_content_trims_only_document_whitespace() {
+    assert_eq!(
+        "# a",
+        convert_faithful("<h1> \t\r\n a \t\r\n </h1>").unwrap()
+    );
+    assert_eq!("# \u{a0}", convert_faithful("<h1>&nbsp;</h1>").unwrap());
+    assert_eq!(
+        "\u{a0}\n=",
+        convert_faithful_setext("<h1>&nbsp;</h1>").unwrap()
+    );
+}
+
+/// Step 4 of the headings approach: a setext underline has one character per
+/// Unicode scalar value of the content as written, escapes and tags included.
+/// Levels 3-6 have no setext spelling.
+#[test]
+fn setext_underline() {
+    assert_eq!("a\n-", convert_faithful_setext("<h2>a</h2>").unwrap());
+    assert_eq!("é\n=", convert_faithful_setext("<h1>é</h1>").unwrap());
+    assert_eq!(
+        "a\\*b\n====",
+        convert_faithful_setext("<h1>a*b</h1>").unwrap()
+    );
+    assert_eq!(
+        "<br>*b*\n=======",
+        convert_faithful_setext("<h1><br><em>b</em></h1>").unwrap()
+    );
+    assert_eq!(
+        "*a*<br>\n=======",
+        convert_faithful_setext("<h1><em>a</em><br></h1>").unwrap()
+    );
+    assert_eq!("### a", convert_faithful_setext("<h3>a</h3>").unwrap());
 }
 
 #[test]
@@ -463,6 +524,22 @@ fn faithful_mode_h1() {
         convert_faithful(indoc!(r#"<h1 class="foo">Heading</h1>"#)).unwrap(),
         indoc!(r#"<h1 class="foo">Heading</h1>"#)
     );
+}
+
+/// Step 1 of the headings approach in `translation_approach.md`: CommonMark has
+/// no syntax for a heading's attributes, so faithful mode serializes a heading
+/// holding any, even one with an empty value. Pure mode drops them.
+#[test]
+fn heading_attributes() {
+    assert_eq!(
+        r#"<h1 class="">a</h1>"#,
+        convert_faithful(r#"<h1 class="">a</h1>"#).unwrap()
+    );
+    assert_eq!(
+        r#"<h2 id="">a</h2>"#,
+        convert_faithful("<h2 id>a</h2>").unwrap()
+    );
+    assert_eq!("# a", convert_pure(r#"<h1 class="x">a</h1>"#).unwrap());
 }
 
 #[test]
@@ -1347,6 +1424,54 @@ fn round_trip_of_a_setext_heading_of_leaf_block_syntax() {
     assert_eq!("<h2>-</h2>\n", round_trip_setext("<h2>-</h2>"));
     assert_eq!("<h1>---</h1>\n", round_trip_setext("<h1>---</h1>"));
     assert_eq!("<h1>1.</h1>\n", round_trip_setext("<h1>1.</h1>"));
+}
+
+/// Step 4 of the headings approach: CommonMark reads a `#` run ending an ATX
+/// heading as its closing sequence when it follows a space or tab, so each of
+/// these trips would otherwise lose the run.
+#[test]
+fn round_trip_of_an_atx_heading_ending_in_a_hash_run() {
+    assert_round_trips("<h1>a #</h1>");
+    assert_round_trips("<h1>a ##</h1>");
+    assert_round_trips("<h1><em>a</em> #</h1>");
+    assert_round_trips("<h3>#</h3>");
+    // The walk collapses the tab to a space.
+    assert_eq!("<h1>a #</h1>\n", round_trip("<h1>a\t#</h1>"));
+    assert_round_trips(r"<h1>a \#</h1>");
+
+    // These runs follow no space or tab, so they need no escape.
+    assert_eq!("# a#", convert_faithful("<h1>a#</h1>").unwrap());
+    assert_eq!("# a\u{a0}#", convert_faithful("<h1>a&nbsp;#</h1>").unwrap());
+    assert_eq!(r"# a \\#", convert_faithful(r"<h1>a \#</h1>").unwrap());
+}
+
+/// Step 4 of the headings approach, for content which is nothing but a `#` run.
+/// The generic text escape has already escaped a text node which opens with
+/// one, so only a custom handler reaches this case.
+#[test]
+fn atx_heading_of_a_hash_run_from_a_handler() {
+    let converter = HtmlToMarkdown::builder()
+        .options(Options {
+            translation_mode: TranslationMode::Faithful,
+            ..Default::default()
+        })
+        .add_handler(
+            vec!["x-hash"],
+            |_: &dyn Handlers, _: &Element| -> Option<HandlerResult> { Some("#".into()) },
+        )
+        .build();
+    let markdown = converter.convert("<h1><x-hash></x-hash></h1>").unwrap();
+    assert_eq!(r"# \#", markdown);
+    assert_eq!(
+        "<h1>#</h1>\n",
+        render_markdown(&markdown, CommonMarkOptions::empty())
+    );
+    assert_eq!(
+        r"# \##",
+        converter
+            .convert("<h1><x-hash></x-hash><x-hash></x-hash></h1>")
+            .unwrap()
+    );
 }
 
 /// A heading is a leaf block, so each element below is written as a raw HTML

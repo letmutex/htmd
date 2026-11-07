@@ -7,6 +7,8 @@ use crate::{
     util::text::TrimDocumentWhitespace,
 };
 
+/// Translates an `<h1>`-`<h6>` element per the "Headings" section of
+/// `translation_approach.md`.
 pub(super) fn headings_handler(
     handlers: &dyn Handlers,
     element: &Element,
@@ -16,7 +18,12 @@ pub(super) fn headings_handler(
     // A heading is a leaf block: its children begin an inline context.
     let content = handlers.walk_children_content(element.node, Context::INLINE);
     let content = content.trim_document_whitespace();
-    let content = content.trim_matches('\n');
+
+    // Only pure mode gets here in an inline context, which holds no block and
+    // so no heading spelling.
+    if element.context.is_inline() {
+        return Some(content.into());
+    }
 
     // A setext heading leaves its content at the start of a line, where an HTML
     // block opening would dissolve the heading; an ATX heading's `#` is leaf
@@ -42,9 +49,22 @@ pub(super) fn headings_handler(
         // would leave trailing whitespace on the line.
         if !content.is_empty() {
             result.push(' ');
-            result.push_str(content);
+            push_escaping_closing_sequence(&mut result, content);
         }
         result.push_str("\n\n");
     }
     Some(result.into())
+}
+
+/// Writes ATX content, escaping a trailing `#` run CommonMark would read as its
+/// [closing sequence](https://spec.commonmark.org/0.31.2/#atx-headings).
+fn push_escaping_closing_sequence(output: &mut String, content: &str) {
+    let before_run = content.trim_end_matches('#');
+    let is_closing_sequence = before_run.len() < content.len()
+        && (before_run.is_empty() || before_run.ends_with([' ', '\t']));
+    output.push_str(before_run);
+    if is_closing_sequence {
+        output.push('\\');
+    }
+    output.push_str(&content[before_run.len()..]);
 }
