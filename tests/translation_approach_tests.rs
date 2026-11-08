@@ -1,5 +1,6 @@
-//! One test per table of `translation_approach.md`, holding that table's rows
-//! in the order they are written there.
+//! Tests of the tables and rules of `translation_approach.md`. A test of a
+//! table holds its rows in the order they are written there, and covers the
+//! whole table or a part which needs a test of its own.
 //!
 //! Where a row writes `<br><br>...<br>` — one or more `<br>` elements — it is
 //! checked with one and with three, except where the table gives one `<br>` and
@@ -333,9 +334,9 @@ fn at_the_document_root() {
     );
 }
 
-/// The first "Headings" table. A lone `<br>` would open an HTML block where a
-/// setext heading leaves its content, so the `<br>`-only heading row falls back
-/// to ATX.
+/// Steps 3 and 4 of the "Headings" approach, for setext. A lone `<br>` would
+/// open an HTML block where a setext heading leaves its content, so a heading
+/// holding only one falls back to ATX.
 #[test]
 fn setext_headings() {
     assert_eq!("# <br>", convert_faithful_setext("<h1><br></h1>").unwrap());
@@ -344,19 +345,13 @@ fn setext_headings() {
         convert_faithful_setext("<h1><br><br><br></h1>").unwrap()
     );
 
-    assert_eq!(
-        "<br>*b*\n=======",
-        convert_faithful_setext("<h1><br><em>b</em></h1>").unwrap()
-    );
-    assert_eq!(
-        "*a*<br>\n=======",
-        convert_faithful_setext("<h1><em>a</em><br></h1>").unwrap()
-    );
+    assert_eq!("a #\n===", convert_faithful_setext("<h1>a #</h1>").unwrap());
+    assert_eq!("\\#\n==", convert_faithful_setext("<h1>#</h1>").unwrap());
 }
 
-/// The first "Headings" table's empty row. A level 1 or 2 heading holding
-/// nothing has no setext spelling: the underline is empty too, so the whole
-/// heading would disappear.
+/// Step 3 of the "Headings" approach, for empty content. A level 1 or 2 heading
+/// holding nothing has no setext encoding: the underline is empty too, so the
+/// whole heading would disappear.
 #[test]
 fn an_empty_setext_heading_falls_back_to_atx() {
     assert_eq!("#", convert_faithful_setext("<h1></h1>").unwrap());
@@ -370,8 +365,11 @@ fn an_empty_setext_heading_falls_back_to_atx() {
     );
 }
 
-/// The second "Headings" table. An ATX heading's `#` has already opened the
-/// line, so a raw `<br>` is safe anywhere in it.
+/// Step 4 of the "Headings" approach, for ATX. An ATX heading's `#` has already
+/// opened the line, so a raw `<br>` is safe anywhere in it. A `#` run ending
+/// the content would close the heading, so it is escaped: by step 4 in `a #`,
+/// and by the generic text escape in `#`, whose run opens a text node. `basic_tests::atx_heading_of_a_hash_run_from_a_handler` covers
+/// step 4 for content which is nothing but the run.
 #[test]
 fn atx_headings() {
     // An empty heading drops the space as well, which would otherwise be
@@ -386,14 +384,8 @@ fn atx_headings() {
         convert_faithful("<h1><br><br><br></h1>").unwrap()
     );
 
-    assert_eq!(
-        "# <br>*b*",
-        convert_faithful("<h1><br><em>b</em></h1>").unwrap()
-    );
-    assert_eq!(
-        "# *a*<br>",
-        convert_faithful("<h1><em>a</em><br></h1>").unwrap()
-    );
+    assert_eq!(r"# a \#", convert_faithful("<h1>a #</h1>").unwrap());
+    assert_eq!(r"# \#", convert_faithful("<h1>#</h1>").unwrap());
 }
 
 /// The "Paragraphs" table. Rows 1 and 2 are the section's rule that a paragraph
