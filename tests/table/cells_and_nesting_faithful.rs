@@ -158,3 +158,47 @@ fn a_row_directly_under_a_table_is_read_as_a_body_row() {
 
     assert_eq!("| A |\n| - |\n| c |", converter.convert(&tree).unwrap());
 }
+
+/// The parser leaves only whitespace between a table's elements,
+/// foster-parenting other text out of the table, but a tree built elsewhere
+/// can hold any text there. A Markdown table has nowhere to write it, so
+/// faithful mode writes the table as HTML rather than drop it.
+#[cfg(feature = "rcdom")]
+#[test]
+fn text_between_the_elements_of_a_built_table_keeps_it_html() {
+    use crate::common::tree::{document, element, text};
+
+    // The text between the elements of the table, of its `<tbody>`, and of
+    // that section's row.
+    let table = |[in_table, in_tbody, in_tr]: [&str; 3]| {
+        convert_faithful(document(vec![element(
+            "table",
+            vec![
+                element("tr", vec![element("th", vec![text("A")])]),
+                text(in_table),
+                element(
+                    "tbody",
+                    vec![
+                        text(in_tbody),
+                        element("tr", vec![text(in_tr), element("td", vec![text("c")])]),
+                    ],
+                ),
+            ],
+        )]))
+        .unwrap()
+    };
+
+    assert_eq!("| A |\n| - |\n| c |", table([" \t\n", "\r\n", "\x0C"]));
+    assert_eq!(
+        "<table><tr><th>A</th></tr>x<tbody> <tr> <td>c</td></tr></tbody></table>",
+        table(["x", " ", " "])
+    );
+    assert_eq!(
+        "<table><tr><th>A</th></tr> <tbody>x<tr> <td>c</td></tr></tbody></table>",
+        table([" ", "x", " "])
+    );
+    assert_eq!(
+        "<table><tr><th>A</th></tr> <tbody> <tr>x<td>c</td></tr></tbody></table>",
+        table([" ", " ", "x"])
+    );
+}

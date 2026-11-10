@@ -101,17 +101,16 @@ fn extract_table_content(
     let mut has_tbody = false;
 
     for child in table_node.children.borrow().iter() {
-        let NodeData::Element { name, .. } = &child.data else {
-            // The parser foster-parents a table's stray text out of it, so the
-            // only text reaching here is the whitespace between its elements. A
-            // comment has nowhere to go in a Markdown table.
-            table.all_children_translated &= matches!(child.data, NodeData::Text { .. });
+        let Some(tag) = get_node_tag_name(child) else {
+            // A comment, or other text in a tree built elsewhere, has nowhere
+            // to go in a Markdown table.
+            table.all_children_translated &= is_whitespace_between_table_elements(child);
             continue;
         };
 
         // A table only builds CommonMark in a block context, so its caption,
         // sections, rows and cells all sit in one.
-        match name.local.as_ref() {
+        match tag {
             "caption" => {
                 if let Some(result) =
                     handlers.handle(crate::Node::from_rc_ref(child), Context::BLOCK)
@@ -287,20 +286,17 @@ fn extract_body_row(
     }
 }
 
-/// Whether every child of `node` is a `tag` element, ignoring text. Another
-/// element, or a comment, would be dropped from the Markdown table, which only
-/// faithful mode can avoid by writing the table as HTML; text is exempt because
-/// the parser foster-parents a table's stray text out of it, leaving only the
-/// whitespace between its elements.
+/// Whether every child of `node` is a `tag` element, ignoring whitespace.
 fn holds_only(node: &Rc<markup5ever_rcdom::Node>, tag: &str) -> bool {
-    node.children
-        .borrow()
-        .iter()
-        .all(|child| match &child.data {
-            NodeData::Element { name, .. } => &name.local == tag,
-            NodeData::Text { .. } => true,
-            _ => false,
-        })
+    node.children.borrow().iter().all(|child| {
+        is_whitespace_between_table_elements(child) || get_node_tag_name(child) == Some(tag)
+    })
+}
+
+/// Whether `node` is the whitespace text which the [in table text](https://html.spec.whatwg.org/multipage/parsing.html#parsing-main-intabletext) mode keeps in a table.
+fn is_whitespace_between_table_elements(node: &markup5ever_rcdom::Node) -> bool {
+    matches!(&node.data, NodeData::Text { contents }
+        if contents.borrow().chars().all(|c| c.is_ascii_whitespace()))
 }
 
 /// Whether `node`'s subtree holds a comment whose text has a `|`, which splits
