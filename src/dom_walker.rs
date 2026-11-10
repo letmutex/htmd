@@ -303,19 +303,25 @@ fn can_combine(n1: &Node, n2: &Node) -> bool {
 
     // Don't combine adjacent hyperlinks, or adjacent math, which pulldown-cmark
     // reads apart: `$a$$b$` is two math expressions.
-    *name1.local != *"a"
-        && !(*name1.local == *"span" && math_delimiter(&attrs1.borrow()).is_some())
+    &name1.local != "a"
+        && !(&name1.local == "span" && math_delimiter(&attrs1.borrow()).is_some())
         && (name1 == name2
-            // Treat `i` and `em` tags as the same element; likewise for `b` and
-            // `strong`.
-            || *name1.local == *"i" && *name2.local == *"em"
-            || *name1.local == *"em" && *name2.local == *"i"
-            || *name1.local == *"b" && *name2.local == *"strong"
-            || *name1.local == *"strong" && name2.local == *"b")
+            // Names differing only in prefix combine too: no handler reads the
+            // prefix, and the serializer drops it.
+            || combining_tag(&name1.local) == combining_tag(&name2.local))
         && template_contents1.borrow().is_none()
         && template_contents2.borrow().is_none()
         && attrs1 == attrs2
         && mathml_annotation_xml_integration_point1 == mathml_annotation_xml_integration_point2
+}
+
+/// `tag`'s name for combining, which tags writing the same Markdown share.
+fn combining_tag(tag: &str) -> &str {
+    match tag {
+        "i" => "em",
+        "b" => "strong",
+        _ => tag,
+    }
 }
 
 /// Appends `node`, an element of a combinable run, to `output` as a raw HTML
