@@ -14,7 +14,7 @@ use common::convert_faithful;
 
 fn find_element(node: &Rc<Node>, tag: &str) -> Option<Rc<Node>> {
     if let NodeData::Element { name, .. } = &node.data
-        && name.local.as_ref() == tag
+        && &name.local == tag
     {
         return Some(node.clone());
     }

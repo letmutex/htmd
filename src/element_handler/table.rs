@@ -294,7 +294,7 @@ fn holds_only(node: &Rc<markup5ever_rcdom::Node>, tag: &str) -> bool {
         .borrow()
         .iter()
         .all(|child| match &child.data {
-            NodeData::Element { name, .. } => name.local.as_ref() == tag,
+            NodeData::Element { name, .. } => &name.local == tag,
             NodeData::Text { .. } => true,
             _ => false,
         })
@@ -378,7 +378,7 @@ fn extract_row_cells(
 
     for cell_node in row_node.children.borrow().iter() {
         if let NodeData::Element { name, .. } = &cell_node.data
-            && name.local.as_ref() == cell_tag
+            && &name.local == cell_tag
         {
             // See `extract_table_content`: a cell of a translated table is
             // always in a block context.

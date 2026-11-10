@@ -42,7 +42,7 @@ pub(crate) fn walk_node(
         ),
         NodeData::Element { name, attrs, .. } => walk_element(
             node,
-            name.local.as_ref(),
+            &name.local,
             &attrs.borrow(),
             output,
             handlers,
@@ -169,7 +169,7 @@ fn is_passthrough_span(
 
 fn is_math_span(attrs: &[html5ever::Attribute]) -> bool {
     attrs.len() == 1
-        && attrs[0].name.local.as_ref() == "class"
+        && &attrs[0].name.local == "class"
         && matches!(
             attrs[0].value.as_ref(),
             "math math-inline" | "math math-display"
@@ -345,7 +345,7 @@ fn append_serialized_inline(
     };
     let element = Element {
         node,
-        tag: name.local.as_ref(),
+        tag: &name.local,
         attrs: &attrs.borrow(),
         context,
         skipped_handlers: 0,
