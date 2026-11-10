@@ -36,6 +36,18 @@ pub(super) fn list_marker_spacing(spaces: usize) -> String {
     " ".repeat(spaces.clamp(1, 4))
 }
 
+/// The delimiter, `$` or `$$`, of a span whose `attrs` mark it as math.
+pub(crate) fn math_delimiter(attrs: &[html5ever::Attribute]) -> Option<&'static str> {
+    match attrs {
+        [attr] if &attr.name.local == "class" => match &*attr.value {
+            "math math-inline" => Some("$"),
+            "math math-display" => Some("$$"),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 /// Handles a structural element when it has an allowed parent, or preserves it
 /// as HTML in faithful mode when it appears elsewhere.
 ///

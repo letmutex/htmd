@@ -332,8 +332,7 @@ fn has_no_attributes(node: &Rc<markup5ever_rcdom::Node>) -> bool {
 fn has_explicit_headers(node: &Rc<markup5ever_rcdom::Node>) -> bool {
     fn visit(node: &Rc<markup5ever_rcdom::Node>, is_root: bool) -> bool {
         for child in node.children.borrow().iter() {
-            if let NodeData::Element { name, .. } = &child.data {
-                let tag_name = name.local.as_ref();
+            if let Some(tag_name) = get_node_tag_name(child) {
                 if !is_root && tag_name == "table" {
                     continue;
                 }
@@ -380,9 +379,7 @@ fn extract_row_cells(
     let mut all_translated = has_no_attributes(row_node) && holds_only(row_node, cell_tag);
 
     for cell_node in row_node.children.borrow().iter() {
-        if let NodeData::Element { name, .. } = &cell_node.data
-            && &name.local == cell_tag
-        {
+        if get_node_tag_name(cell_node) == Some(cell_tag) {
             // See `extract_table_content`: a cell of a translated table is
             // always in a block context.
             let Some(res) = handlers.handle(crate::Node::from_rc_ref(cell_node), Context::BLOCK)
