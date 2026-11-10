@@ -9,9 +9,13 @@ use std::rc::Rc;
 use dom_walker::walk_node;
 use element_handler::ElementHandlers;
 pub use element_handler::{ElementHandler, EventSubscription, EventTypes};
+/// The HTML parser whose types appear in htmd's API; see [`ElementHandler`].
+pub use html5ever;
 use html5ever::tendril::TendrilSink;
 use html5ever::tree_builder::TreeBuilderOpts;
 use html5ever::{Attribute, ParseOpts, parse_document};
+/// The DOM which handlers receive; see [`ElementHandler`].
+pub use markup5ever_rcdom;
 pub use markup5ever_rcdom::Node;
 use markup5ever_rcdom::RcDom;
 use options::Options;
@@ -165,8 +169,9 @@ impl HtmlToMarkdown {
         Ok(dom.document)
     }
 
-    /// Convert a DOM tree to Markdown. For convenience, `Node` is re-exported;
-    /// simply `use htmd::Node;` to access this type.
+    /// Convert a DOM tree to Markdown. Build the tree from htmd's re-exports,
+    /// [`Node`] and the [`html5ever`] and [`markup5ever_rcdom`] crates, so its
+    /// types are those of the parser version htmd was built with.
     pub fn tree_to_markdown(&self, tree: &Rc<Node>) -> String {
         self.handlers.emit_doc_enter();
         let mut content = String::new();

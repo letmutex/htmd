@@ -162,6 +162,12 @@ impl EventSubscription {
 }
 
 /// Trait for handling the conversion of a specific HTML element to Markdown.
+///
+/// A handler reads the DOM through [`html5ever`] and [`markup5ever_rcdom`]
+/// types, such as those of [`Element::node`] and [`Element::attrs`]. Name them
+/// through htmd's re-exports, `htmd::html5ever` and `htmd::markup5ever_rcdom`:
+/// a handler depending on the crates directly gets a different version's types,
+/// which do not match, whenever its version and htmd's differ.
 pub trait ElementHandler: Send + Sync {
     /// Append additional content to the end of the converted Markdown.
     fn append(&self) -> Option<String> {

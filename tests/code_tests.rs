@@ -3,10 +3,10 @@ use std::rc::Rc;
 use htmd::{
     Element, HtmlToMarkdown, Node,
     element_handler::Handlers,
+    markup5ever_rcdom::NodeData,
     options::{CodeBlockFence, Options},
 };
 use indoc::indoc;
-use markup5ever_rcdom::NodeData;
 use pretty_assertions::assert_eq;
 
 mod common;

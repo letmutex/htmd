@@ -3,6 +3,7 @@ use common::convert_faithful;
 
 #[cfg(test)]
 mod table_tests_1 {
+    use super::common::tree::{document, element, text, tree_to_markdown_faithful};
     use super::convert_faithful;
     use indoc::indoc;
     use pretty_assertions::assert_eq;
@@ -799,63 +800,19 @@ mod table_tests_1 {
     /// a tree it did not parse itself.
     #[test]
     fn a_row_directly_under_a_table_is_read_as_a_body_row() {
-        use htmd::{
-            Node,
-            options::{Options, TranslationMode},
-        };
-        use html5ever::{LocalName, QualName, ns};
-        use markup5ever_rcdom::NodeData;
-        use std::{cell::RefCell, rc::Rc};
-
-        fn append(parent: &Rc<Node>, child: Rc<Node>) {
-            child.parent.set(Some(Rc::downgrade(parent)));
-            parent.children.borrow_mut().push(child);
-        }
-
-        fn element(tag: &str, children: Vec<Rc<Node>>) -> Rc<Node> {
-            let node = Node::new(NodeData::Element {
-                name: QualName::new(None, ns!(html), LocalName::from(tag)),
-                attrs: RefCell::new(Vec::new()),
-                template_contents: RefCell::new(None),
-                mathml_annotation_xml_integration_point: false,
-            });
-            for child in children {
-                append(&node, child);
-            }
-            node
-        }
-
-        fn text(contents: &str) -> Rc<Node> {
-            Node::new(NodeData::Text {
-                contents: RefCell::new(contents.into()),
-            })
-        }
-
-        let tree = Node::new(NodeData::Document);
-        append(
-            &tree,
-            element(
-                "table",
-                vec![
-                    element("tr", vec![element("th", vec![text("A")])]),
-                    element("tr", vec![element("td", vec![text("c")])]),
-                ],
-            ),
-        );
-
-        let markdown = htmd::HtmlToMarkdown::builder()
-            .options(Options {
-                translation_mode: TranslationMode::Faithful,
-                ..Default::default()
-            })
-            .build()
-            .tree_to_markdown(&tree);
+        let tree = document(vec![element(
+            "table",
+            vec![
+                element("tr", vec![element("th", vec![text("A")])]),
+                element("tr", vec![element("td", vec![text("c")])]),
+            ],
+        )]);
 
         assert_eq!(
             "| A |
 | - |
 | c |",
-            markdown
+            tree_to_markdown_faithful(&tree)
         );
     }
 
