@@ -11,6 +11,10 @@ keywords = ["html", "markdown", "converter"]
 categories = ["text-processing", "parsing"]
 readme = "README.md"
 
+[features]
+default = []
+rcdom = []
+
 [dependencies]
 html5ever = "0.40"
 markup5ever_rcdom = "0.40"

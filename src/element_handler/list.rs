@@ -23,7 +23,7 @@ pub(super) fn list_handler(handlers: &dyn Handlers, element: &Element) -> Option
         serialize_if_extra_attrs_or_inline!(handlers, element, if has_start { 1 } else { 0 });
 
         // ...all children must be li elements.
-        if !element.node.children.borrow().iter().all(|node| {
+        if !element.node.as_rc().children.borrow().iter().all(|node| {
             let tag_name = get_node_tag_name(node);
             // In addition to elements, there will be text nodes, generally
             // with whitespace; these should be ignored.
@@ -32,7 +32,7 @@ pub(super) fn list_handler(handlers: &dyn Handlers, element: &Element) -> Option
             return Some(serialize_element_result(handlers, element));
         }
     }
-    let parent = get_parent_node(element.node);
+    let parent = get_parent_node(element.node.as_rc());
     let is_parent_li = parent
         .map(|p| get_node_tag_name(&p).is_some_and(|tag| tag == "li"))
         .unwrap_or(false);
@@ -84,8 +84,8 @@ fn get_ol_content(handlers: &dyn Handlers, element: &Element) -> (String, bool) 
         .map(|attr| attr.value.to_string().parse::<i32>().unwrap_or(1).max(1) as usize)
         .unwrap_or(1);
 
-    for child in element.node.children.borrow().iter() {
-        let Some(res) = handlers.handle(child, element.context) else {
+    for child in element.node.as_rc().children.borrow().iter() {
+        let Some(res) = handlers.handle(crate::Node::from_rc_ref(child), element.context) else {
             continue;
         };
         if !res.markdown_translated {

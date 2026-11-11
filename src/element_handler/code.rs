@@ -24,6 +24,7 @@ pub(super) fn code_handler(handlers: &dyn Handlers, element: &Element) -> Option
     if handlers.options().translation_mode == TranslationMode::Faithful
         && !element
             .node
+            .as_rc()
             .children
             .borrow()
             .iter()
@@ -33,7 +34,7 @@ pub(super) fn code_handler(handlers: &dyn Handlers, element: &Element) -> Option
     }
 
     // Determine the type: inline code or a code block.
-    let parent_node = get_parent_node(element.node);
+    let parent_node = get_parent_node(element.node.as_rc());
     let is_code_block = parent_node
         .as_ref()
         .map(|parent| get_node_tag_name(parent).is_some_and(|t| t == "pre"))

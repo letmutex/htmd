@@ -11,7 +11,7 @@ pub(super) fn html_handler(handlers: &dyn Handlers, element: &Element) -> Option
     // It's always markdown translatable in pure mode; in faithful mode, only
     // when it's the root of the document.
     let markdown_translatable = handlers.options().translation_mode == TranslationMode::Pure
-        || get_parent_node(element.node)
+        || get_parent_node(element.node.as_rc())
             .is_some_and(|parent| matches!(parent.data, NodeData::Document));
 
     if markdown_translatable {

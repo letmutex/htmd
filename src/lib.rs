@@ -1,25 +1,28 @@
 mod dom_walker;
+mod element;
 pub mod element_handler;
 mod html_block;
+mod input;
+mod node;
 pub mod options;
 pub(crate) mod util;
 
-use std::rc::Rc;
-
 use dom_walker::walk_node;
+pub use element::{Context, ContextKind, Element};
 use element_handler::ElementHandlers;
 pub use element_handler::{ElementHandler, EventSubscription, EventTypes};
 use html5ever::tendril::TendrilSink;
 use html5ever::tree_builder::TreeBuilderOpts;
-use html5ever::{Attribute, ParseOpts, parse_document};
-pub use markup5ever_rcdom::Node;
+use html5ever::{ParseOpts, parse_document};
+pub use input::ConvertInput;
 use markup5ever_rcdom::RcDom;
+pub use node::{Node, NodeType};
 use options::Options;
 use util::node::is_inside_pre;
 
 use crate::element_handler::Handlers;
 
-/// Convert HTML to Markdown.
+/// Convert HTML or a parsed [`Node`] tree to Markdown.
 ///
 /// Example:
 ///
@@ -29,67 +32,8 @@ use crate::element_handler::Handlers;
 /// let md = convert("<h1>Hello</h1>").unwrap();
 /// assert_eq!("# Hello", md);
 /// ```
-pub fn convert(html: &str) -> std::io::Result<String> {
-    HtmlToMarkdown::new().convert(html)
-}
-
-/// The CommonMark context an element is translated in: block vs inline phrasing.
-#[derive(PartialEq, Eq, Debug, Clone, Copy)]
-pub enum ContextKind {
-    /// A block may begin here: the document root and the contents of a
-    /// container block.
-    Block,
-    /// Only inline content may appear here: the contents of a leaf block, and
-    /// the contents of a raw HTML inline.
-    Inline,
-}
-
-/// The context an element or text node is evaluated in.
-#[derive(PartialEq, Eq, Debug, Clone, Copy)]
-pub struct Context {
-    /// The CommonMark syntactic context.
-    pub kind: ContextKind,
-    /// Whether text in this context is literal
-    /// (preserving whitespace without Markdown escaping).
-    pub literal: bool,
-}
-
-impl Context {
-    pub const BLOCK: Self = Self {
-        kind: ContextKind::Block,
-        literal: false,
-    };
-    pub const INLINE: Self = Self {
-        kind: ContextKind::Inline,
-        literal: false,
-    };
-
-    /// Whether only inline content may appear here, in which case an element
-    /// whose Markdown is a block is written as HTML instead.
-    pub fn is_inline(self) -> bool {
-        self.kind == ContextKind::Inline
-    }
-
-    /// Whether a block may begin here.
-    pub fn is_block(self) -> bool {
-        self.kind == ContextKind::Block
-    }
-}
-
-/// The DOM element.
-pub struct Element<'a> {
-    /// The html5ever node of the element.
-    pub node: &'a Rc<Node>,
-    /// The tag name.
-    pub tag: &'a str,
-    /// The attribute list.
-    pub attrs: &'a [Attribute],
-    /// The [`Context`] this element appears in, as recorded by the walk which
-    /// produced it. An element which can only be written as HTML uses this to
-    /// pick between an HTML block and a raw HTML inline.
-    pub context: Context,
-    /// The number of handlers to skip for this element.
-    pub(crate) skipped_handlers: usize,
+pub fn convert<I: ConvertInput>(input: I) -> std::io::Result<String> {
+    HtmlToMarkdown::new().convert(input)
 }
 
 /// The html-to-markdown converter.
@@ -144,8 +88,8 @@ impl HtmlToMarkdown {
         HtmlToMarkdownBuilder::new()
     }
 
-    /// Convert HTML to a DOM tree.
-    pub fn html_to_tree(&self, html: &str) -> std::io::Result<Rc<Node>> {
+    /// Parse HTML into a DOM tree.
+    pub fn html_to_tree(&self, html: &str) -> std::io::Result<Node> {
         // Feed the whole UTF-8 string to the parser in one shot. This avoids
         // the 4 KiB chunked `read_from` path and the UTF-8 lossy decoder layer
         // used by `from_utf8()`, both of which add overhead when the input is
@@ -162,24 +106,22 @@ impl HtmlToMarkdown {
         )
         .one(html);
 
-        Ok(dom.document)
+        Ok(Node(dom.document))
     }
 
-    /// Convert a DOM tree to Markdown. For convenience, `Node` is re-exported;
-    /// simply `use htmd::Node;` to access this type.
-    pub fn tree_to_markdown(&self, tree: &Rc<Node>) -> String {
+    pub(crate) fn tree_to_markdown(&self, tree: &Node) -> String {
         self.handlers.emit_doc_enter();
         let mut content = String::new();
 
         walk_node(
-            tree,
+            tree.as_rc(),
             &mut content,
             &self.handlers,
             None,
             true,
             Context {
                 kind: ContextKind::Block,
-                literal: is_inside_pre(tree),
+                literal: is_inside_pre(tree.as_rc()),
             },
         );
 
@@ -208,9 +150,9 @@ impl HtmlToMarkdown {
         content
     }
 
-    /// Convert HTML to Markdown.
-    pub fn convert(&self, html: &str) -> std::io::Result<String> {
-        Ok(self.tree_to_markdown(&self.html_to_tree(html)?))
+    /// Convert HTML or a parsed [`Node`] tree to Markdown.
+    pub fn convert<I: ConvertInput>(&self, input: I) -> std::io::Result<String> {
+        input.convert_with(self)
     }
 }
 
@@ -274,8 +216,8 @@ impl HtmlToMarkdownBuilder {
         self
     }
 
-    /// Option for html5ever parsing. If true, the content of `<noscript>` tags will be converted to raw text.
-    /// If false, the content of `<noscript>` tags will be parsed as normal DOM.
+    /// Whether `<noscript>` tags treat their content as raw text instead of HTML.
+    /// When `false`, the content of `<noscript>` tags is parsed as normal DOM.
     pub fn scripting_enabled(mut self, enabled: bool) -> Self {
         self.scripting_enabled = enabled;
         self
