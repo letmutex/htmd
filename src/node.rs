@@ -361,18 +361,6 @@ impl Node {
         crate::util::node::get_parent_node(&self.0).map(Node)
     }
 
-    /// The previous sibling node under the same parent, if any.
-    #[inline]
-    pub fn prev_sibling(&self) -> Option<Node> {
-        self.sibling_by_offset(-1)
-    }
-
-    /// The next sibling node under the same parent, if any.
-    #[inline]
-    pub fn next_sibling(&self) -> Option<Node> {
-        self.sibling_by_offset(1)
-    }
-
     /// The first direct child node, if any.
     #[inline]
     pub fn first_child(&self) -> Option<Node> {
@@ -385,14 +373,6 @@ impl Node {
         NodeChildren(Ref::map(self.0.children.borrow(), |children| {
             rc_slice_as_nodes(children)
         }))
-    }
-
-    /// Visit this node and its descendants in pre-order.
-    pub fn walk(&self, mut visitor: impl FnMut(&Node)) {
-        let _ = walk_rc(&self.0, &mut |node| {
-            visitor(node);
-            ControlFlow::<()>::Continue(())
-        });
     }
 
     /// Return the first node in this subtree (including `self`) matching `predicate`.
@@ -412,16 +392,6 @@ impl Node {
         crate::element_handler::element_util::serialize_node(&self.0).unwrap_or_else(|e| {
             panic!("Failed to serialize node: {}", e);
         })
-    }
-
-    fn sibling_by_offset(&self, offset: isize) -> Option<Node> {
-        let parent = crate::util::node::get_parent_node(&self.0)?;
-        let children = parent.children.borrow();
-        let idx = children
-            .iter()
-            .position(|child| Rc::ptr_eq(child, &self.0))?;
-        let target = idx.checked_add_signed(offset)?;
-        children.get(target).cloned().map(Node)
     }
 }
 

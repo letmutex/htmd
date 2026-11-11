@@ -21,8 +21,6 @@ fn node_inspection_and_traversal() {
     assert_eq!(None, tree.attrs().iter().nth_back(1));
     assert_eq!(None, tree.attrs().iter().last());
     assert_eq!(None, tree.parent());
-    assert_eq!(None, tree.prev_sibling());
-    assert_eq!(None, tree.next_sibling());
     assert_eq!(
         "<!DOCTYPE html><!--c--><html><head></head><body><div id=\"a\" data-k=\"v\">hello</div></body></html>",
         tree.html()
@@ -36,12 +34,6 @@ fn node_inspection_and_traversal() {
     assert_eq!(Some(&children[2]), tree.children().last());
     assert_eq!(None, tree.children().get(3));
     assert_eq!(Some(children[0].clone()), tree.first_child());
-    assert_eq!(None, children[0].prev_sibling());
-    assert_eq!(Some(children[1].clone()), children[0].next_sibling());
-    assert_eq!(Some(children[0].clone()), children[1].prev_sibling());
-    assert_eq!(Some(children[2].clone()), children[1].next_sibling());
-    assert_eq!(Some(children[1].clone()), children[2].prev_sibling());
-    assert_eq!(None, children[2].next_sibling());
 
     assert_eq!(NodeType::Doctype, children[0].node_type());
     assert_eq!("<!DOCTYPE html>", children[0].html());
@@ -125,18 +117,6 @@ fn node_inspection_and_traversal() {
         vec![text.clone()],
         (&div.children()).into_iter().cloned().collect::<Vec<_>>()
     );
-
-    let mut visited_tags = Vec::new();
-    tree.walk(|node| {
-        if let Some(tag) = node.tag_name() {
-            visited_tags.push(tag.to_owned());
-        }
-        // Exercise nested reads during `walk` to confirm no `RefCell` borrow conflicts.
-        let _ = node.children().len();
-        let _ = node.attrs().len();
-        let _ = node.next_sibling();
-    });
-    assert_eq!(vec!["html", "head", "body", "div"], visited_tags);
 
     let mut visited = 0;
     let first_match = tree.find(|n| {
