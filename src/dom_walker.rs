@@ -344,7 +344,7 @@ fn append_serialized_inline(
         unreachable!("only element nodes form a combinable run")
     };
     let element = Element {
-        node,
+        node: crate::Node::from_rc_ref(node),
         tag: &name.local,
         attrs: &attrs.borrow(),
         context,

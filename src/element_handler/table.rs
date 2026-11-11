@@ -23,7 +23,8 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: &Element) -> Optio
     // a block context.
     serialize_if_extra_attrs_or_inline!(handlers, element, 0);
     if handlers.options().translation_mode == TranslationMode::Pure
-        && (!has_explicit_headers(element.node) || is_inside_table_cell(element.node))
+        && (!has_explicit_headers(element.node.as_rc())
+            || is_inside_table_cell(element.node.as_rc()))
     {
         return handlers.fallback(element);
     }
@@ -33,7 +34,7 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: &Element) -> Optio
         mut headers,
         rows,
         all_children_translated,
-    } = extract_table_content(handlers, element.node);
+    } = extract_table_content(handlers, element.node.as_rc());
 
     if handlers.options().translation_mode == TranslationMode::Faithful && !all_children_translated
     {
@@ -112,7 +113,9 @@ fn extract_table_content(
         // sections, rows and cells all sit in one.
         match name.local.as_ref() {
             "caption" => {
-                if let Some(result) = handlers.handle(child, Context::BLOCK) {
+                if let Some(result) =
+                    handlers.handle(crate::Node::from_rc_ref(child), Context::BLOCK)
+                {
                     // A caption which only HTML can express takes the whole
                     // table with it: written as an HTML block of its own it
                     // would land outside any table, where the "in body"
@@ -156,7 +159,7 @@ fn extract_table_content(
             }
             // The parser wraps a stray `<tr>` in a `<tbody>`, so a row reaches
             // a table as a direct child of one only in a tree built elsewhere
-            // and handed to `HtmlToMarkdown::tree_to_markdown`. Read it as a row
+            // and handed to `HtmlToMarkdown::convert`. Read it as a row
             // of the `<tbody>` the parser would have wrapped it in.
             "tr" => extract_row(handlers, child, &mut table, &mut has_thead),
             // A `<colgroup>`, its `<col>`s, and anything else a table may hold
@@ -382,7 +385,8 @@ fn extract_row_cells(
         {
             // See `extract_table_content`: a cell of a translated table is
             // always in a block context.
-            let Some(res) = handlers.handle(cell_node, Context::BLOCK) else {
+            let Some(res) = handlers.handle(crate::Node::from_rc_ref(cell_node), Context::BLOCK)
+            else {
                 continue;
             };
             // A comment holding a `|` is looked for here rather than over the

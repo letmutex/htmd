@@ -1,28 +1,22 @@
-use std::rc::Rc;
-
 use htmd::{
     Element, HtmlToMarkdown, Node,
     element_handler::Handlers,
     options::{CodeBlockFence, Options},
 };
 use indoc::indoc;
-use markup5ever_rcdom::NodeData;
+#[cfg(feature = "rcdom")]
+use markup5ever_rcdom::{Node as RcDomNode, NodeData};
 use pretty_assertions::assert_eq;
 
 mod common;
 use common::convert_faithful;
 
-fn find_element(node: &Rc<Node>, tag: &str) -> Option<Rc<Node>> {
-    if let NodeData::Element { name, .. } = &node.data
-        && &name.local == tag
-    {
+fn find_element(node: &Node, tag: &str) -> Option<Node> {
+    if node.tag_name() == Some(tag) {
         return Some(node.clone());
     }
 
-    node.children
-        .borrow()
-        .iter()
-        .find_map(|child| find_element(child, tag))
+    node.children().find_map(|child| find_element(&child, tag))
 }
 
 #[test]
@@ -86,7 +80,7 @@ fn span_subtree_conversion_preserves_ancestor_preformatted_context() {
         .unwrap();
     let span = find_element(&tree, "span").unwrap();
 
-    assert_eq!("  *literal*  \nsecond", converter.tree_to_markdown(&span));
+    assert_eq!("  *literal*  \nsecond", converter.convert(&span).unwrap());
 }
 
 #[test]
@@ -95,7 +89,7 @@ fn delegated_unhandled_subtree_preserves_ancestor_preformatted_context() {
         .add_handler(
             vec!["delegate"],
             |handlers: &dyn Handlers, element: &Element| {
-                let child = element.node.children.borrow().first()?.clone();
+                let child = element.node.first_child()?;
                 handlers.handle(&child, element.context)
             },
         )
@@ -205,14 +199,15 @@ fn tilde_fenced_code_uses_a_fence_longer_than_any_run_in_its_content() {
     assert_eq!("~~~~~~\n~~~~~\nlet parsed = true;\n~~~~~\n~~~~~~", markdown);
 }
 
+#[cfg(feature = "rcdom")]
 #[test]
 fn processing_instruction_nodes_are_ignored() {
-    let node = Node::new(NodeData::ProcessingInstruction {
+    let node = RcDomNode::new(NodeData::ProcessingInstruction {
         target: "xml".into(),
         contents: "version=\"1.0\"".into(),
     });
 
-    assert_eq!("", HtmlToMarkdown::new().tree_to_markdown(&node));
+    assert_eq!("", htmd::convert(&node).unwrap());
 }
 
 // See https://github.com/letmutex/htmd/issues/138

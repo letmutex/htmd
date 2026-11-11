@@ -27,7 +27,7 @@ use crate::{
     util::text::frame_as_block,
 };
 
-use super::{Context, Element};
+use super::{Context, Element, Node};
 use anchor::AnchorElementHandler;
 use blockquote::blockquote_handler;
 use br::br_handler;
@@ -42,7 +42,7 @@ use html5ever::Attribute;
 use img::img_handler;
 use li::list_item_handler;
 use list::list_handler;
-use markup5ever_rcdom::Node;
+use markup5ever_rcdom::Node as RcDomNode;
 use p::p_handler;
 use pre::pre_handler;
 use span::span_handler;
@@ -222,7 +222,7 @@ pub(crate) struct ElementHandlers {
 impl ElementHandlers {
     fn walk_children_with(
         &self,
-        node: &Rc<Node>,
+        node: &Rc<RcDomNode>,
         is_block: bool,
         context: Context,
     ) -> HandlerResult {
@@ -410,14 +410,14 @@ impl ElementHandlers {
 
     pub fn handle(
         &self,
-        node: &Rc<Node>,
+        node: &Rc<RcDomNode>,
         tag: &str,
         attrs: &[Attribute],
         skipped_handlers: usize,
         context: Context,
     ) -> Option<HandlerResult> {
         let element = Element {
-            node,
+            node: Node::from_rc_ref(node),
             tag,
             attrs,
             context,
@@ -442,7 +442,11 @@ impl ElementHandlers {
                     Some(serialize_element_result(self, &element))
                 } else {
                     // Default behavior: walk children and return their content
-                    Some(self.walk_children(node, context))
+                    Some(self.walk_children_with(
+                        node,
+                        crate::util::node::is_block_element(tag),
+                        context,
+                    ))
                 }
             }
         };
@@ -477,16 +481,16 @@ pub trait Handlers {
     /// Skip the current handler and fall back to the previous handler (earlier in registration order).
     fn fallback(&self, element: &Element) -> Option<HandlerResult>;
 
-    /// Process a `markup5ever` node through the handlers. `context` is the
+    /// Process a DOM [`Node`] through the handlers. `context` is the
     /// [`Context`] the node appears in.
-    fn handle(&self, node: &Rc<Node>, context: Context) -> Option<HandlerResult>;
+    fn handle(&self, node: &Node, context: Context) -> Option<HandlerResult>;
 
     /// Walks children of a node and returns both content and markdown_translated
     /// status.
-    fn walk_children(&self, node: &Rc<Node>, context: Context) -> HandlerResult;
+    fn walk_children(&self, node: &Node, context: Context) -> HandlerResult;
 
     /// The content of [`Handlers::walk_children`]
-    fn walk_children_content(&self, node: &Rc<Node>, context: Context) -> String {
+    fn walk_children_content(&self, node: &Node, context: Context) -> String {
         self.walk_children(node, context).content
     }
 
@@ -497,7 +501,7 @@ pub trait Handlers {
 impl Handlers for ElementHandlers {
     fn fallback(&self, element: &Element) -> Option<HandlerResult> {
         self.handle(
-            element.node,
+            element.node.as_rc(),
             element.tag,
             element.attrs,
             element.skipped_handlers + 1,
@@ -505,19 +509,20 @@ impl Handlers for ElementHandlers {
         )
     }
 
-    fn handle(&self, node: &Rc<Node>, context: Context) -> Option<HandlerResult> {
+    fn handle(&self, node: &Node, context: Context) -> Option<HandlerResult> {
         let mut output = String::new();
-        let markdown_translated = walk_node(node, &mut output, self, None, true, context);
+        let markdown_translated = walk_node(node.as_rc(), &mut output, self, None, true, context);
         Some(HandlerResult {
             content: output,
             markdown_translated,
         })
     }
 
-    fn walk_children(&self, node: &Rc<Node>, context: Context) -> HandlerResult {
-        let tag = crate::util::node::get_node_tag_name(node);
+    fn walk_children(&self, node: &Node, context: Context) -> HandlerResult {
+        let rc = node.as_rc();
+        let tag = crate::util::node::get_node_tag_name(rc);
         self.walk_children_with(
-            node,
+            rc,
             tag.is_some_and(crate::util::node::is_block_element),
             context,
         )

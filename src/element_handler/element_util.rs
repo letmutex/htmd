@@ -8,8 +8,11 @@ use crate::{
     },
 };
 use html5ever::serialize::{HtmlSerializer, SerializeOpts, Serializer, TraversalScope, serialize};
-use markup5ever_rcdom::{NodeData, SerializableHandle};
-use std::io::{self, Write};
+use markup5ever_rcdom::{Node as RcDomNode, NodeData, SerializableHandle};
+use std::{
+    io::{self, Write},
+    rc::Rc,
+};
 
 /// Returns from the enclosing handler with `content` as the element's HTML,
 /// but only in faithful mode and only when `condition` holds. Pure mode has no
@@ -61,7 +64,7 @@ pub(super) fn handle_or_serialize_by_parent(
         handlers,
         element.context.is_inline()
             || element.attrs.len() as i64 > num_attrs_allowed
-            || !parent_tag_name_equals(element.node, tag_names),
+            || !parent_tag_name_equals(element.node.as_rc(), tag_names),
         serialize_element(handlers, element)
     );
     let result = handlers.walk_children(element.node, children_context);
@@ -108,7 +111,7 @@ fn serialize_opts() -> SerializeOpts {
 }
 
 fn serialize_inline_element(handlers: &dyn Handlers, element: &Element) -> io::Result<String> {
-    let NodeData::Element { name, attrs, .. } = &element.node.data else {
+    let NodeData::Element { name, attrs, .. } = &element.node.as_rc().data else {
         return Err(io::Error::other("expected an element node"));
     };
 
@@ -140,7 +143,7 @@ fn serialize_inline_element(handlers: &dyn Handlers, element: &Element) -> io::R
 }
 
 fn serialize_block_element(element: &Element) -> io::Result<String> {
-    let html = serialize_subtree(element)?;
+    let html = serialize_node(element.node.as_rc())?;
     // A type 6 HTML block ends at the next blank line, so a blank line written
     // inside the serialized HTML has to be escaped to keep the block in one
     // piece. A type 1 block ends at the line holding its closing tag instead,
@@ -156,10 +159,18 @@ fn serialize_block_element(element: &Element) -> io::Result<String> {
     Ok(frame_as_block(&html))
 }
 
-fn serialize_subtree(element: &Element) -> io::Result<String> {
+pub(crate) fn serialize_node(node: &Rc<RcDomNode>) -> io::Result<String> {
+    let opts = match node.data {
+        // `markup5ever_rcdom::SerializableHandle` panics on `IncludeNode` for `Document`.
+        NodeData::Document => SerializeOpts {
+            traversal_scope: TraversalScope::ChildrenOnly(None),
+            ..Default::default()
+        },
+        _ => serialize_opts(),
+    };
     let mut bytes = Vec::new();
-    let handle = SerializableHandle::from(element.node.clone());
-    serialize(&mut bytes, &handle, serialize_opts())?;
+    let handle = SerializableHandle::from(Rc::clone(node));
+    serialize(&mut bytes, &handle, opts)?;
     String::from_utf8(bytes).map_err(io::Error::other)
 }
 

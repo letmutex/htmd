@@ -235,7 +235,7 @@ impl AnchorElementHandler {
 
 /// Whether the content of `element` is a single text node equal to `text`.
 fn is_text_equal_to(element: &Element, text: &str) -> bool {
-    match element.node.children.borrow().as_slice() {
+    match element.node.as_rc().children.borrow().as_slice() {
         [child] => {
             matches!(&child.data, NodeData::Text { contents } if &**contents.borrow() == text)
         }

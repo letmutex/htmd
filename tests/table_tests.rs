@@ -794,17 +794,15 @@ mod table_tests_1 {
 
     /// The parser wraps a stray `<tr>` in a `<tbody>`, so a `<table>` holds one
     /// as a direct child only in a tree built elsewhere and handed to the public
-    /// `HtmlToMarkdown::tree_to_markdown`. Reading such a row as the body row
+    /// `HtmlToMarkdown::convert`. Reading such a row as the body row
     /// the parser would have made of it keeps that entry point from panicking on
     /// a tree it did not parse itself.
+    #[cfg(feature = "rcdom")]
     #[test]
     fn a_row_directly_under_a_table_is_read_as_a_body_row() {
-        use htmd::{
-            Node,
-            options::{Options, TranslationMode},
-        };
+        use htmd::options::{Options, TranslationMode};
         use html5ever::{LocalName, QualName, ns};
-        use markup5ever_rcdom::NodeData;
+        use markup5ever_rcdom::{Node, NodeData};
         use std::{cell::RefCell, rc::Rc};
 
         fn append(parent: &Rc<Node>, child: Rc<Node>) {
@@ -843,20 +841,14 @@ mod table_tests_1 {
             ),
         );
 
-        let markdown = htmd::HtmlToMarkdown::builder()
+        let converter = htmd::HtmlToMarkdown::builder()
             .options(Options {
                 translation_mode: TranslationMode::Faithful,
                 ..Default::default()
             })
-            .build()
-            .tree_to_markdown(&tree);
+            .build();
 
-        assert_eq!(
-            "| A |
-| - |
-| c |",
-            markdown
-        );
+        assert_eq!("| A |\n| - |\n| c |", converter.convert(&tree).unwrap());
     }
 
     #[test]
