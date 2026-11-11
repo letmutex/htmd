@@ -43,7 +43,7 @@ fn with_custom_rules_and_fallback() {
     let html = r#"<img src="https://example.com"/>"#;
     let converter = HtmlToMarkdown::builder()
         .add_handler(vec!["img"], |handlers: &dyn Handlers, element: &Element| {
-            if element.attr("id") == Some("do_not_skip_me") {
+            if element.node.attr("id").as_deref() == Some("do_not_skip_me") {
                 handlers.fallback(element)
             } else {
                 None

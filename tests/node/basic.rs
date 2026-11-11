@@ -1,4 +1,6 @@
-use htmd::{Element, HtmlToMarkdown, Node, NodeType, element_handler::Handlers};
+use htmd::{HtmlToMarkdown, Node, NodeType};
+use std::borrow::Borrow;
+use std::cmp::Ordering;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
 #[test]
@@ -9,26 +11,38 @@ fn node_inspection_and_traversal() {
         .unwrap();
     assert_eq!(NodeType::Document, tree.node_type());
     assert_eq!(None, tree.tag_name());
-    assert_eq!(None, tree.text());
-    assert_eq!(None, tree.attr("id"));
+    assert!(tree.text().is_none());
+    assert!(tree.attr("id").is_none());
+    assert!(tree.attrs().is_empty());
     assert_eq!(0, tree.attrs().len());
-    assert_eq!(0, tree.attrs().count());
-    assert_eq!(None, tree.attrs().nth(1));
-    assert_eq!(None, tree.attrs().nth_back(1));
-    assert_eq!(None, tree.attrs().last());
+    assert_eq!(None, tree.attrs().get("id"));
+    assert_eq!(0, tree.attrs().iter().count());
+    assert_eq!(None, tree.attrs().iter().nth(1));
+    assert_eq!(None, tree.attrs().iter().nth_back(1));
+    assert_eq!(None, tree.attrs().iter().last());
     assert_eq!(None, tree.parent());
+    assert_eq!(None, tree.prev_sibling());
+    assert_eq!(None, tree.next_sibling());
     assert_eq!(
         "<!DOCTYPE html><!--c--><html><head></head><body><div id=\"a\" data-k=\"v\">hello</div></body></html>",
         tree.html()
     );
 
-    let children: Vec<Node> = tree.children().collect();
-    assert_eq!(3, tree.children().count());
-    assert_eq!(Some(children[1].clone()), tree.children().nth(1));
-    assert_eq!(Some(children[1].clone()), tree.children().nth_back(1));
-    assert_eq!(Some(children[2].clone()), tree.children().last());
-    assert_eq!(None, tree.children().nth(3));
-    assert_eq!(None, tree.children().nth_back(3));
+    let children: Vec<Node> = tree.children().iter().cloned().collect();
+    assert_eq!(3, tree.children().len());
+    assert!(!tree.children().is_empty());
+    assert_eq!(Some(&children[0]), tree.children().first());
+    assert_eq!(Some(&children[1]), tree.children().get(1));
+    assert_eq!(Some(&children[2]), tree.children().last());
+    assert_eq!(None, tree.children().get(3));
+    assert_eq!(Some(children[0].clone()), tree.first_child());
+    assert_eq!(None, children[0].prev_sibling());
+    assert_eq!(Some(children[1].clone()), children[0].next_sibling());
+    assert_eq!(Some(children[0].clone()), children[1].prev_sibling());
+    assert_eq!(Some(children[2].clone()), children[1].next_sibling());
+    assert_eq!(Some(children[1].clone()), children[2].prev_sibling());
+    assert_eq!(None, children[2].next_sibling());
+
     assert_eq!(NodeType::Doctype, children[0].node_type());
     assert_eq!("<!DOCTYPE html>", children[0].html());
     assert_eq!(NodeType::Comment, children[1].node_type());
@@ -37,55 +51,108 @@ fn node_inspection_and_traversal() {
     assert_eq!(Some("html"), html.tag_name());
     assert_eq!(Some(tree.clone()), html.parent());
 
-    let div = tree
-        .children()
-        .find(|n| n.tag_name() == Some("html"))
-        .unwrap()
-        .children()
-        .find(|n| n.tag_name() == Some("body"))
-        .unwrap()
-        .first_child()
-        .unwrap();
+    let div = tree.find(|n| n.tag_name() == Some("div")).unwrap();
     assert_eq!(NodeType::Element, div.node_type());
     assert_eq!(Some("div"), div.tag_name());
-    assert_eq!(Some("a".to_string()), div.attr("id"));
-    assert_eq!(None, div.attr("missing"));
+    let id = div.attr("id").unwrap();
+    assert_eq!(Some("a"), div.attr("id").as_deref());
+    assert_eq!("a", &*id);
+    assert_eq!(id, "a");
+    assert!("a" == id);
+    let expected = String::from("a");
+    assert!(id == expected);
+    assert!(expected == id);
+    assert_eq!("a", format!("{id}"));
+    let data_k = div.attr("data-k").unwrap();
+    assert!(id < data_k);
+    assert_eq!(Ordering::Less, id.cmp(&data_k));
+    assert_eq!("a", Borrow::<str>::borrow(&id));
+    assert_ne!(hash_of_str(&id), hash_of_str(&data_k));
+    assert!(div.attr("missing").is_none());
     assert_eq!("<div id=\"a\" data-k=\"v\">hello</div>", div.html());
-    assert_eq!(2, div.attrs().count());
-    assert_eq!(
-        Some(("data-k".to_string(), "v".to_string())),
-        div.attrs().nth(1)
-    );
-    assert_eq!(
-        Some(("id".to_string(), "a".to_string())),
-        div.attrs().nth_back(1)
-    );
-    assert_eq!(
-        Some(("data-k".to_string(), "v".to_string())),
-        div.attrs().last()
-    );
-    assert_eq!(
-        vec![
-            ("id".to_string(), "a".to_string()),
-            ("data-k".to_string(), "v".to_string()),
-        ],
-        div.attrs().collect::<Vec<_>>()
-    );
-    assert_eq!(
-        vec![
-            ("data-k".to_string(), "v".to_string()),
-            ("id".to_string(), "a".to_string()),
-        ],
-        div.attrs().rev().collect::<Vec<_>>()
-    );
+
+    {
+        let attrs = div.attrs();
+        assert_eq!(2, attrs.len());
+        assert!(!attrs.is_empty());
+        assert_eq!(Some("a"), attrs.get("id"));
+        assert_eq!(Some("v"), attrs.get("data-k"));
+        assert_eq!(None, attrs.get("missing"));
+        let mut iter = attrs.iter();
+        let iter_clone = iter.clone();
+        assert_eq!(Some(("id", "a")), iter.next());
+        assert_eq!(
+            vec![("id", "a"), ("data-k", "v")],
+            iter_clone.collect::<Vec<_>>()
+        );
+        assert_eq!(Some(("data-k", "v")), attrs.iter().nth(1));
+        assert_eq!(Some(("id", "a")), attrs.iter().nth_back(1));
+        assert_eq!(Some(("data-k", "v")), attrs.iter().last());
+        assert_eq!(
+            vec![("id", "a"), ("data-k", "v")],
+            attrs.iter().collect::<Vec<_>>()
+        );
+        assert_eq!(
+            vec![("id", "a"), ("data-k", "v")],
+            (&attrs).into_iter().collect::<Vec<_>>()
+        );
+        assert_eq!(
+            vec![("data-k", "v"), ("id", "a")],
+            attrs.iter().rev().collect::<Vec<_>>()
+        );
+        assert_eq!(r#"{"id": "a", "data-k": "v"}"#, format!("{attrs:?}"));
+    }
+
+    let head = tree.find(|n| n.tag_name() == Some("head")).unwrap();
+    assert!(head.attrs().is_empty());
+    assert_eq!(0, head.attrs().len());
+    assert_eq!(None, head.attrs().get("id"));
+    assert_eq!(0, head.attrs().iter().count());
 
     let text = div.first_child().unwrap();
     assert_eq!(NodeType::Text, text.node_type());
-    assert_eq!(Some("hello".to_string()), text.text());
+    assert_eq!(Some("hello"), text.text().as_deref());
+    assert_eq!("hello", text.text().unwrap().to_string());
     assert_eq!("hello", text.html());
     assert_eq!(Some(div.clone()), text.parent());
-    assert_eq!(Some(text.clone()), div.children().next_back());
-    assert_eq!(vec![text], div.children().rev().collect::<Vec<_>>());
+    assert_eq!(Some(&text), div.children().last());
+    assert_eq!(r#"[Node::Text("hello")]"#, format!("{:?}", div.children()));
+    assert_eq!(
+        vec![text.clone()],
+        div.children().iter().rev().cloned().collect::<Vec<_>>()
+    );
+    assert_eq!(
+        vec![text.clone()],
+        (&div.children()).into_iter().cloned().collect::<Vec<_>>()
+    );
+
+    let mut visited_tags = Vec::new();
+    tree.walk(|node| {
+        if let Some(tag) = node.tag_name() {
+            visited_tags.push(tag.to_owned());
+        }
+        // Exercise nested reads during `walk` to confirm no `RefCell` borrow conflicts.
+        let _ = node.children().len();
+        let _ = node.attrs().len();
+        let _ = node.next_sibling();
+    });
+    assert_eq!(vec!["html", "head", "body", "div"], visited_tags);
+
+    let mut visited = 0;
+    let first_match = tree.find(|n| {
+        visited += 1;
+        matches!(n.tag_name(), Some("head" | "body"))
+    });
+    assert_eq!(Some("head"), first_match.as_ref().and_then(Node::tag_name));
+    assert_eq!(5, visited);
+
+    assert_eq!(Some(div.clone()), div.find(|n| n.tag_name() == Some("div")));
+    assert_eq!(None, div.find(|n| n.tag_name() == Some("missing")));
+
+    let bool_tree = converter.html_to_tree("<input disabled>").unwrap();
+    let input = bool_tree.find(|n| n.tag_name() == Some("input")).unwrap();
+    assert_eq!(Some(""), input.attr("disabled").as_deref());
+    assert_eq!(Some(""), input.attrs().get("disabled"));
 
     let hash_of = |node: &Node| {
         let mut hasher = DefaultHasher::new();
@@ -93,35 +160,15 @@ fn node_inspection_and_traversal() {
         hasher.finish()
     };
     assert_eq!(hash_of(&div), hash_of(&div.clone()));
-    assert!(format!("{div:?}").contains("Node::Element"));
+    assert_eq!("Node::Document", format!("{tree:?}"));
+    assert_eq!(r#"Node::Doctype("html")"#, format!("{:?}", children[0]));
+    assert_eq!(r#"Node::Comment("c")"#, format!("{:?}", children[1]));
+    assert_eq!(r#"Node::Element("div")"#, format!("{div:?}"));
+    assert_eq!(r#"Node::Text("hello")"#, format!("{text:?}"));
 }
 
-#[test]
-fn element_attr_and_attrs() {
-    let converter = HtmlToMarkdown::builder()
-        .add_handler(
-            vec!["div"],
-            |_handlers: &dyn Handlers, element: &Element| {
-                assert_eq!(Some("a"), element.attr("id"));
-                assert_eq!(Some("v"), element.attr("data-k"));
-                assert_eq!(None, element.attr("missing"));
-                assert_eq!(
-                    vec![("id", "a"), ("data-k", "v")],
-                    element.attrs().collect::<Vec<_>>()
-                );
-                assert_eq!(
-                    vec![("data-k", "v"), ("id", "a")],
-                    element.attrs().rev().collect::<Vec<_>>()
-                );
-                Some("handled".into())
-            },
-        )
-        .build();
-
-    assert_eq!(
-        "handled",
-        converter
-            .convert("<div id=\"a\" data-k=\"v\">hello</div>")
-            .unwrap()
-    );
+fn hash_of_str<T: Hash>(value: &T) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    value.hash(&mut hasher);
+    hasher.finish()
 }

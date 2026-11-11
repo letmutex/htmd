@@ -59,24 +59,3 @@ pub struct Element<'a> {
     /// The number of handlers to skip for this element.
     pub(crate) skipped_handlers: usize,
 }
-
-impl<'a> Element<'a> {
-    /// The value of the first attribute matching `name`, or `None` otherwise.
-    #[inline]
-    pub fn attr(&self, name: &str) -> Option<&'a str> {
-        self.attrs
-            .iter()
-            .find(|attr| &*attr.name.local == name)
-            .map(|attr| &*attr.value)
-    }
-
-    /// Iterate lazily over the element's attributes as `(name, value)`.
-    #[inline]
-    pub fn attrs(
-        &self,
-    ) -> impl ExactSizeIterator<Item = (&'a str, &'a str)> + DoubleEndedIterator + '_ {
-        self.attrs
-            .iter()
-            .map(|attr| (&*attr.name.local, &*attr.value))
-    }
-}
