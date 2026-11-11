@@ -24,7 +24,6 @@ pub fn convert_faithful_options(html: &str, options: Options) -> std::io::Result
 
 // `convert_faithful` with setext headings, the style whose h1 and h2 leave
 // their content at the start of a line.
-#[allow(dead_code)]
 pub fn convert_faithful_setext(html: &str) -> std::io::Result<String> {
     convert_faithful_options(
         html,
@@ -36,7 +35,6 @@ pub fn convert_faithful_setext(html: &str) -> std::io::Result<String> {
 }
 
 // The default translation mode, which drops what CommonMark cannot spell.
-#[allow(dead_code)]
 pub fn convert_pure(html: &str) -> std::io::Result<String> {
     HtmlToMarkdown::builder().build().convert(html)
 }
@@ -49,14 +47,12 @@ pub fn convert_pure(html: &str) -> std::io::Result<String> {
 // several callers still assert a `&#10;`: it decodes to the line ending it
 // replaced, so the trip is faithful even though the strings differ. Where a
 // trip loses something instead, the assertion says what.
-#[allow(dead_code)]
 pub fn round_trip(html: &str) -> String {
     render_markdown(&convert_faithful(html).unwrap(), CommonMarkOptions::empty())
 }
 
 // The second half of a round trip: the CommonMark of the first half read back
 // as HTML.
-#[allow(dead_code)]
 pub fn render_markdown(markdown: &str, options: CommonMarkOptions) -> String {
     let mut html_output = String::new();
     pulldown_cmark::html::push_html(&mut html_output, Parser::new_ext(markdown, options));

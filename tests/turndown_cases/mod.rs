@@ -174,7 +174,8 @@ fn unsupported(case: &str, key: &str, value: &str) -> ! {
 fn load_test_cases() -> Vec<TestCase> {
     let mut cases = Vec::<TestCase>::new();
 
-    let index_html = std::fs::read_to_string("tests/html/turndown_test_index.html").unwrap();
+    let index_html =
+        std::fs::read_to_string("tests/turndown_cases/turndown_test_index.html").unwrap();
     let document = Html::parse_document(&index_html);
 
     let input_selector = Selector::parse("div.input").unwrap();

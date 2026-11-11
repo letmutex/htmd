@@ -1,6 +1,6 @@
 use htmd::options::Options;
-mod common;
-use common::{convert_faithful, convert_faithful_options};
+
+use crate::common::{convert_faithful, convert_faithful_options};
 
 #[test]
 fn unordered_lists() {

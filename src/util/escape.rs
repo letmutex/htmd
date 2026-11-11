@@ -340,8 +340,7 @@ mod tests {
     }
 
     /// The text which follows may finish a tag or an autolink which the end of
-    /// the string cuts short; `a_sequence_finished_by_a_sibling_stays_text` in
-    /// `tests/basic_tests.rs` shows where that text comes from.
+    /// a text node cuts short, when an inline sibling continues it.
     #[test]
     fn escapes_a_sequence_cut_short() {
         for text in ["a <", "</", "<1", "<1@", "<1@b.co"] {
@@ -353,9 +352,7 @@ mod tests {
     /// A [CDATA section](https://spec.commonmark.org/0.31.2/#cdata-section) is
     /// raw HTML, so one written as literal text needs the escape every other
     /// tag gets. Left unescaped it passes through to the HTML output, where a
-    /// renderer reads it as a bogus comment and shows nothing;
-    /// `a_literal_cdata_section_is_lost_unescaped` in `tests/basic_tests.rs`
-    /// records that.
+    /// renderer reads it as a bogus comment and shows nothing.
     ///
     /// No caller in this crate reaches this arm: `escape_if_needed` escapes the
     /// brackets first, so a CDATA section arrives in the spelling
@@ -384,8 +381,6 @@ mod tests {
 
     /// A backslash in a destination escapes whatever follows it, the `)` or `>`
     /// which closes the destination included, so it is escaped itself.
-    /// `a_link_destination_escapes_its_backslashes` in `tests/link_tests.rs`
-    /// holds what an unescaped one costs.
     #[test]
     fn escapes_a_link_destination_backslash() {
         assert_eq!(r"a\\", escape_link_destination(r"a\"));

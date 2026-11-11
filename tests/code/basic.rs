@@ -1,15 +1,12 @@
+use htmd::Node;
 use htmd::{
-    Element, HtmlToMarkdown, Node,
+    Element, HtmlToMarkdown,
     element_handler::Handlers,
     options::{CodeBlockFence, Options},
 };
-use indoc::indoc;
 #[cfg(feature = "rcdom")]
 use markup5ever_rcdom::{Node as RcDomNode, NodeData};
 use pretty_assertions::assert_eq;
-
-mod common;
-use common::convert_faithful;
 
 fn find_element(node: &Node, tag: &str) -> Option<Node> {
     if node.tag_name() == Some(tag) {
@@ -17,45 +14,6 @@ fn find_element(node: &Node, tag: &str) -> Option<Node> {
     }
 
     node.children().find_map(|child| find_element(&child, tag))
-}
-
-#[test]
-fn code_blocks() {
-    let html = r#"
-        <pre><code>println!("Hello");</code></pre>
-        "#;
-    assert_eq!(
-        "```\nprintln!(\"Hello\");\n```",
-        convert_faithful(html).unwrap()
-    );
-}
-
-#[test]
-fn code_blocks_with_lang_class() {
-    let html = r#"
-        <pre><code class="language-rust">println!("Hello");</code></pre>
-        "#;
-    assert_eq!(
-        "```rust\nprintln!(\"Hello\");\n```",
-        convert_faithful(html).unwrap()
-    );
-}
-
-#[test]
-fn faithful_mode_preserves_an_empty_language_class() {
-    let html = r#"<pre><code class="language-">Test</code></pre>"#;
-
-    assert_eq!(html, convert_faithful(html).unwrap());
-}
-
-#[test]
-fn code_blocks_decode_html_entities() {
-    let html = r#"<pre><code>let x = 5 &amp;&amp; y &lt; 10;</code></pre>"#;
-
-    assert_eq!(
-        "```\nlet x = 5 && y < 10;\n```",
-        convert_faithful(html).unwrap()
-    );
 }
 
 // See https://github.com/letmutex/htmd/issues/14 for background on this test --
@@ -104,33 +62,6 @@ fn delegated_unhandled_subtree_preserves_ancestor_preformatted_context() {
 }
 
 #[test]
-fn faithful_mode_pre() {
-    assert_eq!(
-        convert_faithful(indoc!(r#"<pre>Test</pre>"#)).unwrap(),
-        indoc!(r#"<pre>Test</pre>"#)
-    );
-}
-
-#[test]
-fn faithful_mode_code_block1() {
-    assert_eq!(
-        convert_faithful(indoc!(r#"<pre><code accesskey="f">Test</code></pre>"#)).unwrap(),
-        indoc!(r#"<pre><code accesskey="f">Test</code></pre>"#)
-    );
-}
-
-#[test]
-fn faithful_mode_code_block2() {
-    assert_eq!(
-        convert_faithful(indoc!(
-            r#"<pre><code class="language-ruby"><i>Test</i></code></pre>"#
-        ))
-        .unwrap(),
-        indoc!(r#"<pre><code class="language-ruby"><i>Test</i></code></pre>"#)
-    );
-}
-
-#[test]
 fn inline_code_made_only_of_backticks_uses_a_non_colliding_delimiter() {
     let markdown = htmd::convert("<code>``</code>").unwrap();
 
@@ -159,7 +90,7 @@ fn preformatted_inline_code_preserves_boundary_spaces() {
 }
 
 /// Pure mode has no HTML fallback for a code span holding a line ending, which
-/// `translation_approach_tests::code_span_holding_a_line_ending` covers for
+/// `translation_approach::inline_faithful::code_span_holding_a_line_ending` covers for
 /// faithful mode. CommonMark reads such a line ending as a space, so writing
 /// the space keeps the rendered span and leaves the heading whole; the bare
 /// newline would end the heading and strand the rest of it in a paragraph.
