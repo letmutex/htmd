@@ -1,3 +1,5 @@
+use std::cell::Ref;
+use std::ops::{ControlFlow, Deref};
 use std::rc::Rc;
 
 /// The kind of a DOM [`Node`].
@@ -15,6 +17,256 @@ pub enum NodeType {
     Element,
     /// A processing instruction node.
     ProcessingInstruction,
+}
+
+/// A borrowed string view backed by a DOM [`Node`].
+pub struct NodeStr<'a>(Ref<'a, str>);
+
+impl Deref for NodeStr<'_> {
+    type Target = str;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl AsRef<str> for NodeStr<'_> {
+    #[inline]
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::borrow::Borrow<str> for NodeStr<'_> {
+    #[inline]
+    fn borrow(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::hash::Hash for NodeStr<'_> {
+    #[inline]
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        (*self.0).hash(state);
+    }
+}
+
+impl PartialOrd for NodeStr<'_> {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for NodeStr<'_> {
+    #[inline]
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        (*self.0).cmp(&*other.0)
+    }
+}
+
+impl PartialEq for NodeStr<'_> {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        *self.0 == *other.0
+    }
+}
+
+impl Eq for NodeStr<'_> {}
+
+impl PartialEq<str> for NodeStr<'_> {
+    #[inline]
+    fn eq(&self, other: &str) -> bool {
+        &*self.0 == other
+    }
+}
+
+impl PartialEq<&str> for NodeStr<'_> {
+    #[inline]
+    fn eq(&self, other: &&str) -> bool {
+        &*self.0 == *other
+    }
+}
+
+impl PartialEq<String> for NodeStr<'_> {
+    #[inline]
+    fn eq(&self, other: &String) -> bool {
+        &*self.0 == other
+    }
+}
+
+impl PartialEq<NodeStr<'_>> for str {
+    #[inline]
+    fn eq(&self, other: &NodeStr<'_>) -> bool {
+        self == &*other.0
+    }
+}
+
+impl PartialEq<NodeStr<'_>> for &str {
+    #[inline]
+    fn eq(&self, other: &NodeStr<'_>) -> bool {
+        *self == &*other.0
+    }
+}
+
+impl PartialEq<NodeStr<'_>> for String {
+    #[inline]
+    fn eq(&self, other: &NodeStr<'_>) -> bool {
+        self == &*other.0
+    }
+}
+
+impl std::fmt::Display for NodeStr<'_> {
+    #[inline]
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl std::fmt::Debug for NodeStr<'_> {
+    #[inline]
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(&*self.0, f)
+    }
+}
+
+/// A borrowed view of an element [`Node`]'s attributes.
+pub struct NodeAttrs<'a>(Option<Ref<'a, [html5ever::Attribute]>>);
+
+impl NodeAttrs<'_> {
+    /// The number of attributes on the element, or `0` for non-elements.
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.0.as_deref().map_or(0, <[html5ever::Attribute]>::len)
+    }
+
+    /// Whether the element has no attributes (or the node is not an element).
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// The value of the first attribute matching `name`, or `None` if absent.
+    #[inline]
+    pub fn get(&self, name: &str) -> Option<&str> {
+        self.0
+            .as_deref()?
+            .iter()
+            .find(|attr| &*attr.name.local == name)
+            .map(|attr| &*attr.value)
+    }
+
+    /// Iterate lazily over the element's attributes as `(name, value)`.
+    #[inline]
+    pub fn iter(&self) -> NodeAttrsIter<'_> {
+        NodeAttrsIter(self.0.as_deref().unwrap_or(&[]).iter())
+    }
+}
+
+impl<'a, 'b> IntoIterator for &'b NodeAttrs<'a> {
+    type Item = (&'b str, &'b str);
+    type IntoIter = NodeAttrsIter<'b>;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl std::fmt::Debug for NodeAttrs<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_map().entries(self.iter()).finish()
+    }
+}
+
+/// An iterator over `(name, value)` pairs borrowed from [`NodeAttrs`].
+#[derive(Clone)]
+pub struct NodeAttrsIter<'a>(std::slice::Iter<'a, html5ever::Attribute>);
+
+#[inline]
+fn attr_pair(attr: &html5ever::Attribute) -> (&str, &str) {
+    (&*attr.name.local, &*attr.value)
+}
+
+impl<'a> Iterator for NodeAttrsIter<'a> {
+    type Item = (&'a str, &'a str);
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next().map(attr_pair)
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
+    }
+
+    #[inline]
+    fn nth(&mut self, n: usize) -> Option<Self::Item> {
+        self.0.nth(n).map(attr_pair)
+    }
+
+    #[inline]
+    fn count(self) -> usize {
+        self.0.len()
+    }
+
+    #[inline]
+    fn last(mut self) -> Option<Self::Item> {
+        self.next_back()
+    }
+}
+
+impl DoubleEndedIterator for NodeAttrsIter<'_> {
+    #[inline]
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.0.next_back().map(attr_pair)
+    }
+
+    #[inline]
+    fn nth_back(&mut self, n: usize) -> Option<Self::Item> {
+        self.0.nth_back(n).map(attr_pair)
+    }
+}
+
+impl ExactSizeIterator for NodeAttrsIter<'_> {}
+impl std::iter::FusedIterator for NodeAttrsIter<'_> {}
+
+/// A borrowed slice of a DOM [`Node`]'s direct children.
+pub struct NodeChildren<'a>(Ref<'a, [Node]>);
+
+impl Deref for NodeChildren<'_> {
+    type Target = [Node];
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl AsRef<[Node]> for NodeChildren<'_> {
+    #[inline]
+    fn as_ref(&self) -> &[Node] {
+        &self.0
+    }
+}
+
+impl<'a, 'b> IntoIterator for &'b NodeChildren<'a> {
+    type Item = &'b Node;
+    type IntoIter = std::slice::Iter<'b, Node>;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+impl std::fmt::Debug for NodeChildren<'_> {
+    #[inline]
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
 }
 
 /// A reference-counted handle to a DOM node.
@@ -63,9 +315,11 @@ impl Node {
 
     /// The text contents if this node is a text node, or `None` otherwise.
     #[inline]
-    pub fn text(&self) -> Option<String> {
+    pub fn text(&self) -> Option<NodeStr<'_>> {
         match &self.0.data {
-            markup5ever_rcdom::NodeData::Text { contents } => Some(contents.borrow().to_string()),
+            markup5ever_rcdom::NodeData::Text { contents } => {
+                Some(NodeStr(Ref::map(contents.borrow(), |text| &**text)))
+            }
             _ => None,
         }
     }
@@ -73,29 +327,32 @@ impl Node {
     /// The value of the first attribute matching `name` if this node is an element,
     /// or `None` otherwise.
     #[inline]
-    pub fn attr(&self, name: &str) -> Option<String> {
+    pub fn attr(&self, name: &str) -> Option<NodeStr<'_>> {
         match &self.0.data {
-            markup5ever_rcdom::NodeData::Element { attrs, .. } => attrs
-                .borrow()
-                .iter()
-                .find(|attr| &*attr.name.local == name)
-                .map(|attr| attr.value.to_string()),
+            markup5ever_rcdom::NodeData::Element { attrs, .. } => {
+                Ref::filter_map(attrs.borrow(), |attrs| {
+                    attrs
+                        .iter()
+                        .find(|attr| &*attr.name.local == name)
+                        .map(|attr| &*attr.value)
+                })
+                .ok()
+                .map(NodeStr)
+            }
             _ => None,
         }
     }
 
-    /// Iterate lazily over the element's attributes as `(name, value)`.
+    /// Borrow the element's attributes, or an empty view for non-elements.
     #[inline]
-    pub fn attrs(
-        &self,
-    ) -> impl ExactSizeIterator<Item = (String, String)> + DoubleEndedIterator + '_ {
+    pub fn attrs(&self) -> NodeAttrs<'_> {
         let attrs = match &self.0.data {
-            markup5ever_rcdom::NodeData::Element { attrs, .. } => Some(attrs.borrow()),
+            markup5ever_rcdom::NodeData::Element { attrs, .. } => {
+                Some(Ref::map(attrs.borrow(), Vec::as_slice))
+            }
             _ => None,
         };
-        RefSliceMap::new(attrs, |attr| {
-            (attr.name.local.to_string(), attr.value.to_string())
-        })
+        NodeAttrs(attrs)
     }
 
     /// The parent node, if any.
@@ -110,12 +367,24 @@ impl Node {
         self.0.children.borrow().first().cloned().map(Node)
     }
 
-    /// Iterate lazily over the direct child nodes without allocating a `Vec`.
+    /// Borrow the direct child nodes as a slice.
     #[inline]
-    pub fn children(&self) -> impl ExactSizeIterator<Item = Node> + DoubleEndedIterator + '_ {
-        RefSliceMap::new(Some(self.0.children.borrow()), |child| {
-            Node(Rc::clone(child))
+    pub fn children(&self) -> NodeChildren<'_> {
+        NodeChildren(Ref::map(self.0.children.borrow(), |children| {
+            rc_slice_as_nodes(children)
+        }))
+    }
+
+    /// Return the first node in this subtree (including `self`) matching `predicate`.
+    pub fn find(&self, mut predicate: impl FnMut(&Node) -> bool) -> Option<Node> {
+        walk_rc(&self.0, &mut |node| {
+            if predicate(node) {
+                ControlFlow::Break(node.clone())
+            } else {
+                ControlFlow::Continue(())
+            }
         })
+        .break_value()
     }
 
     /// Serialize this node and its descendants to HTML.
@@ -126,108 +395,22 @@ impl Node {
     }
 }
 
-struct RefSliceMap<'a, T, F> {
-    items: Option<std::cell::Ref<'a, Vec<T>>>,
-    front: usize,
-    back: usize,
-    map: F,
+#[inline]
+fn rc_slice_as_nodes(slice: &[Rc<markup5ever_rcdom::Node>]) -> &[Node] {
+    // SAFETY: `Node` is `#[repr(transparent)]` over `Rc<markup5ever_rcdom::Node>`.
+    unsafe { std::slice::from_raw_parts(slice.as_ptr().cast::<Node>(), slice.len()) }
 }
 
-impl<'a, T, R, F> RefSliceMap<'a, T, F>
-where
-    F: FnMut(&T) -> R,
-{
-    #[inline]
-    fn new(items: Option<std::cell::Ref<'a, Vec<T>>>, map: F) -> Self {
-        let back = items.as_ref().map_or(0, |items| items.len());
-        Self {
-            items,
-            front: 0,
-            back,
-            map,
-        }
+fn walk_rc<T>(
+    node: &Rc<markup5ever_rcdom::Node>,
+    visitor: &mut impl FnMut(&Node) -> ControlFlow<T>,
+) -> ControlFlow<T> {
+    visitor(Node::from_rc_ref(node))?;
+    for child in node.children.borrow().iter() {
+        walk_rc(child, visitor)?;
     }
+    ControlFlow::Continue(())
 }
-
-impl<T, R, F> Iterator for RefSliceMap<'_, T, F>
-where
-    F: FnMut(&T) -> R,
-{
-    type Item = R;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        let items = self.items.as_ref()?;
-        if self.front < self.back {
-            let item = (self.map)(&items[self.front]);
-            self.front += 1;
-            Some(item)
-        } else {
-            None
-        }
-    }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.back - self.front;
-        (len, Some(len))
-    }
-
-    #[inline]
-    fn nth(&mut self, n: usize) -> Option<Self::Item> {
-        let items = self.items.as_ref()?;
-        if n < self.back - self.front {
-            self.front += n;
-            let item = (self.map)(&items[self.front]);
-            self.front += 1;
-            Some(item)
-        } else {
-            self.front = self.back;
-            None
-        }
-    }
-
-    #[inline]
-    fn count(self) -> usize {
-        self.len()
-    }
-
-    #[inline]
-    fn last(mut self) -> Option<Self::Item> {
-        self.next_back()
-    }
-}
-
-impl<T, R, F> DoubleEndedIterator for RefSliceMap<'_, T, F>
-where
-    F: FnMut(&T) -> R,
-{
-    #[inline]
-    fn next_back(&mut self) -> Option<Self::Item> {
-        let items = self.items.as_ref()?;
-        if self.front < self.back {
-            self.back -= 1;
-            Some((self.map)(&items[self.back]))
-        } else {
-            None
-        }
-    }
-
-    #[inline]
-    fn nth_back(&mut self, n: usize) -> Option<Self::Item> {
-        let items = self.items.as_ref()?;
-        if n < self.back - self.front {
-            self.back -= n + 1;
-            Some((self.map)(&items[self.back]))
-        } else {
-            self.back = self.front;
-            None
-        }
-    }
-}
-
-impl<T, R, F> ExactSizeIterator for RefSliceMap<'_, T, F> where F: FnMut(&T) -> R {}
-impl<T, R, F> std::iter::FusedIterator for RefSliceMap<'_, T, F> where F: FnMut(&T) -> R {}
 
 impl PartialEq for Node {
     #[inline]

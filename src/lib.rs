@@ -16,7 +16,7 @@ use html5ever::tree_builder::TreeBuilderOpts;
 use html5ever::{ParseOpts, parse_document};
 pub use input::ConvertInput;
 use markup5ever_rcdom::RcDom;
-pub use node::{Node, NodeType};
+pub use node::{Node, NodeAttrs, NodeAttrsIter, NodeChildren, NodeStr, NodeType};
 use options::Options;
 use util::node::is_inside_pre;
 

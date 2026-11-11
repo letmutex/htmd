@@ -1,4 +1,3 @@
-use htmd::Node;
 use htmd::{
     Element, HtmlToMarkdown,
     element_handler::Handlers,
@@ -7,14 +6,6 @@ use htmd::{
 #[cfg(feature = "rcdom")]
 use markup5ever_rcdom::{Node as RcDomNode, NodeData};
 use pretty_assertions::assert_eq;
-
-fn find_element(node: &Node, tag: &str) -> Option<Node> {
-    if node.tag_name() == Some(tag) {
-        return Some(node.clone());
-    }
-
-    node.children().find_map(|child| find_element(&child, tag))
-}
 
 // See https://github.com/letmutex/htmd/issues/14 for background on this test --
 // the `class` attribute is deliberately misplaced to support Markdown renderers
@@ -36,7 +27,7 @@ fn span_subtree_conversion_preserves_ancestor_preformatted_context() {
     let tree = converter
         .html_to_tree("<pre><span>  *literal*  \nsecond</span></pre>")
         .unwrap();
-    let span = find_element(&tree, "span").unwrap();
+    let span = tree.find(|node| node.tag_name() == Some("span")).unwrap();
 
     assert_eq!("  *literal*  \nsecond", converter.convert(&span).unwrap());
 }
