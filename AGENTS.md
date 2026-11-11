@@ -83,10 +83,10 @@ Repository layout
 * `src/util/` -- text, escaping, and Unicode helpers used by the handlers.
 * `src/lib.rs` and `src/options.rs` -- the public API and the conversion
   options, including `TranslationMode`.
-* `tests/` -- integration tests grouped by feature (`table_tests.rs`,
-  `link_tests.rs`, ...). Add cases to the file matching the feature, and convert
-  through the helpers in `tests/common/mod.rs`, which default to
-  `TranslationMode::Faithful`.
+* `tests/` -- integration tests compiled from `tests/integration.rs` and
+  grouped into feature modules (`table/`, `link/`, ...), split into
+  `<topic>.rs` (pure/default mode) and `<topic>_faithful.rs` (faithful mode). Add cases to the submodule matching the feature
+  and mode.
 * `translation_approach.md` -- the design record for the overall translation
   approach, organized to mirror the CommonMark spec: how each construct is
   translated, which HTML has no CommonMark equivalent, and why each fallback was
