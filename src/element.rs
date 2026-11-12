@@ -48,7 +48,7 @@ impl Context {
 /// The DOM element.
 pub struct Element<'a> {
     /// The DOM node of the element.
-    pub node: &'a Node,
+    pub node: &'a Node<'a>,
     /// The tag name.
     pub tag: &'a str,
     pub(crate) attrs: &'a [Attribute],

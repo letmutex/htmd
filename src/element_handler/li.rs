@@ -4,7 +4,7 @@ use crate::{
     element_handler::{HandlerResult, Handlers},
     options::BulletListMarker,
     util::{
-        node::{get_node_tag_name, get_parent_node},
+        node::get_node_tag_name,
         text::{TrimDocumentWhitespace, concat_strings, indent_text_except_first_line},
     },
 };
@@ -38,7 +38,7 @@ pub(super) fn list_item_handler(
         Some(concat_strings!("\n", content, "\n").into())
     };
 
-    if let Some(parent) = get_parent_node(element.node.as_rc())
+    if let Some(parent) = element.node.parent()
         && let Some(parent_tag_name) = get_node_tag_name(&parent)
         && parent_tag_name == "ol"
     {

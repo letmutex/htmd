@@ -12,12 +12,14 @@ categories = ["text-processing", "parsing"]
 readme = "README.md"
 
 [features]
-default = []
-rcdom = []
+default = ["ego-tree"]
+ego-tree = ["dep:ego-tree"]
+rcdom = ["dep:markup5ever_rcdom"]
 
 [dependencies]
+ego-tree = { version = "0.11", optional = true }
 html5ever = "0.40"
-markup5ever_rcdom = "0.40"
+markup5ever_rcdom = { version = "0.40", optional = true }
 phf = { version = "0.14", features = ["macros"] }
 
 [dev-dependencies]

@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::{HtmlToMarkdown, Node};
+use crate::{HtmlToMarkdown, Node, Tree};
 
 /// Input accepted by [`convert`](crate::convert) and [`HtmlToMarkdown::convert`].
 pub trait ConvertInput {
@@ -12,7 +12,7 @@ impl ConvertInput for &str {
     #[inline]
     fn convert_with(self, converter: &HtmlToMarkdown) -> std::io::Result<String> {
         let tree = converter.html_to_tree(self)?;
-        Ok(converter.tree_to_markdown(&tree))
+        Ok(converter.tree_to_markdown(&tree.root()))
     }
 }
 
@@ -46,21 +46,35 @@ impl_str_convert_input!(
     &Rc<str>,
 );
 
-impl ConvertInput for &Node {
+impl ConvertInput for &Tree {
+    #[inline]
+    fn convert_with(self, converter: &HtmlToMarkdown) -> std::io::Result<String> {
+        Ok(converter.tree_to_markdown(&self.root()))
+    }
+}
+
+impl ConvertInput for Tree {
+    #[inline]
+    fn convert_with(self, converter: &HtmlToMarkdown) -> std::io::Result<String> {
+        Ok(converter.tree_to_markdown(&self.root()))
+    }
+}
+
+impl ConvertInput for &Node<'_> {
     #[inline]
     fn convert_with(self, converter: &HtmlToMarkdown) -> std::io::Result<String> {
         Ok(converter.tree_to_markdown(self))
     }
 }
 
-impl ConvertInput for &&Node {
+impl ConvertInput for &&Node<'_> {
     #[inline]
     fn convert_with(self, converter: &HtmlToMarkdown) -> std::io::Result<String> {
         Ok(converter.tree_to_markdown(self))
     }
 }
 
-impl ConvertInput for Node {
+impl ConvertInput for Node<'_> {
     #[inline]
     fn convert_with(self, converter: &HtmlToMarkdown) -> std::io::Result<String> {
         Ok(converter.tree_to_markdown(&self))
@@ -71,7 +85,8 @@ impl ConvertInput for Node {
 impl ConvertInput for &Rc<markup5ever_rcdom::Node> {
     #[inline]
     fn convert_with(self, converter: &HtmlToMarkdown) -> std::io::Result<String> {
-        Ok(converter.tree_to_markdown(Node::from_rc_ref(self)))
+        let node = Node::from_rc_borrowed(self);
+        Ok(converter.tree_to_markdown(&node))
     }
 }
 
@@ -79,6 +94,7 @@ impl ConvertInput for &Rc<markup5ever_rcdom::Node> {
 impl ConvertInput for Rc<markup5ever_rcdom::Node> {
     #[inline]
     fn convert_with(self, converter: &HtmlToMarkdown) -> std::io::Result<String> {
-        Ok(converter.tree_to_markdown(Node::from_rc_ref(&self)))
+        let node = Node::from_rc_borrowed(&self);
+        Ok(converter.tree_to_markdown(&node))
     }
 }

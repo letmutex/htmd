@@ -27,7 +27,10 @@ fn span_subtree_conversion_preserves_ancestor_preformatted_context() {
     let tree = converter
         .html_to_tree("<pre><span>  *literal*  \nsecond</span></pre>")
         .unwrap();
-    let span = tree.find(|node| node.tag_name() == Some("span")).unwrap();
+    let span = tree
+        .root()
+        .find(|node| node.tag_name() == Some("span"))
+        .unwrap();
 
     assert_eq!("  *literal*  \nsecond", converter.convert(&span).unwrap());
 }

@@ -93,3 +93,18 @@ fn round_trip_pure_table(html: &str) -> String {
         CommonMarkOptions::ENABLE_TABLES,
     )
 }
+
+#[test]
+fn template_and_annotation_xml_conversion() {
+    assert_eq!(
+        "visible",
+        convert_pure("<template><em>a</em><em>b</em></template><p>visible</p>").unwrap()
+    );
+    assert_eq!(
+        "*ab*",
+        convert_pure(
+            "<math><annotation-xml encoding=\"text/html\"><p><em>a</em><em>b</em></p></annotation-xml></math>"
+        )
+        .unwrap()
+    );
+}

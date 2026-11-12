@@ -1,14 +1,12 @@
-use crate::Context;
 use crate::element_handler::element_util::serialize_element_result;
 use crate::element_handler::element_util::serialize_if_extra_attrs_or_inline;
 use crate::element_handler::{Element, HandlerResult, Handlers};
 use crate::options::TranslationMode;
 use crate::util::{
-    node::{get_node_tag_name, get_parent_node},
+    node::get_node_tag_name,
     text::{TrimDocumentWhitespace, concat_strings, frame_as_block},
 };
-use markup5ever_rcdom::NodeData;
-use std::rc::Rc;
+use crate::{Context, Node};
 
 /// Handler for table elements.
 ///
@@ -23,8 +21,7 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: &Element) -> Optio
     // a block context.
     serialize_if_extra_attrs_or_inline!(handlers, element, 0);
     if handlers.options().translation_mode == TranslationMode::Pure
-        && (!has_explicit_headers(element.node.as_rc())
-            || is_inside_table_cell(element.node.as_rc()))
+        && (!has_explicit_headers(element.node) || is_inside_table_cell(element.node))
     {
         return handlers.fallback(element);
     }
@@ -34,7 +31,7 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: &Element) -> Optio
         mut headers,
         rows,
         all_children_translated,
-    } = extract_table_content(handlers, element.node.as_rc());
+    } = extract_table_content(handlers, element.node);
 
     if handlers.options().translation_mode == TranslationMode::Faithful && !all_children_translated
     {
@@ -87,10 +84,7 @@ struct ExtractedTable {
     all_children_translated: bool,
 }
 
-fn extract_table_content(
-    handlers: &dyn Handlers,
-    table_node: &Rc<markup5ever_rcdom::Node>,
-) -> ExtractedTable {
+fn extract_table_content(handlers: &dyn Handlers, table_node: &Node<'_>) -> ExtractedTable {
     let mut table = ExtractedTable {
         captions: String::new(),
         headers: Vec::new(),
@@ -100,11 +94,11 @@ fn extract_table_content(
     let mut has_thead = false;
     let mut has_tbody = false;
 
-    for child in table_node.children.borrow().iter() {
-        let Some(tag) = get_node_tag_name(child) else {
+    for child in table_node.children().iter() {
+        let Some(tag) = child.tag_name() else {
             // A comment, or other text in a tree built elsewhere, has nowhere
             // to go in a Markdown table.
-            table.all_children_translated &= is_whitespace_between_table_elements(child);
+            table.all_children_translated &= is_whitespace_between_table_elements(&child);
             continue;
         };
 
@@ -112,9 +106,7 @@ fn extract_table_content(
         // sections, rows and cells all sit in one.
         match tag {
             "caption" => {
-                if let Some(result) =
-                    handlers.handle(crate::Node::from_rc_ref(child), Context::BLOCK)
-                {
+                if let Some(result) = handlers.handle(&child, Context::BLOCK) {
                     // A caption which only HTML can express takes the whole
                     // table with it: written as an HTML block of its own it
                     // would land outside any table, where the "in body"
@@ -138,29 +130,29 @@ fn extract_table_content(
             // spelling for.
             "thead" => {
                 table.all_children_translated &=
-                    has_no_attributes(child) && !has_thead && !has_tbody && table.rows.is_empty();
+                    has_no_attributes(&child) && !has_thead && !has_tbody && table.rows.is_empty();
                 has_thead = true;
-                extract_thead(handlers, child, &mut table);
+                extract_thead(handlers, &child, &mut table);
             }
             // A GFM table has one body, so a second `<tbody>`'s rows can only
             // join the first, which loses the split between them.
             "tbody" => {
-                table.all_children_translated &= has_no_attributes(child) && !has_tbody;
+                table.all_children_translated &= has_no_attributes(&child) && !has_tbody;
                 has_tbody = true;
-                extract_section_rows(handlers, child, &mut table, &mut has_thead);
+                extract_section_rows(handlers, &child, &mut table, &mut has_thead);
             }
             // A GFM table has one body, so a `<tfoot>`'s rows can only join it,
             // which loses the footer. Faithful mode writes the table as HTML
             // rather than lose it; pure mode has no fallback and takes the join.
             "tfoot" => {
                 table.all_children_translated = false;
-                extract_section_rows(handlers, child, &mut table, &mut has_thead);
+                extract_section_rows(handlers, &child, &mut table, &mut has_thead);
             }
             // The parser wraps a stray `<tr>` in a `<tbody>`, so a row reaches
             // a table as a direct child of one only in a tree built elsewhere
             // and handed to `HtmlToMarkdown::convert`. Read it as a row
             // of the `<tbody>` the parser would have wrapped it in.
-            "tr" => extract_row(handlers, child, &mut table, &mut has_thead),
+            "tr" => extract_row(handlers, &child, &mut table, &mut has_thead),
             // A `<colgroup>`, its `<col>`s, and anything else a table may hold
             // have no Markdown spelling at all.
             _ => table.all_children_translated = false,
@@ -183,30 +175,23 @@ fn extract_table_content(
     table
 }
 
-fn extract_thead(
-    handlers: &dyn Handlers,
-    thead_node: &Rc<markup5ever_rcdom::Node>,
-    table: &mut ExtractedTable,
-) {
-    let children = thead_node.children.borrow();
-    let mut row_nodes = children
+fn extract_thead(handlers: &dyn Handlers, thead_node: &Node<'_>, table: &mut ExtractedTable) {
+    let children_view = thead_node.children();
+    let mut rows = children_view
         .iter()
         .filter(|node| get_node_tag_name(node) == Some("tr"));
-    let row_node = row_nodes.next();
+    let row_node = rows.next();
+    let has_multiple_rows = rows.next().is_some();
     // A GFM table has exactly one header row, so a second `<tr>` here has
     // nowhere to go.
-    table.all_children_translated &= row_nodes.next().is_none() && holds_only(thead_node, "tr");
+    table.all_children_translated &= !has_multiple_rows && holds_only(thead_node, "tr");
 
-    extract_header_row(handlers, row_node.unwrap_or(thead_node), table);
+    extract_header_row(handlers, row_node.as_ref().unwrap_or(thead_node), table);
 }
 
 /// Fills `table.headers` from `row_node`, preferring its `th` cells and falling
 /// back to its `td` cells when it holds no `th`.
-fn extract_header_row(
-    handlers: &dyn Handlers,
-    row_node: &Rc<markup5ever_rcdom::Node>,
-    table: &mut ExtractedTable,
-) {
+fn extract_header_row(handlers: &dyn Handlers, row_node: &Node<'_>, table: &mut ExtractedTable) {
     if take_header_cells(handlers, row_node, table) {
         return;
     }
@@ -222,7 +207,7 @@ fn extract_header_row(
 /// any.
 fn take_header_cells(
     handlers: &dyn Handlers,
-    row_node: &Rc<markup5ever_rcdom::Node>,
+    row_node: &Node<'_>,
     table: &mut ExtractedTable,
 ) -> bool {
     let (headers, translated) = extract_row_cells(handlers, row_node, "th");
@@ -236,15 +221,15 @@ fn take_header_cells(
 
 fn extract_section_rows(
     handlers: &dyn Handlers,
-    section_node: &Rc<markup5ever_rcdom::Node>,
+    section_node: &Node<'_>,
     table: &mut ExtractedTable,
     has_thead: &mut bool,
 ) {
     table.all_children_translated &= holds_only(section_node, "tr");
 
-    for row_node in section_node.children.borrow().iter() {
-        if get_node_tag_name(row_node) == Some("tr") {
-            extract_row(handlers, row_node, table, has_thead);
+    for row_node in section_node.children().iter() {
+        if get_node_tag_name(&row_node) == Some("tr") {
+            extract_row(handlers, &row_node, table, has_thead);
         }
     }
 }
@@ -253,7 +238,7 @@ fn extract_section_rows(
 /// and no header row has been found yet, and as a body row otherwise.
 fn extract_row(
     handlers: &dyn Handlers,
-    row_node: &Rc<markup5ever_rcdom::Node>,
+    row_node: &Node<'_>,
     table: &mut ExtractedTable,
     has_thead: &mut bool,
 ) {
@@ -272,11 +257,7 @@ fn extract_row(
 }
 
 /// Appends `row_node`'s `td` cells to `table.rows`.
-fn extract_body_row(
-    handlers: &dyn Handlers,
-    row_node: &Rc<markup5ever_rcdom::Node>,
-    table: &mut ExtractedTable,
-) {
+fn extract_body_row(handlers: &dyn Handlers, row_node: &Node<'_>, table: &mut ExtractedTable) {
     let (cells, translated) = extract_row_cells(handlers, row_node, "td");
     // A row which yields no cells is dropped rather than written as the empty
     // Markdown row it has no content for.
@@ -287,16 +268,16 @@ fn extract_body_row(
 }
 
 /// Whether every child of `node` is a `tag` element, ignoring whitespace.
-fn holds_only(node: &Rc<markup5ever_rcdom::Node>, tag: &str) -> bool {
-    node.children.borrow().iter().all(|child| {
-        is_whitespace_between_table_elements(child) || get_node_tag_name(child) == Some(tag)
-    })
+fn holds_only(node: &Node<'_>, tag: &str) -> bool {
+    node.children()
+        .iter()
+        .all(|child| is_whitespace_between_table_elements(&child) || child.tag_name() == Some(tag))
 }
 
 /// Whether `node` is the whitespace text which the [in table text](https://html.spec.whatwg.org/multipage/parsing.html#parsing-main-intabletext) mode keeps in a table.
-fn is_whitespace_between_table_elements(node: &markup5ever_rcdom::Node) -> bool {
-    matches!(&node.data, NodeData::Text { contents }
-        if contents.borrow().chars().all(|c| c.is_ascii_whitespace()))
+fn is_whitespace_between_table_elements(node: &Node<'_>) -> bool {
+    node.text()
+        .is_some_and(|contents| contents.chars().all(|c| c.is_ascii_whitespace()))
 }
 
 /// Whether `node`'s subtree holds a comment whose text has a `|`, which splits
@@ -305,10 +286,12 @@ fn is_whitespace_between_table_elements(node: &markup5ever_rcdom::Node) -> bool 
 /// text, and a character reference stays the literal characters composing it.
 /// Only faithful mode can keep such a comment, by writing the table as HTML.
 /// See the "Tables" section of `translation_approach.md`.
-fn holds_a_comment_with_a_pipe(node: &Rc<markup5ever_rcdom::Node>) -> bool {
-    node.children.borrow().iter().any(|child| {
-        matches!(&child.data, NodeData::Comment { contents } if contents.contains('|'))
-            || holds_a_comment_with_a_pipe(child)
+fn holds_a_comment_with_a_pipe(node: &Node<'_>) -> bool {
+    node.children().iter().any(|child| {
+        child
+            .comment()
+            .is_some_and(|contents| contents.contains('|'))
+            || holds_a_comment_with_a_pipe(&child)
     })
 }
 
@@ -318,17 +301,14 @@ fn holds_a_comment_with_a_pipe(node: &Rc<markup5ever_rcdom::Node>) -> bool {
 /// pass to `handle_or_serialize_by_parent`, repeated here because a translated
 /// table walks its own sections and rows rather than routing them through those
 /// handlers.
-fn has_no_attributes(node: &Rc<markup5ever_rcdom::Node>) -> bool {
-    match &node.data {
-        NodeData::Element { attrs, .. } => attrs.borrow().is_empty(),
-        _ => true,
-    }
+fn has_no_attributes(node: &Node<'_>) -> bool {
+    node.attrs().is_empty()
 }
 
-fn has_explicit_headers(node: &Rc<markup5ever_rcdom::Node>) -> bool {
-    fn visit(node: &Rc<markup5ever_rcdom::Node>, is_root: bool) -> bool {
-        for child in node.children.borrow().iter() {
-            if let Some(tag_name) = get_node_tag_name(child) {
+fn has_explicit_headers(node: &Node<'_>) -> bool {
+    fn visit(node: &Node<'_>, is_root: bool) -> bool {
+        for child in node.children().iter() {
+            if let Some(tag_name) = get_node_tag_name(&child) {
                 if !is_root && tag_name == "table" {
                     continue;
                 }
@@ -337,7 +317,7 @@ fn has_explicit_headers(node: &Rc<markup5ever_rcdom::Node>) -> bool {
                 }
             }
 
-            if visit(child, false) {
+            if visit(&child, false) {
                 return true;
             }
         }
@@ -348,14 +328,14 @@ fn has_explicit_headers(node: &Rc<markup5ever_rcdom::Node>) -> bool {
     visit(node, true)
 }
 
-fn is_inside_table_cell(node: &Rc<markup5ever_rcdom::Node>) -> bool {
-    let mut current = get_parent_node(node);
+fn is_inside_table_cell(node: &Node<'_>) -> bool {
+    let mut current = node.parent();
 
     while let Some(parent) = current {
         if get_node_tag_name(&parent).is_some_and(|tag| matches!(tag, "td" | "th")) {
             return true;
         }
-        current = get_parent_node(&parent);
+        current = parent.parent();
     }
 
     false
@@ -364,7 +344,7 @@ fn is_inside_table_cell(node: &Rc<markup5ever_rcdom::Node>) -> bool {
 /// Extract cells from a row node
 fn extract_row_cells(
     handlers: &dyn Handlers,
-    row_node: &Rc<markup5ever_rcdom::Node>,
+    row_node: &Node<'_>,
     cell_tag: &str,
 ) -> (Vec<String>, bool) {
     let mut cells = Vec::new();
@@ -374,19 +354,18 @@ fn extract_row_cells(
     // other elements a `<tr>` may hold, such as a `<script>`.
     let mut all_translated = has_no_attributes(row_node) && holds_only(row_node, cell_tag);
 
-    for cell_node in row_node.children.borrow().iter() {
-        if get_node_tag_name(cell_node) == Some(cell_tag) {
+    for cell_node in row_node.children().iter() {
+        if get_node_tag_name(&cell_node) == Some(cell_tag) {
             // See `extract_table_content`: a cell of a translated table is
             // always in a block context.
-            let Some(res) = handlers.handle(crate::Node::from_rc_ref(cell_node), Context::BLOCK)
-            else {
+            let Some(res) = handlers.handle(&cell_node, Context::BLOCK) else {
                 continue;
             };
             // A comment holding a `|` is looked for here rather than over the
             // whole table because a comment anywhere else in one -- between
             // cells, rows or sections -- is already ruled out by `holds_only`,
             // and a `<caption>` takes the table to HTML whatever it holds.
-            if !res.markdown_translated || holds_a_comment_with_a_pipe(cell_node) {
+            if !res.markdown_translated || holds_a_comment_with_a_pipe(&cell_node) {
                 all_translated = false;
             }
             let cell_content = normalize_cell_content(res.content.trim_document_whitespace());

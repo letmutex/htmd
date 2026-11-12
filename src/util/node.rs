@@ -1,60 +1,17 @@
-use std::{cell::RefCell, rc::Rc};
-
-use html5ever::tendril::StrTendril;
-use markup5ever_rcdom::{Node, NodeData};
 use phf::phf_set;
 
-pub(crate) fn get_node_tag_name(node: &Rc<Node>) -> Option<&str> {
-    match &node.data {
-        NodeData::Document => Some("html"),
-        NodeData::Element { name, .. } => Some(&name.local),
+use crate::{Node, NodeType};
+
+pub(crate) fn get_node_tag_name<'a>(node: &'a Node<'_>) -> Option<&'a str> {
+    match node.node_type() {
+        NodeType::Document => Some("html"),
+        NodeType::Element => node.tag_name(),
         _ => None,
     }
 }
 
-pub(crate) fn get_parent_node(node: &Rc<Node>) -> Option<Rc<Node>> {
-    let value = node.parent.take();
-    let parent = value.as_ref().and_then(|parent| parent.upgrade());
-    node.parent.set(value);
-    parent
-}
-
-/// A copy of the element `node` whose only child is a text node holding
-/// `text`. The copy names `parent` as its parent, though `parent` does not list
-/// it among its children.
-pub(crate) fn copy_element_holding_text(
-    node: &Node,
-    parent: Option<&Rc<Node>>,
-    text: StrTendril,
-) -> Rc<Node> {
-    let NodeData::Element {
-        name,
-        attrs,
-        template_contents,
-        mathml_annotation_xml_integration_point,
-    } = &node.data
-    else {
-        unreachable!("only an element node is copied")
-    };
-
-    let copy = Node::new(NodeData::Element {
-        name: name.clone(),
-        attrs: RefCell::new(attrs.borrow().clone()),
-        template_contents: RefCell::new(template_contents.borrow().clone()),
-        mathml_annotation_xml_integration_point: *mathml_annotation_xml_integration_point,
-    });
-    copy.parent.set(parent.map(Rc::downgrade));
-
-    let text_node = Node::new(NodeData::Text {
-        contents: RefCell::new(text),
-    });
-    text_node.parent.set(Some(Rc::downgrade(&copy)));
-    copy.children.borrow_mut().push(text_node);
-    copy
-}
-
-pub(crate) fn parent_tag_name_equals(node: &Rc<Node>, tag_names: &[&str]) -> bool {
-    get_parent_node(node)
+pub(crate) fn parent_tag_name_equals(node: &Node<'_>, tag_names: &[&str]) -> bool {
+    node.parent()
         .as_ref()
         .and_then(get_node_tag_name)
         .is_some_and(|tag| tag_names.contains(&tag))
@@ -65,13 +22,13 @@ pub(crate) fn is_pre_element(tag: &str) -> bool {
     tag == "pre" || tag == "code"
 }
 
-pub(crate) fn is_inside_pre(node: &Rc<Node>) -> bool {
-    let mut current = get_parent_node(node);
+pub(crate) fn is_inside_pre(node: &Node<'_>) -> bool {
+    let mut current = node.parent();
     while let Some(parent) = current {
         if get_node_tag_name(&parent).is_some_and(is_pre_element) {
             return true;
         }
-        current = get_parent_node(&parent);
+        current = parent.parent();
     }
     false
 }
