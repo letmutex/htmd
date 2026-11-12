@@ -328,6 +328,7 @@ name = "htmd"
 version = "0.5.5"
 dependencies = [
  "criterion",
+ "ego-tree",
  "html5ever",
  "indoc",
  "markup5ever_rcdom",

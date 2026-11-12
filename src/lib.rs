@@ -1,3 +1,7 @@
+#[cfg(not(any(feature = "ego-tree", feature = "rcdom")))]
+compile_error!("Enable at least one DOM backend feature: `ego-tree` or `rcdom`.");
+
+mod dom;
 mod dom_walker;
 mod element;
 pub mod element_handler;
@@ -15,14 +19,16 @@ use html5ever::tendril::TendrilSink;
 use html5ever::tree_builder::TreeBuilderOpts;
 use html5ever::{ParseOpts, parse_document};
 pub use input::ConvertInput;
-use markup5ever_rcdom::RcDom;
-pub use node::{Node, NodeAttrs, NodeAttrsIter, NodeChildren, NodeStr, NodeType};
+use node::TreeInner;
+pub use node::{
+    Node, NodeAttrs, NodeAttrsIter, NodeChildren, NodeChildrenIter, NodeStr, NodeType, Tree,
+};
 use options::Options;
 use util::node::is_inside_pre;
 
 use crate::element_handler::Handlers;
 
-/// Convert HTML or a parsed [`Node`] tree to Markdown.
+/// Convert HTML or a parsed [`Tree`] / [`Node`] to Markdown.
 ///
 /// Example:
 ///
@@ -88,40 +94,46 @@ impl HtmlToMarkdown {
         HtmlToMarkdownBuilder::new()
     }
 
-    /// Parse HTML into a DOM tree.
-    pub fn html_to_tree(&self, html: &str) -> std::io::Result<Node> {
+    /// Parse HTML into a DOM [`Tree`].
+    pub fn html_to_tree(&self, html: &str) -> std::io::Result<Tree> {
         // Feed the whole UTF-8 string to the parser in one shot. This avoids
         // the 4 KiB chunked `read_from` path and the UTF-8 lossy decoder layer
         // used by `from_utf8()`, both of which add overhead when the input is
         // already a valid `&str`.
-        let dom = parse_document(
-            RcDom::default(),
-            ParseOpts {
-                tree_builder: TreeBuilderOpts {
-                    scripting_enabled: self.scripting_enabled,
-                    ..Default::default()
-                },
+        let opts = ParseOpts {
+            tree_builder: TreeBuilderOpts {
+                scripting_enabled: self.scripting_enabled,
                 ..Default::default()
             },
-        )
-        .one(html);
+            ..Default::default()
+        };
 
-        Ok(Node(dom.document))
+        #[cfg(feature = "ego-tree")]
+        let inner =
+            TreeInner::Ego(parse_document(dom::ego_tree::EgoTreeSink::default(), opts).one(html));
+        #[cfg(all(not(feature = "ego-tree"), feature = "rcdom"))]
+        let inner = TreeInner::Rc(
+            parse_document(markup5ever_rcdom::RcDom::default(), opts)
+                .one(html)
+                .document,
+        );
+
+        Ok(Tree(inner))
     }
 
-    pub(crate) fn tree_to_markdown(&self, tree: &Node) -> String {
+    pub(crate) fn tree_to_markdown(&self, root: &Node<'_>) -> String {
         self.handlers.emit_doc_enter();
         let mut content = String::new();
 
         walk_node(
-            tree.as_rc(),
+            root,
             &mut content,
             &self.handlers,
             None,
             true,
             Context {
                 kind: ContextKind::Block,
-                literal: is_inside_pre(tree.as_rc()),
+                literal: is_inside_pre(root),
             },
         );
 
@@ -150,7 +162,7 @@ impl HtmlToMarkdown {
         content
     }
 
-    /// Convert HTML or a parsed [`Node`] tree to Markdown.
+    /// Convert HTML or a parsed [`Tree`] / [`Node`] to Markdown.
     pub fn convert<I: ConvertInput>(&self, input: I) -> std::io::Result<String> {
         input.convert_with(self)
     }

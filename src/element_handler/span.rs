@@ -1,21 +1,17 @@
-use html5ever::tendril::StrTendril;
-use markup5ever_rcdom::{Node, NodeData};
 use std::{iter::Peekable, str::Chars};
 
 use crate::{
-    Element,
+    Element, Node,
+    dom::SyntheticTextElement,
     element_handler::element_util::{math_delimiter, serialize_if_extra_attrs},
     element_handler::{HandlerResult, Handlers},
-    util::{
-        node::{copy_element_holding_text, get_parent_node},
-        text::{concat_strings, trim_newlines},
-    },
+    util::text::{concat_strings, trim_newlines},
 };
 
 pub(super) fn span_handler(handlers: &dyn Handlers, element: &Element) -> Option<HandlerResult> {
     // See the "Math" section of `translation_approach.md`.
     if let Some(delimiter) = math_delimiter(element.attrs)
-        && let Some(text) = text_content(element.node.as_rc())
+        && let Some(text) = text_content(element.node)
     {
         let is_inline = delimiter == "$";
         let source = math_source(&text);
@@ -29,18 +25,26 @@ pub(super) fn span_handler(handlers: &dyn Handlers, element: &Element) -> Option
         }
         // Serializing collapses the line endings of the original text, which
         // would run each of its comments on over the lines after it.
-        let span = copy_element_holding_text(
-            element.node.as_rc(),
-            get_parent_node(element.node.as_rc()).as_ref(),
-            StrTendril::from_slice(&source),
-        );
-        return translate_as_span(
-            handlers,
-            &Element {
-                node: crate::Node::from_rc_ref(&span),
-                ..*element
-            },
-        );
+        if let Some(qual_name) = element.node.qual_name() {
+            let synth = SyntheticTextElement {
+                parent: element.node.parent(),
+                tag: element.tag,
+                qual_name,
+                attrs: element.attrs,
+                text: &source,
+            };
+            let synth_node = Node::from_synthetic_element(&synth);
+            return translate_as_span(
+                handlers,
+                &Element {
+                    node: &synth_node,
+                    tag: element.tag,
+                    attrs: element.attrs,
+                    context: element.context,
+                    skipped_handlers: element.skipped_handlers,
+                },
+            );
+        }
     }
 
     translate_as_span(handlers, element)
@@ -61,15 +65,16 @@ fn translate_as_span(handlers: &dyn Handlers, element: &Element) -> Option<Handl
 
 /// The text of `node` when it is empty or holds a single text node; `None`
 /// otherwise.
-fn text_content(node: &Node) -> Option<String> {
-    match node.children.borrow().as_slice() {
-        [] => Some(String::new()),
-        [child] => match &child.data {
-            NodeData::Text { contents } => Some(contents.borrow().to_string()),
-            _ => None,
-        },
-        _ => None,
+fn text_content(node: &Node<'_>) -> Option<String> {
+    let children_view = node.children();
+    let mut children = children_view.iter();
+    let Some(child) = children.next() else {
+        return Some(String::new());
+    };
+    if children.next().is_some() {
+        return None;
     }
+    child.text().map(|t| t.to_string())
 }
 
 /// pulldown-cmark's

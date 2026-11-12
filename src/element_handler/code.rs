@@ -1,10 +1,7 @@
-use std::rc::Rc;
-
 use html5ever::Attribute;
-use markup5ever_rcdom::{Node, NodeData};
 
 use crate::{
-    Context, Element,
+    Context, Element, Node, NodeType,
     element_handler::element_util::serialize_if_extra_attrs,
     element_handler::{
         HandlerResult, Handlers,
@@ -13,7 +10,7 @@ use crate::{
     options::{CodeBlockFence, CodeBlockStyle, TranslationMode},
     util::{
         escape::has_line_ending,
-        node::{get_node_tag_name, get_parent_node},
+        node::get_node_tag_name,
         text::{JoinOnStringIterator, TrimDocumentWhitespace, concat_strings},
     },
 };
@@ -24,21 +21,18 @@ pub(super) fn code_handler(handlers: &dyn Handlers, element: &Element) -> Option
     if handlers.options().translation_mode == TranslationMode::Faithful
         && !element
             .node
-            .as_rc()
-            .children
-            .borrow()
+            .children()
             .iter()
-            .all(|node| matches!(node.data, NodeData::Text { .. }))
+            .all(|node| node.node_type() == NodeType::Text)
     {
         return Some(serialize_element_result(handlers, element));
     }
 
     // Determine the type: inline code or a code block.
-    let parent_node = get_parent_node(element.node.as_rc());
+    let parent_node = element.node.parent();
     let is_code_block = parent_node
         .as_ref()
-        .map(|parent| get_node_tag_name(parent).is_some_and(|t| t == "pre"))
-        .unwrap_or(false);
+        .is_some_and(|parent| get_node_tag_name(parent) == Some("pre"));
     if is_code_block {
         handle_code_block(handlers, element, &parent_node.unwrap())
     } else {
@@ -49,7 +43,7 @@ pub(super) fn code_handler(handlers: &dyn Handlers, element: &Element) -> Option
 fn handle_code_block(
     handlers: &dyn Handlers,
     element: &Element,
-    parent: &Rc<Node>,
+    parent: &Node<'_>,
 ) -> Option<HandlerResult> {
     // A code block is a CommonMark block, so it needs a block context.
     serialize_element_when_faithful!(handlers, element, element.context.is_inline());
@@ -68,11 +62,10 @@ fn handle_code_block(
             get_code_fence_marker("`", content)
         };
         let language = find_language_from_attrs(element.attrs).or_else(|| {
-            if let NodeData::Element { ref attrs, .. } = parent.data {
-                find_language_from_attrs(&attrs.borrow())
-            } else {
-                None
-            }
+            parent
+                .attr("class")
+                .as_deref()
+                .and_then(find_language_from_class)
         });
         serialize_if_extra_attrs!(handlers, element, if language.is_none() { 0 } else { 1 });
         let mut result = String::from(&fence);
@@ -118,12 +111,16 @@ fn find_language_from_attrs(attrs: &[Attribute]) -> Option<String> {
     attrs
         .iter()
         .find(|attr| &attr.name.local == "class")
-        .and_then(|attr| {
-            attr.value.split_ascii_whitespace().find_map(|class| {
-                class
-                    .strip_prefix("language-")
-                    .filter(|language| !language.is_empty())
-            })
+        .and_then(|attr| find_language_from_class(&attr.value))
+}
+
+fn find_language_from_class(class_attr: &str) -> Option<String> {
+    class_attr
+        .split_ascii_whitespace()
+        .find_map(|class| {
+            class
+                .strip_prefix("language-")
+                .filter(|language| !language.is_empty())
         })
         .map(str::to_owned)
 }

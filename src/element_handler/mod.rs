@@ -42,11 +42,10 @@ use html5ever::Attribute;
 use img::img_handler;
 use li::list_item_handler;
 use list::list_handler;
-use markup5ever_rcdom::Node as RcDomNode;
 use p::p_handler;
 use pre::pre_handler;
 use span::span_handler;
-use std::{collections::HashMap, rc::Rc};
+use std::collections::HashMap;
 use table::table_handler;
 use table_section::table_section_handler;
 use td_th::td_th_handler;
@@ -222,7 +221,7 @@ pub(crate) struct ElementHandlers {
 impl ElementHandlers {
     fn walk_children_with(
         &self,
-        node: &Rc<RcDomNode>,
+        node: &Node<'_>,
         is_block: bool,
         context: Context,
     ) -> HandlerResult {
@@ -410,14 +409,14 @@ impl ElementHandlers {
 
     pub fn handle(
         &self,
-        node: &Rc<RcDomNode>,
+        node: &Node<'_>,
         tag: &str,
         attrs: &[Attribute],
         skipped_handlers: usize,
         context: Context,
     ) -> Option<HandlerResult> {
         let element = Element {
-            node: Node::from_rc_ref(node),
+            node,
             tag,
             attrs,
             context,
@@ -483,14 +482,14 @@ pub trait Handlers {
 
     /// Process a DOM [`Node`] through the handlers. `context` is the
     /// [`Context`] the node appears in.
-    fn handle(&self, node: &Node, context: Context) -> Option<HandlerResult>;
+    fn handle(&self, node: &Node<'_>, context: Context) -> Option<HandlerResult>;
 
     /// Walks children of a node and returns both content and markdown_translated
     /// status.
-    fn walk_children(&self, node: &Node, context: Context) -> HandlerResult;
+    fn walk_children(&self, node: &Node<'_>, context: Context) -> HandlerResult;
 
     /// The content of [`Handlers::walk_children`]
-    fn walk_children_content(&self, node: &Node, context: Context) -> String {
+    fn walk_children_content(&self, node: &Node<'_>, context: Context) -> String {
         self.walk_children(node, context).content
     }
 
@@ -501,7 +500,7 @@ pub trait Handlers {
 impl Handlers for ElementHandlers {
     fn fallback(&self, element: &Element) -> Option<HandlerResult> {
         self.handle(
-            element.node.as_rc(),
+            element.node,
             element.tag,
             element.attrs,
             element.skipped_handlers + 1,
@@ -509,20 +508,19 @@ impl Handlers for ElementHandlers {
         )
     }
 
-    fn handle(&self, node: &Node, context: Context) -> Option<HandlerResult> {
+    fn handle(&self, node: &Node<'_>, context: Context) -> Option<HandlerResult> {
         let mut output = String::new();
-        let markdown_translated = walk_node(node.as_rc(), &mut output, self, None, true, context);
+        let markdown_translated = walk_node(node, &mut output, self, None, true, context);
         Some(HandlerResult {
             content: output,
             markdown_translated,
         })
     }
 
-    fn walk_children(&self, node: &Node, context: Context) -> HandlerResult {
-        let rc = node.as_rc();
-        let tag = crate::util::node::get_node_tag_name(rc);
+    fn walk_children(&self, node: &Node<'_>, context: Context) -> HandlerResult {
+        let tag = crate::util::node::get_node_tag_name(node);
         self.walk_children_with(
-            rc,
+            node,
             tag.is_some_and(crate::util::node::is_block_element),
             context,
         )

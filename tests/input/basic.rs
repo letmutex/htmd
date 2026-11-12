@@ -1,4 +1,4 @@
-use htmd::{HtmlToMarkdown, Node, convert};
+use htmd::{HtmlToMarkdown, Node, Tree, convert};
 use std::borrow::Cow;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -6,9 +6,10 @@ use std::sync::Arc;
 #[test]
 fn convert_accepts_string_and_node_inputs() {
     let converter = HtmlToMarkdown::new();
-    let tree = converter.html_to_tree("<p>Hi</p>").unwrap();
-    let tree_ref = &tree;
-    let tree_ref_ref: &&Node = &tree_ref;
+    let tree: Tree = converter.html_to_tree("<p>Hi</p>").unwrap();
+    let root = tree.root();
+    let root_ref = &root;
+    let root_ref_ref: &&Node<'_> = &root_ref;
 
     assert_eq!("Hi", convert("<p>Hi</p>").unwrap());
     let owned = String::from("<p>Hi</p>");
@@ -27,8 +28,10 @@ fn convert_accepts_string_and_node_inputs() {
     assert_eq!("Hi", converter.convert(arced).unwrap());
     assert_eq!("Hi", converter.convert(rced).unwrap());
     assert_eq!("Hi", converter.convert(cow).unwrap());
-    assert_eq!("Hi", converter.convert(tree_ref).unwrap());
-    assert_eq!("Hi", converter.convert(tree_ref_ref).unwrap());
+    assert_eq!("Hi", converter.convert(root_ref).unwrap());
+    assert_eq!("Hi", converter.convert(root_ref_ref).unwrap());
+    assert_eq!("Hi", converter.convert(root).unwrap());
+    assert_eq!("Hi", converter.convert(&tree).unwrap());
     assert_eq!("Hi", converter.convert(tree).unwrap());
 }
 

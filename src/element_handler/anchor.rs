@@ -1,7 +1,5 @@
 use std::cell::RefCell;
 
-use markup5ever_rcdom::NodeData;
-
 use crate::{
     Context, ContextKind, Element, ElementHandler, Options,
     element_handler::EventSubscription,
@@ -235,12 +233,12 @@ impl AnchorElementHandler {
 
 /// Whether the content of `element` is a single text node equal to `text`.
 fn is_text_equal_to(element: &Element, text: &str) -> bool {
-    match element.node.as_rc().children.borrow().as_slice() {
-        [child] => {
-            matches!(&child.data, NodeData::Text { contents } if &**contents.borrow() == text)
-        }
-        _ => false,
-    }
+    let children_view = element.node.children();
+    let mut children = children_view.iter();
+    let Some(child) = children.next() else {
+        return false;
+    };
+    children.next().is_none() && child.text().as_deref() == Some(text)
 }
 
 /// Whether `href` can be written as an

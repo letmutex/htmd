@@ -26,8 +26,11 @@ pub(super) fn pre_handler(handlers: &dyn Handlers, element: &Element) -> Option<
     //         No special treatment.
     //     2.  All other cases: produce HTML.
     let is_simple_code_block = {
-        let children = element.node.as_rc().children.borrow();
-        children.len() == 1 && get_node_tag_name(&children[0]) == Some("code")
+        let children_view = element.node.children();
+        let mut children = children_view.iter();
+        children.next().is_some_and(|first| {
+            children.next().is_none() && get_node_tag_name(&first) == Some("code")
+        })
     };
 
     if handlers.options().translation_mode == TranslationMode::Pure || is_simple_code_block {
