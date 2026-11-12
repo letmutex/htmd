@@ -4,14 +4,17 @@ use std::{borrow::Cow, rc::Rc};
 
 use crate::{
     Context, Element,
-    element_handler::{ElementHandlers, element_util::serialize_element},
+    element_handler::{
+        ElementHandlers,
+        element_util::{math_delimiter, serialize_element},
+    },
 };
 
 use super::{
     options::TranslationMode,
     util::{
         escape::{escape_html, index_of_markdown_ordered_item_delimiter, is_markdown_atx_heading},
-        node::{copy_element_holding_text, is_block_element},
+        node::{copy_element_holding_text, get_node_tag_name, is_block_element},
         text::{
             TrimDocumentWhitespace, compress_whitespace, concat_strings, frame_as_block,
             trim_newlines,
@@ -164,16 +167,7 @@ fn is_passthrough_span(
     attrs: &[html5ever::Attribute],
     handlers: &ElementHandlers,
 ) -> bool {
-    tag == "span" && handlers.can_passthrough_span && !is_math_span(attrs)
-}
-
-fn is_math_span(attrs: &[html5ever::Attribute]) -> bool {
-    attrs.len() == 1
-        && &attrs[0].name.local == "class"
-        && matches!(
-            attrs[0].value.as_ref(),
-            "math math-inline" | "math math-display"
-        )
+    tag == "span" && handlers.can_passthrough_span && math_delimiter(attrs).is_none()
 }
 
 /// The bytes which, at the start of a text node, could open a CommonMark block
@@ -207,11 +201,7 @@ pub(crate) fn walk_children(
     // Return value: `markdown_translated`.
 ) -> bool {
     let mut trim_leading_spaces = !context.literal && is_parent_block_element;
-    let tag = match &node.data {
-        NodeData::Document => Some("html"),
-        NodeData::Element { name, .. } => Some(name.local.as_ref()),
-        _ => None,
-    };
+    let tag = get_node_tag_name(node);
     let mut markdown_translated = true;
     let children = node.children.borrow();
     let mut index = 0;
@@ -242,10 +232,7 @@ pub(crate) fn walk_children(
             continue;
         };
 
-        let is_block = match &child.data {
-            NodeData::Element { name, .. } => is_block_element(&name.local),
-            _ => false,
-        };
+        let is_block = get_node_tag_name(child).is_some_and(is_block_element);
 
         // Preformatted content keeps every space it holds, so a block inside
         // one trims nothing.
@@ -317,7 +304,7 @@ fn can_combine(n1: &Node, n2: &Node) -> bool {
     // Don't combine adjacent hyperlinks, or adjacent math, which pulldown-cmark
     // reads apart: `$a$$b$` is two math expressions.
     *name1.local != *"a"
-        && !(*name1.local == *"span" && is_math_span(&attrs1.borrow()))
+        && !(*name1.local == *"span" && math_delimiter(&attrs1.borrow()).is_some())
         && (name1 == name2
             // Treat `i` and `em` tags as the same element; likewise for `b` and
             // `strong`.

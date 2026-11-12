@@ -4,7 +4,7 @@ use std::{iter::Peekable, str::Chars};
 
 use crate::{
     Element,
-    element_handler::element_util::serialize_if_extra_attrs,
+    element_handler::element_util::{math_delimiter, serialize_if_extra_attrs},
     element_handler::{HandlerResult, Handlers},
     util::{
         node::{copy_element_holding_text, get_parent_node},
@@ -14,14 +14,7 @@ use crate::{
 
 pub(super) fn span_handler(handlers: &dyn Handlers, element: &Element) -> Option<HandlerResult> {
     // See the "Math" section of `translation_approach.md`.
-    if element.attrs.len() == 1
-        && let attr = &element.attrs[0]
-        && *attr.name.local == *"class"
-        && let Some(delimiter) = match &*attr.value {
-            "math math-inline" => Some("$"),
-            "math math-display" => Some("$$"),
-            _ => None,
-        }
+    if let Some(delimiter) = math_delimiter(element.attrs)
         && let Some(text) = text_content(element.node.as_rc())
     {
         let is_inline = delimiter == "$";
