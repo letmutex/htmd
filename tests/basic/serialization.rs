@@ -1,6 +1,8 @@
 use pretty_assertions::assert_eq;
 use pulldown_cmark::Options as CommonMarkOptions;
 
+#[cfg(feature = "rcdom")]
+use crate::common::tree;
 use crate::common::{convert_pure, render_markdown};
 
 /// Pure mode keeps the merge: it has no HTML to fall back on.
@@ -11,6 +13,23 @@ fn pure_mode_merges_adjacent_inline_elements() {
         "ab",
         convert_pure("<p><sub>a</sub><sub>b</sub></p>").unwrap()
     );
+}
+
+/// No handler reads an element's prefix, and the serializer drops it, so a pair
+/// of emphases differing only in prefix would go out as `*a**b*` too. Only a
+/// tree built elsewhere can hold a prefixed HTML element.
+#[cfg(feature = "rcdom")]
+#[test]
+fn elements_differing_only_in_prefix_merge() {
+    let tree = tree::document(vec![tree::element(
+        "p",
+        vec![
+            tree::prefixed_element("x", "em", vec![tree::text("a")]),
+            tree::prefixed_element("y", "em", vec![tree::text("b")]),
+        ],
+    )]);
+
+    assert_eq!("*ab*", convert_pure(&tree).unwrap());
 }
 
 // Faithful mode keeps an emphasis with nothing to emphasize as HTML; see rows 5

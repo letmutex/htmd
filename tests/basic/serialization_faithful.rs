@@ -1,6 +1,8 @@
 use indoc::indoc;
 use pretty_assertions::assert_eq;
 
+#[cfg(feature = "rcdom")]
+use crate::common::tree;
 use crate::common::{convert_faithful, convert_pure, round_trip};
 
 /// A pair of adjacent emphases is merged so that it does not go out as
@@ -21,6 +23,23 @@ fn faithful_mode_keeps_adjacent_emphasis_apart() {
         "<b>a</b><strong>b</strong>",
         convert_faithful("<p><b>a</b><strong>b</strong></p>").unwrap()
     );
+}
+
+/// A pair of emphases differing only in prefix would go out as `*a**b*` too, so
+/// faithful mode writes it as HTML, which the serializer writes without the
+/// prefix. Only a tree built elsewhere can hold a prefixed HTML element.
+#[cfg(feature = "rcdom")]
+#[test]
+fn faithful_mode_keeps_emphases_differing_only_in_prefix_apart() {
+    let tree = tree::document(vec![tree::element(
+        "p",
+        vec![
+            tree::prefixed_element("x", "em", vec![tree::text("a")]),
+            tree::prefixed_element("y", "em", vec![tree::text("b")]),
+        ],
+    )]);
+
+    assert_eq!("<em>a</em><em>b</em>", convert_faithful(&tree).unwrap());
 }
 
 /// Writing the two code spans one after the other is no answer either: the
