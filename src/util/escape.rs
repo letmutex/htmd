@@ -126,77 +126,159 @@ pub(crate) fn push_encoding_line_ending(output: &mut String, ch: char) {
     }
 }
 
+/// Returns the backslash-escaped replacement for a CommonMark inline special
+/// byte (`\`, `&`, `*`, `_`, `` ` ``, `[`, `]`, `$`).
+#[inline]
+pub(crate) fn escape_markdown_inline_special(byte: u8) -> Option<&'static str> {
+    match byte {
+        b'\\' => Some("\\\\"),
+        b'&' => Some("\\&"),
+        b'*' => Some("\\*"),
+        b'_' => Some("\\_"),
+        b'`' => Some("\\`"),
+        b'[' => Some("\\["),
+        b']' => Some("\\]"),
+        b'$' => Some("\\$"),
+        _ => None,
+    }
+}
+
+/// Writes `text` into `out`, replacing any ASCII byte for which `replacement`
+/// returns `Some`.
+pub(crate) fn push_escaped_ascii(
+    text: &str,
+    out: &mut String,
+    mut replacement: impl FnMut(u8) -> Option<&'static str>,
+) {
+    let mut last_idx = 0;
+    for (idx, &b) in text.as_bytes().iter().enumerate() {
+        if b.is_ascii()
+            && let Some(repl) = replacement(b)
+        {
+            if idx > last_idx {
+                out.push_str(&text[last_idx..idx]);
+            }
+            out.push_str(repl);
+            last_idx = idx + 1;
+        }
+    }
+    if last_idx < text.len() {
+        out.push_str(&text[last_idx..]);
+    }
+}
+
+/// Replaces any ASCII byte for which `replacement` returns `Some`, borrowing
+/// `text` when nothing matches.
+fn escape_ascii_bytes(
+    text: &str,
+    mut replacement: impl FnMut(u8) -> Option<&'static str>,
+) -> Cow<'_, str> {
+    for (idx, &b) in text.as_bytes().iter().enumerate() {
+        if b.is_ascii()
+            && let Some(first_repl) = replacement(b)
+        {
+            let mut escaped = String::with_capacity(text.len() + 8);
+            escaped.push_str(&text[..idx]);
+            escaped.push_str(first_repl);
+            push_escaped_ascii(&text[idx + 1..], &mut escaped, replacement);
+            return Cow::Owned(escaped);
+        }
+    }
+    Cow::Borrowed(text)
+}
+
 /// Writes every line ending in `text` as the character reference
 /// [`push_encoding_line_ending`] gives it.
 pub(crate) fn encode_line_endings(text: &str) -> Cow<'_, str> {
-    if !has_line_ending(text) {
-        return Cow::Borrowed(text);
-    }
-    let mut encoded = String::with_capacity(text.len() + 8);
-    for ch in text.chars() {
-        push_encoding_line_ending(&mut encoded, ch);
-    }
-    Cow::Owned(encoded)
-}
-
-/// Backslash-escapes each character of `text` which `needs_backslash` selects,
-/// and encodes its line endings.
-fn escape_inline_string(text: &str, needs_backslash: fn(char) -> bool) -> String {
-    let mut escaped = String::with_capacity(text.len());
-    for ch in text.chars() {
-        if needs_backslash(ch) {
-            escaped.push('\\');
-            escaped.push(ch);
-        } else {
-            push_encoding_line_ending(&mut escaped, ch);
-        }
-    }
-    escaped
+    escape_ascii_bytes(text, |b| match b {
+        b'\r' => Some("&#13;"),
+        b'\n' => Some("&#10;"),
+        _ => None,
+    })
 }
 
 /// Escapes a [link destination](https://spec.commonmark.org/0.31.2/#link-destination),
 /// switching to the pointy bracket form where the bare form cannot hold it. See
 /// the links section of `translation_approach.md`.
-pub(crate) fn escape_link_destination(destination: &str) -> String {
-    let escaped = escape_inline_string(destination, |ch| matches!(ch, '\\' | '&' | '(' | ')'));
-    let needs_pointy_brackets = escaped.is_empty()
-        || escaped.starts_with('<')
-        || escaped.contains(|ch: char| ch.is_ascii_control() || ch == ' ');
-    if !needs_pointy_brackets {
-        return escaped;
+pub(crate) fn escape_link_destination(destination: &str) -> Cow<'_, str> {
+    if destination.is_empty() {
+        return Cow::Borrowed("<>");
     }
 
-    let mut bracketed = String::with_capacity(escaped.len() + 4);
-    bracketed.push('<');
-    for ch in escaped.chars() {
-        if matches!(ch, '<' | '>') {
-            bracketed.push('\\');
+    let bytes = destination.as_bytes();
+    let mut needs_brackets = bytes[0] == b'<';
+    let mut needs_escape = needs_brackets;
+
+    if !needs_brackets {
+        for &b in bytes {
+            if b == b' ' || (b.is_ascii_control() && b != b'\r' && b != b'\n') {
+                needs_brackets = true;
+                needs_escape = true;
+                break;
+            }
+            if matches!(b, b'\\' | b'&' | b'(' | b')' | b'\r' | b'\n') {
+                needs_escape = true;
+            }
         }
-        bracketed.push(ch);
     }
-    bracketed.push('>');
-    bracketed
+
+    if !needs_escape {
+        return Cow::Borrowed(destination);
+    }
+
+    let extra = if needs_brackets { 4 } else { 0 };
+    let mut escaped = String::with_capacity(destination.len() + extra);
+    if needs_brackets {
+        escaped.push('<');
+    }
+    push_escaped_ascii(destination, &mut escaped, |b| match b {
+        b'\\' => Some("\\\\"),
+        b'&' => Some("\\&"),
+        b'(' => Some("\\("),
+        b')' => Some("\\)"),
+        b'<' if needs_brackets => Some("\\<"),
+        b'>' if needs_brackets => Some("\\>"),
+        b'\r' => Some("&#13;"),
+        b'\n' => Some("&#10;"),
+        _ => None,
+    });
+    if needs_brackets {
+        escaped.push('>');
+    }
+
+    Cow::Owned(escaped)
 }
 
 /// Escapes a [link title](https://spec.commonmark.org/0.31.2/#link-title) for
 /// writing between double quotes.
-pub(crate) fn escape_link_title(title: &str) -> String {
-    escape_inline_string(title, |ch| matches!(ch, '"' | '\\' | '&'))
+pub(crate) fn escape_link_title(title: &str) -> Cow<'_, str> {
+    escape_ascii_bytes(title, |b| match b {
+        b'"' => Some("\\\""),
+        b'\\' => Some("\\\\"),
+        b'&' => Some("\\&"),
+        b'\r' => Some("&#13;"),
+        b'\n' => Some("&#10;"),
+        _ => None,
+    })
 }
 
 /// Escapes an `alt` attribute value as the plain text of an
 /// [image description](https://spec.commonmark.org/0.31.2/#images), giving it
 /// the escapes `dom_walker::escape_if_needed` gives a text node.
-pub(crate) fn escape_image_description(alt: &str) -> String {
+pub(crate) fn escape_image_description(alt: &str) -> Cow<'_, str> {
     // An input of `![$a\*b$](x)` produces `alt="$a\*b$"` with math enabled and
     // `alt="$a*b$"` with math disabled. Escape `$`, which assumes math is
     // enabled.
-    let escaped = escape_inline_string(alt, |ch| {
-        matches!(ch, '\\' | '&' | '*' | '_' | '`' | '[' | ']' | '$')
+    let escaped = escape_ascii_bytes(alt, |b| {
+        escape_markdown_inline_special(b).or(match b {
+            b'\r' => Some("&#13;"),
+            b'\n' => Some("&#10;"),
+            _ => None,
+        })
     });
     // `should_escape_html_like_sequence` reads a CDATA section in the spelling
     // the backslash pass leaves behind, so that pass comes first.
-    escape_html(Cow::Owned(escaped)).into_owned()
+    escape_html(escaped)
 }
 
 /// Whether `text` opens an

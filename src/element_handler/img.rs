@@ -11,17 +11,17 @@ use crate::{
 /// Translates an `<img>` as an inline image, whatever the `LinkStyle`; see the
 /// images section of `translation_approach.md`.
 pub(super) fn img_handler(handlers: &dyn Handlers, element: &Element) -> Option<HandlerResult> {
-    let mut link: Option<String> = None;
-    let mut alt: Option<String> = None;
-    let mut title: Option<String> = None;
+    let mut link: Option<&str> = None;
+    let mut alt: Option<&str> = None;
+    let mut title: Option<&str> = None;
     for attr in element.attrs.iter() {
         let name = &attr.name.local;
         if name == "src" {
-            link = Some(attr.value.to_string());
+            link = Some(&attr.value);
         } else if name == "alt" {
-            alt = Some(attr.value.to_string());
+            alt = Some(&attr.value);
         } else if name == "title" {
-            title = Some(attr.value.to_string());
+            title = Some(&attr.value);
         } else {
             serialize_if_extra_attrs!(handlers, element, 0);
         }
@@ -33,20 +33,24 @@ pub(super) fn img_handler(handlers: &dyn Handlers, element: &Element) -> Option<
     serialize_element_when_faithful!(
         handlers,
         element,
-        link.is_none() || alt.is_none() || title.as_deref() == Some("")
+        link.is_none() || alt.is_none() || title == Some("")
     );
-    let link = escape_link_destination(&link?);
-    let alt = alt.as_deref().map(escape_image_description);
-    let title = title.as_deref().map(escape_link_title);
+    let link = escape_link_destination(link?);
+    let alt = alt.map(escape_image_description);
+    let title = title.map(escape_link_title);
 
+    let (title_prefix, title_text, title_suffix) = match title.as_deref() {
+        Some(t) => (" \"", t, "\""),
+        None => ("", "", ""),
+    };
     let md = concat_strings!(
         "![",
         alt.as_deref().unwrap_or_default(),
         "](",
         link,
-        title
-            .as_ref()
-            .map_or(String::new(), |t| concat_strings!(" \"", t, "\"")),
+        title_prefix,
+        title_text,
+        title_suffix,
         ")"
     );
     Some(md.into())

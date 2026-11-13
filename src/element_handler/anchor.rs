@@ -124,14 +124,14 @@ impl ElementHandler for AnchorElementHandler {
     }
 
     fn handle(&self, handlers: &dyn Handlers, element: &Element) -> Option<HandlerResult> {
-        let mut link: Option<String> = None;
-        let mut title: Option<String> = None;
+        let mut link: Option<&str> = None;
+        let mut title: Option<&str> = None;
         for attr in element.attrs.iter() {
             let name = &attr.name.local;
             if name == "href" {
-                link = Some(attr.value.to_string())
+                link = Some(&attr.value);
             } else if name == "title" {
-                title = Some(attr.value.to_string());
+                title = Some(&attr.value);
             } else {
                 // This is an attribute which can't be translated to Markdown.
                 serialize_if_extra_attrs!(handlers, element, 0);
@@ -146,15 +146,15 @@ impl ElementHandler for AnchorElementHandler {
 
         if handlers.options().link_style == LinkStyle::InlinedPreferAutolinks
             && title.is_none()
-            && is_text_equal_to(element, &href)
-            && can_be_autolink(&href)
+            && is_text_equal_to(element, href)
+            && can_be_autolink(href)
         {
             // An autolink's destination is written literally, without escapes.
             return Some(concat_strings!("<", href, ">").into());
         }
 
-        let link = escape_link_destination(&href);
-        let title = title.as_deref().map(escape_link_title);
+        let link = escape_link_destination(href);
+        let title = title.map(escape_link_title);
 
         // A link is an inline: its children begin an inline context, though
         // text inside a `<pre>` stays literal.
@@ -173,7 +173,7 @@ impl ElementHandler for AnchorElementHandler {
             LinkStyle::Referenced => self.build_referenced_anchor(
                 &content,
                 &link,
-                title,
+                title.as_deref(),
                 &handlers.options().link_reference_style,
             ),
         };
@@ -203,14 +203,12 @@ impl AnchorElementHandler {
         &self,
         content: &str,
         link: &str,
-        title: Option<String>,
+        title: Option<&str>,
         style: &LinkReferenceStyle,
     ) -> String {
         AnchorElementHandler::with_current_scope_mut(|scope| {
             let index = scope.references.len() + 1;
-            let title = title
-                .as_deref()
-                .map_or(String::new(), |t| format!(" \"{t}\""));
+            let title = title.map_or(String::new(), |t| format!(" \"{t}\""));
             let (current, append) = match style {
                 LinkReferenceStyle::Full => (
                     concat_strings!("[", content, "][", index.to_string(), "]"),
