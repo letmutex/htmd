@@ -147,54 +147,50 @@ pub(crate) fn compress_whitespace(input: &str) -> Cow<'_, str> {
         return Cow::Borrowed(input);
     }
 
-    let mut result: Option<String> = None;
+    let bytes = input.as_bytes();
     let mut in_whitespace = false;
+    let mut needs_compression = false;
 
-    // Use char_indices to get byte indices for slicing the input.
-    for (byte_index, c) in input.char_indices() {
-        if c.is_ascii_whitespace() {
-            if in_whitespace {
-                // Consecutive whitespace: skip this character.
-                if result.is_none() {
-                    // Lazy allocation: First change found. Allocate and copy the prefix.
-                    let mut s = String::with_capacity(input.len());
-                    s.push_str(&input[..byte_index]);
-                    result = Some(s);
-                }
-            } else {
-                // First whitespace in sequence.
-                in_whitespace = true;
-                if c == ' ' {
-                    // Valid single space. If already allocating, append it.
-                    if let Some(res) = &mut result {
-                        res.push(' ');
-                    }
-                } else {
-                    // Non-space whitespace (e.g., \n): must be changed to ' '.
-                    if result.is_none() {
-                        // Lazy allocation: First change found. Allocate and copy the prefix.
-                        let mut s = String::with_capacity(input.len());
-                        s.push_str(&input[..byte_index]);
-                        result = Some(s);
-                    }
-                    result.as_mut().unwrap().push(' ');
-                }
+    for &b in bytes {
+        if b.is_ascii_whitespace() {
+            if in_whitespace || b != b' ' {
+                needs_compression = true;
+                break;
             }
+            in_whitespace = true;
         } else {
-            // Not whitespace.
             in_whitespace = false;
-            // If already allocating, append the character.
-            if let Some(res) = &mut result {
-                res.push(c);
-            }
         }
     }
 
-    // If `result` is None, return Cow::Borrowed (no changes were made).
-    match result {
-        Some(s) => Cow::Owned(s),
-        None => Cow::Borrowed(input),
+    if !needs_compression {
+        return Cow::Borrowed(input);
     }
+
+    let mut result = String::with_capacity(input.len());
+    let mut in_whitespace = false;
+    let mut non_ws_start = 0;
+
+    for (idx, &b) in bytes.iter().enumerate() {
+        if b.is_ascii_whitespace() {
+            if !in_whitespace {
+                if idx > non_ws_start {
+                    result.push_str(&input[non_ws_start..idx]);
+                }
+                result.push(' ');
+                in_whitespace = true;
+            }
+        } else if in_whitespace {
+            non_ws_start = idx;
+            in_whitespace = false;
+        }
+    }
+
+    if !in_whitespace && non_ws_start < input.len() {
+        result.push_str(&input[non_ws_start..]);
+    }
+
+    Cow::Owned(result)
 }
 
 pub(crate) fn indent_text_except_first_line(

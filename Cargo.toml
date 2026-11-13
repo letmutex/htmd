@@ -20,7 +20,6 @@ rcdom = ["dep:markup5ever_rcdom"]
 ego-tree = { version = "0.11", optional = true }
 html5ever = "0.40"
 markup5ever_rcdom = { version = "0.40", optional = true }
-phf = { version = "0.14", features = ["macros"] }
 
 [dev-dependencies]
 indoc = "2.0.6"

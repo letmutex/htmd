@@ -13,7 +13,10 @@ use crate::{
 use super::{
     options::TranslationMode,
     util::{
-        escape::{escape_html, index_of_markdown_ordered_item_delimiter, is_markdown_atx_heading},
+        escape::{
+            escape_html, escape_markdown_inline_special, index_of_markdown_ordered_item_delimiter,
+            is_markdown_atx_heading, push_escaped_ascii,
+        },
         node::is_block_element,
         text::{
             TrimDocumentWhitespace, compress_whitespace, concat_strings, frame_as_block,
@@ -197,27 +200,6 @@ fn is_passthrough_span(
     tag == "span" && handlers.can_passthrough_span && math_delimiter(attrs).is_none()
 }
 
-/// The bytes which, at the start of a text node, could open a CommonMark block
-/// — a setext underline, a code fence, a blockquote, a list marker, an ATX
-/// heading, or an ordered list number. Every one is ASCII, so testing the first
-/// byte of a text node tests its first character.
-///
-/// Could, not does: only `=`, `~` and `>` open their block on their own. The
-/// rest need what follows them as well, which [`escape_if_needed`] decides.
-/// This is the cheap test which sends a text node there at all.
-fn is_markdown_block_start(byte: u8) -> bool {
-    matches!(byte, b'=' | b'~' | b'>' | b'-' | b'+' | b'#' | b'0'..=b'9')
-}
-
-/// The bytes which carry CommonMark meaning wherever in a text node they
-/// appear, and so are escaped one by one. A `&` could begin an
-/// [entity or numeric character reference](https://spec.commonmark.org/0.31.2/#entity-and-numeric-character-references),
-/// and a `$` a math expression; see the math section of
-/// `translation_approach.md`.
-fn is_markdown_inline_special(byte: u8) -> bool {
-    matches!(byte, b'\\' | b'&' | b'*' | b'_' | b'`' | b'[' | b']' | b'$')
-}
-
 pub(crate) fn walk_children(
     node: &Node<'_>,
     output: &mut String,
@@ -386,7 +368,7 @@ fn append_serialized_inline<N: DomNode>(
 /// 2. Collapsing adjacent spaces between inline elements
 ///
 /// When `preserve_whitespace` is true, the content is appended without normalization.
-fn append_normalized_content(output: &mut String, mut content: String, preserve_whitespace: bool) {
+fn append_normalized_content(output: &mut String, content: String, preserve_whitespace: bool) {
     if output.is_empty() {
         *output = content;
         return;
@@ -402,25 +384,26 @@ fn append_normalized_content(output: &mut String, mut content: String, preserve_
     let content_newlines = content.len() - content.trim_start_matches('\n').len();
     let total_newlines = last_newlines + content_newlines;
 
-    // Collapse excessive newlines (max 2)
-    if total_newlines > 2 {
+    let content_slice = if total_newlines > 2 {
         let to_remove = std::cmp::min(total_newlines - 2, content_newlines);
-        content.drain(..to_remove);
-    }
-
-    // Collapse adjacent spaces between inline elements
-    let content = if last_newlines == 0
-        && content_newlines == 0
-        && output.ends_with(' ')
-        && content.starts_with(' ')
-    {
-        &content[1..]
+        &content[to_remove..]
     } else {
-        &content
+        &content[..]
     };
 
-    escape_image_marker(output, content);
-    output.push_str(content);
+    // Collapse adjacent spaces between inline elements
+    let content_slice = if last_newlines == 0
+        && content_newlines == 0
+        && output.ends_with(' ')
+        && content_slice.starts_with(' ')
+    {
+        &content_slice[1..]
+    } else {
+        content_slice
+    };
+
+    escape_image_marker(output, content_slice);
+    output.push_str(content_slice);
 }
 
 /// Escapes a `!` ending `output` when `content` begins with a `[`, which would
@@ -474,16 +457,14 @@ fn trim_output_end_spaces(output: &mut String) {
 /// nothing and is escaped all the same. The backslash reads back as the text it
 /// came from, so the cost is a character, not a meaning.
 fn escape_if_needed(text: Cow<'_, str>) -> Cow<'_, str> {
-    let Some(first) = text.chars().next() else {
+    let Some(first) = text.as_bytes().first().copied() else {
         return text;
     };
 
-    let mut need_escape = is_markdown_block_start(text.as_bytes()[0]);
-
-    if !need_escape {
-        // Markdown specials are all ASCII; byte scan avoids UTF-8 decoding.
-        need_escape = text.bytes().any(is_markdown_inline_special);
-    }
+    let need_escape = matches!(first, b'=' | b'~' | b'>' | b'-' | b'+' | b'#' | b'0'..=b'9')
+        || text
+            .bytes()
+            .any(|b| escape_markdown_inline_special(b).is_some());
 
     if !need_escape {
         return escape_html(text);
@@ -494,16 +475,16 @@ fn escape_if_needed(text: Cow<'_, str>) -> Cow<'_, str> {
     // second-char space of list markers, so pre-escape checks match the old
     // post-escape behavior without `insert(0, ...)`.
     let needs_leading_backslash = match first {
-        '=' | '~' | '>' => true,
+        b'=' | b'~' | b'>' => true,
         // A line of nothing but `-` and spaces is also a thematic break or a
         // setext underline. Anything else after the second `-` -- `--foo` --
         // is neither, and opens no list either.
-        '-' => {
+        b'-' => {
             matches!(text.as_bytes().get(1), Some(b' '))
                 || text.bytes().all(|byte| matches!(byte, b'-' | b' '))
         }
-        '+' => matches!(text.as_bytes().get(1), None | Some(b' ')),
-        '#' => is_markdown_atx_heading(text.as_ref()),
+        b'+' => matches!(text.as_bytes().get(1), None | Some(b' ')),
+        b'#' => is_markdown_atx_heading(text.as_ref()),
         _ => false,
     };
 
@@ -511,19 +492,7 @@ fn escape_if_needed(text: Cow<'_, str>) -> Cow<'_, str> {
     if needs_leading_backslash {
         escaped.push('\\');
     }
-    for ch in text.chars() {
-        match ch {
-            '\\' => escaped.push_str("\\\\"),
-            '&' => escaped.push_str("\\&"),
-            '*' => escaped.push_str("\\*"),
-            '_' => escaped.push_str("\\_"),
-            '`' => escaped.push_str("\\`"),
-            '[' => escaped.push_str("\\["),
-            ']' => escaped.push_str("\\]"),
-            '$' => escaped.push_str("\\$"),
-            _ => escaped.push(ch),
-        }
-    }
+    push_escaped_ascii(text.as_ref(), &mut escaped, escape_markdown_inline_special);
 
     if first.is_ascii_digit()
         && let Some(delimiter_idx) = index_of_markdown_ordered_item_delimiter(&escaped)
