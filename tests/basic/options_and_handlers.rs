@@ -1,7 +1,7 @@
 use pretty_assertions::assert_eq;
 
 use htmd::{
-    Element, HtmlToMarkdown,
+    CommentHandler, Context, Element, HtmlToMarkdown, Node,
     element_handler::{ElementHandler, HandlerResult, Handlers},
     options::Options,
 };
@@ -108,6 +108,68 @@ fn append_content_when_the_body_is_empty() {
         "Hello\n\n[^1]: A footnote.",
         converter
             .convert("<p>Hello</p><img src=\"a.png\">")
+            .unwrap()
+    );
+}
+
+#[test]
+fn custom_comment_handler() {
+    let converter = HtmlToMarkdown::builder()
+        .comment_handler(
+            |_handlers: &dyn Handlers, node: &Node<'_>, context: Context| {
+                let text = node.comment()?;
+                if text == "drop" {
+                    return None;
+                }
+                if context.is_block() {
+                    Some(format!("\n\n[block:{text}]\n\n").into())
+                } else {
+                    Some(format!("[inline:{text}]").into())
+                }
+            },
+        )
+        .build();
+
+    assert_eq!(
+        "[block:note]\n\nHello [inline:mid] world",
+        converter
+            .convert("<!--note--><p>Hello <!--mid--><!--drop--> world</p>")
+            .unwrap()
+    );
+    assert_eq!(
+        "[block:note]\n\nHello",
+        converter.convert("<!--note-->\nHello").unwrap()
+    );
+    assert_eq!(
+        "a\n\n[block:note]\n\nb",
+        converter.convert("<div>a <!--note--> b</div>").unwrap()
+    );
+    assert_eq!(
+        "a b",
+        converter.convert("<div>a <!--drop--> b</div>").unwrap()
+    );
+
+    struct PrefixCommentHandler(&'static str);
+
+    impl CommentHandler for PrefixCommentHandler {
+        fn handle(
+            &self,
+            _handlers: &dyn Handlers,
+            node: &Node<'_>,
+            _context: Context,
+        ) -> Option<HandlerResult> {
+            let text = node.comment()?;
+            Some(format!("{}{text}", self.0).into())
+        }
+    }
+
+    let struct_converter = HtmlToMarkdown::builder()
+        .comment_handler(PrefixCommentHandler("note:"))
+        .build();
+    assert_eq!(
+        "Hello note:world",
+        struct_converter
+            .convert("<p>Hello <!--world--></p>")
             .unwrap()
     );
 }

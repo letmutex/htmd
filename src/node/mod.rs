@@ -228,6 +228,30 @@ impl<'a> Node<'a> {
         }
     }
 
+    /// The previous sibling node under the same parent, if any.
+    #[inline]
+    pub fn prev_sibling(&self) -> Option<Node<'a>> {
+        match &self.0 {
+            #[cfg(feature = "ego-tree")]
+            NodeInner::Ego(node) => node.prev_sibling().map(Node::from_ego_ref),
+            #[cfg(feature = "rcdom")]
+            NodeInner::Rc(node) => get_rc_sibling(node.as_rc(), -1),
+            NodeInner::SyntheticElement(_) | NodeInner::SyntheticText(_) => None,
+        }
+    }
+
+    /// The next sibling node under the same parent, if any.
+    #[inline]
+    pub fn next_sibling(&self) -> Option<Node<'a>> {
+        match &self.0 {
+            #[cfg(feature = "ego-tree")]
+            NodeInner::Ego(node) => node.next_sibling().map(Node::from_ego_ref),
+            #[cfg(feature = "rcdom")]
+            NodeInner::Rc(node) => get_rc_sibling(node.as_rc(), 1),
+            NodeInner::SyntheticElement(_) | NodeInner::SyntheticText(_) => None,
+        }
+    }
+
     /// The first direct child node, if any.
     #[inline]
     pub fn first_child(&self) -> Option<Node<'a>> {
@@ -295,8 +319,21 @@ impl<'a> Node<'a> {
             .unwrap_or_else(|e| panic!("Failed to serialize node: {}", e))
     }
 
+    /// Serialize this element's opening tag to HTML, or `None` for non-elements.
+    pub fn opening_tag(&self) -> Option<String> {
+        self.serialize_opening_tag()
+            .unwrap_or_else(|e| panic!("Failed to serialize opening tag: {}", e))
+    }
+
+    /// Serialize this element's closing tag to HTML (empty string for void HTML
+    /// elements), or `None` for non-elements.
+    pub fn closing_tag(&self) -> Option<String> {
+        self.serialize_closing_tag()
+    }
+
+    /// The comment contents if this node is a comment node, or `None` otherwise.
     #[inline]
-    pub(crate) fn comment(&self) -> Option<&str> {
+    pub fn comment(&self) -> Option<&str> {
         match &self.0 {
             #[cfg(feature = "ego-tree")]
             NodeInner::Ego(node) => match node.value() {
@@ -338,6 +375,16 @@ fn get_rc_parent(node: &Rc<markup5ever_rcdom::Node>) -> Option<Rc<markup5ever_rc
     let parent = value.as_ref().and_then(|parent| parent.upgrade());
     node.parent.set(value);
     parent
+}
+
+#[cfg(feature = "rcdom")]
+#[inline]
+fn get_rc_sibling<'a>(node: &Rc<markup5ever_rcdom::Node>, offset: isize) -> Option<Node<'a>> {
+    let parent = get_rc_parent(node)?;
+    let children = parent.children.borrow();
+    let idx = children.iter().position(|child| Rc::ptr_eq(child, node))?;
+    let target = idx.checked_add_signed(offset)?;
+    children.get(target).cloned().map(Node::from_rc_owned)
 }
 
 #[cfg(feature = "rcdom")]

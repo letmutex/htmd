@@ -14,7 +14,7 @@ pub(crate) mod util;
 use dom_walker::walk_node;
 pub use element::{Context, ContextKind, Element};
 use element_handler::ElementHandlers;
-pub use element_handler::{ElementHandler, EventSubscription, EventTypes};
+pub use element_handler::{CommentHandler, ElementHandler, EventSubscription, EventTypes};
 use html5ever::tendril::TendrilSink;
 use html5ever::tree_builder::TreeBuilderOpts;
 use html5ever::{ParseOpts, parse_document};
@@ -225,6 +225,15 @@ impl HtmlToMarkdownBuilder {
         Handler: ElementHandler + 'static,
     {
         self.handlers.add_handler(tags, handler);
+        self
+    }
+
+    /// Set a handler for HTML comment nodes.
+    pub fn comment_handler<Handler>(mut self, handler: Handler) -> Self
+    where
+        Handler: CommentHandler + 'static,
+    {
+        self.handlers.set_comment_handler(handler);
         self
     }
 

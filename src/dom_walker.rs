@@ -83,6 +83,17 @@ fn walk_node_generic<N: DomNode>(
             walk_element(&wrapped, tag, attrs, output, handlers, context)
         }),
         NodeType::Comment => {
+            if let Some(ref comment_handler) = handlers.comment_handler {
+                let wrapped = node.as_node();
+                let Some(result) = comment_handler.handle(handlers, &wrapped, context) else {
+                    return true;
+                };
+                if !context.literal && result.content.starts_with('\n') {
+                    trim_output_end_spaces(output);
+                }
+                append_normalized_content(output, result.content, context.literal);
+                return result.markdown_translated;
+            }
             if handlers.options.translation_mode == TranslationMode::Faithful {
                 node.with_comment(|contents| walk_comment(contents, output, context));
             }
@@ -104,6 +115,9 @@ fn walk_node_generic<N: DomNode>(
 fn walk_comment(contents: &str, output: &mut String, context: Context) {
     let html = concat_strings!("<!--", contents, "-->");
     if context.is_block() {
+        if !context.literal {
+            trim_output_end_spaces(output);
+        }
         append_normalized_content(output, frame_as_block(&html), context.literal);
     } else {
         output.push_str(&compress_whitespace(&html));
@@ -332,7 +346,10 @@ fn walk_children_generic<N: DomNode>(
 
             if output.len() > output_len {
                 // Something was appended, update the flag
-                trim_leading_spaces = trims_spaces;
+                trim_leading_spaces = trims_spaces
+                    || (curr.node_type() == NodeType::Comment
+                        && !context.literal
+                        && output.ends_with('\n'));
             }
         }
     });

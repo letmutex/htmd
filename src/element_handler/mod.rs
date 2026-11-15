@@ -200,6 +200,31 @@ where
     }
 }
 
+/// Trait for handling the conversion of HTML comment nodes to Markdown.
+pub trait CommentHandler: Send + Sync {
+    /// Handle the conversion of a comment node.
+    fn handle(
+        &self,
+        handlers: &dyn Handlers,
+        node: &Node<'_>,
+        context: Context,
+    ) -> Option<HandlerResult>;
+}
+
+impl<F> CommentHandler for F
+where
+    F: (Fn(&dyn Handlers, &Node<'_>, Context) -> Option<HandlerResult>) + Send + Sync,
+{
+    fn handle(
+        &self,
+        handlers: &dyn Handlers,
+        node: &Node<'_>,
+        context: Context,
+    ) -> Option<HandlerResult> {
+        self(handlers, node, context)
+    }
+}
+
 #[derive(Default)]
 pub(crate) struct TagEntry {
     pub(crate) handler_indices: Vec<usize>,
@@ -210,6 +235,7 @@ pub(crate) struct TagEntry {
 /// Builtin element handlers
 pub(crate) struct ElementHandlers {
     pub(crate) handlers: Vec<Box<dyn ElementHandler>>,
+    pub(crate) comment_handler: Option<Box<dyn CommentHandler>>,
     pub(crate) tag_entries: HashMap<String, TagEntry>,
     pub(crate) doc_enter_listeners: Vec<usize>,
     pub(crate) doc_leave_listeners: Vec<usize>,
@@ -312,6 +338,7 @@ impl ElementHandlers {
     pub fn new(options: Options) -> Self {
         let mut handlers = Self {
             handlers: Vec::new(),
+            comment_handler: None,
             tag_entries: HashMap::new(),
             doc_enter_listeners: Vec::new(),
             doc_leave_listeners: Vec::new(),
@@ -405,6 +432,13 @@ impl ElementHandlers {
             entry.handler_indices.push(handler_idx);
         }
         self.rebuild_subscriptions();
+    }
+
+    pub(crate) fn set_comment_handler<Handler>(&mut self, handler: Handler)
+    where
+        Handler: CommentHandler + 'static,
+    {
+        self.comment_handler = Some(Box::new(handler));
     }
 
     pub fn handle(
