@@ -173,3 +173,18 @@ fn custom_comment_handler() {
             .unwrap()
     );
 }
+
+#[test]
+fn comment_handler_newline_trims_following_leading_space() {
+    let converter = HtmlToMarkdown::builder()
+        .comment_handler(
+            |_handlers: &dyn Handlers, _node: &Node<'_>, _context: Context| Some("\n".into()),
+        )
+        .build();
+    assert_eq!(
+        "a\n\\# heading",
+        converter
+            .convert("<div>a <!--x--> # heading</div>")
+            .unwrap()
+    );
+}

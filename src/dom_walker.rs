@@ -82,25 +82,37 @@ fn walk_node_generic<N: DomNode>(
             let wrapped = node.as_node();
             walk_element(&wrapped, tag, attrs, output, handlers, context)
         }),
-        NodeType::Comment => {
-            if let Some(ref comment_handler) = handlers.comment_handler {
-                let wrapped = node.as_node();
-                let Some(result) = comment_handler.handle(handlers, &wrapped, context) else {
-                    return true;
-                };
-                if !context.literal && result.content.starts_with('\n') {
-                    trim_output_end_spaces(output);
-                }
-                append_normalized_content(output, result.content, context.literal);
-                return result.markdown_translated;
-            }
-            if handlers.options.translation_mode == TranslationMode::Faithful {
-                node.with_comment(|contents| walk_comment(contents, output, context));
-            }
-            true
-        }
+        NodeType::Comment => walk_comment_node(node, output, handlers, context).0,
         NodeType::Doctype | NodeType::ProcessingInstruction => true,
     }
+}
+
+/// Writes a comment node to `output`, returning `(markdown_translated, emitted)`.
+fn walk_comment_node<N: DomNode>(
+    node: N,
+    output: &mut String,
+    handlers: &ElementHandlers,
+    context: Context,
+) -> (bool, bool) {
+    if let Some(ref comment_handler) = handlers.comment_handler {
+        let wrapped = node.as_node();
+        let Some(result) = comment_handler.handle(handlers, &wrapped, context) else {
+            return (true, false);
+        };
+        if result.content.is_empty() {
+            return (result.markdown_translated, false);
+        }
+        if !context.literal && result.content.starts_with('\n') {
+            trim_output_end_spaces(output);
+        }
+        append_normalized_content(output, result.content, context.literal);
+        return (result.markdown_translated, true);
+    }
+    if handlers.options.translation_mode == TranslationMode::Faithful {
+        node.with_comment(|contents| walk_comment(contents, output, context));
+        return (true, true);
+    }
+    (true, false)
 }
 
 /// A comment is an
@@ -328,6 +340,15 @@ fn walk_children_generic<N: DomNode>(
                 continue;
             }
 
+            if curr.node_type() == NodeType::Comment {
+                let (translated, emitted) = walk_comment_node(curr, output, handlers, context);
+                markdown_translated &= translated;
+                if emitted {
+                    trim_leading_spaces = !context.literal && output.ends_with('\n');
+                }
+                continue;
+            }
+
             let is_block = curr.tag_name().is_some_and(is_block_element);
 
             // Preformatted content keeps every space it holds, so a block inside
@@ -346,10 +367,7 @@ fn walk_children_generic<N: DomNode>(
 
             if output.len() > output_len {
                 // Something was appended, update the flag
-                trim_leading_spaces = trims_spaces
-                    || (curr.node_type() == NodeType::Comment
-                        && !context.literal
-                        && output.ends_with('\n'));
+                trim_leading_spaces = trims_spaces;
             }
         }
     });
