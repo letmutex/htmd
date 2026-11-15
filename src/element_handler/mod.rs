@@ -335,7 +335,7 @@ impl ElementHandlers {
             });
     }
 
-    pub fn new(options: Options) -> Self {
+    pub(crate) fn new(options: Options) -> Self {
         let mut handlers = Self {
             handlers: Vec::new(),
             comment_handler: None,
@@ -419,7 +419,7 @@ impl ElementHandlers {
         handlers
     }
 
-    pub fn add_handler<Handler>(&mut self, tags: Vec<&str>, handler: Handler)
+    pub(crate) fn add_handler<Handler>(&mut self, tags: Vec<&str>, handler: Handler)
     where
         Handler: ElementHandler + 'static,
     {
@@ -441,7 +441,7 @@ impl ElementHandlers {
         self.comment_handler = Some(Box::new(handler));
     }
 
-    pub fn handle(
+    pub(crate) fn handle(
         &self,
         node: &Node<'_>,
         tag: &str,
