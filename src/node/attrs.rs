@@ -12,7 +12,7 @@ pub struct NodeAttrs<'a>(pub(super) NodeAttrsInner<'a>);
 
 impl NodeAttrs<'_> {
     #[inline]
-    fn as_slice(&self) -> &[html5ever::Attribute] {
+    pub(super) fn as_slice(&self) -> &[html5ever::Attribute] {
         match &self.0 {
             NodeAttrsInner::Slice(attrs) => attrs,
             #[cfg(feature = "rcdom")]

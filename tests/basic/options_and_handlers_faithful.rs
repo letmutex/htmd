@@ -3,7 +3,8 @@ use std::{sync::Arc, thread::JoinHandle};
 use pretty_assertions::assert_eq;
 
 use htmd::{
-    HtmlToMarkdown,
+    Context, HtmlToMarkdown, Node,
+    element_handler::{HandlerResult, Handlers},
     options::{LinkStyle, Options, TranslationMode},
 };
 
@@ -49,4 +50,48 @@ fn multithreading() {
     for handle in handlers {
         handle.join().unwrap();
     }
+}
+
+#[test]
+fn custom_comment_handler_overrides_faithful_comments() {
+    let converter = HtmlToMarkdown::builder()
+        .options(Options {
+            translation_mode: TranslationMode::Faithful,
+            ..Default::default()
+        })
+        .comment_handler(
+            |_handlers: &dyn Handlers, node: &Node<'_>, context: Context| {
+                let text = node.comment()?;
+                if text == "skip" {
+                    return None;
+                }
+                if context.is_block() {
+                    Some(HandlerResult {
+                        content: format!("\n\n<!--custom:{text}-->\n\n"),
+                        markdown_translated: text != "fail",
+                    })
+                } else {
+                    Some(HandlerResult {
+                        content: format!("<!--inline:{text}-->"),
+                        markdown_translated: false,
+                    })
+                }
+            },
+        )
+        .build();
+
+    assert_eq!(
+        "<!--custom:top-->\n\na<!--inline:in-->b",
+        converter
+            .convert("<!--top--><!--skip--><p>a<!--in-->b</p>")
+            .unwrap()
+    );
+    assert_eq!(
+        "*   <!--custom:li-->",
+        converter.convert("<ul><li><!--li--></li></ul>").unwrap()
+    );
+    assert_eq!(
+        "<ol><!--fail--><li>a</li></ol>",
+        converter.convert("<ol><!--fail--><li>a</li></ol>").unwrap()
+    );
 }

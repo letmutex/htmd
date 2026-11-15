@@ -82,14 +82,37 @@ fn walk_node_generic<N: DomNode>(
             let wrapped = node.as_node();
             walk_element(&wrapped, tag, attrs, output, handlers, context)
         }),
-        NodeType::Comment => {
-            if handlers.options.translation_mode == TranslationMode::Faithful {
-                node.with_comment(|contents| walk_comment(contents, output, context));
-            }
-            true
-        }
+        NodeType::Comment => walk_comment_node(node, output, handlers, context).0,
         NodeType::Doctype | NodeType::ProcessingInstruction => true,
     }
+}
+
+/// Writes a comment node to `output`, returning `(markdown_translated, emitted)`.
+fn walk_comment_node<N: DomNode>(
+    node: N,
+    output: &mut String,
+    handlers: &ElementHandlers,
+    context: Context,
+) -> (bool, bool) {
+    if let Some(ref comment_handler) = handlers.comment_handler {
+        let wrapped = node.as_node();
+        let Some(result) = comment_handler.handle(handlers, &wrapped, context) else {
+            return (true, false);
+        };
+        if result.content.is_empty() {
+            return (result.markdown_translated, false);
+        }
+        if !context.literal && result.content.starts_with('\n') {
+            trim_output_end_spaces(output);
+        }
+        append_normalized_content(output, result.content, context.literal);
+        return (result.markdown_translated, true);
+    }
+    if handlers.options.translation_mode == TranslationMode::Faithful {
+        node.with_comment(|contents| walk_comment(contents, output, context));
+        return (true, true);
+    }
+    (true, false)
 }
 
 /// A comment is an
@@ -104,6 +127,9 @@ fn walk_node_generic<N: DomNode>(
 fn walk_comment(contents: &str, output: &mut String, context: Context) {
     let html = concat_strings!("<!--", contents, "-->");
     if context.is_block() {
+        if !context.literal {
+            trim_output_end_spaces(output);
+        }
         append_normalized_content(output, frame_as_block(&html), context.literal);
     } else {
         output.push_str(&compress_whitespace(&html));
@@ -311,6 +337,15 @@ fn walk_children_generic<N: DomNode>(
                 }
                 markdown_translated = false;
                 trim_leading_spaces = false;
+                continue;
+            }
+
+            if curr.node_type() == NodeType::Comment {
+                let (translated, emitted) = walk_comment_node(curr, output, handlers, context);
+                markdown_translated &= translated;
+                if emitted {
+                    trim_leading_spaces = !context.literal && output.ends_with('\n');
+                }
                 continue;
             }
 
