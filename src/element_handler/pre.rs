@@ -2,6 +2,7 @@ use crate::{
     Context, Element,
     element_handler::{
         HandlerResult, Handlers,
+        code::{code_block, find_language_from_class},
         element_util::{
             serialize_element, serialize_element_result, serialize_if_extra_attrs_or_inline,
             serialize_when_faithful,
@@ -48,7 +49,23 @@ pub(super) fn pre_handler(handlers: &dyn Handlers, element: &Element) -> Option<
             serialize_element(handlers, element)
         );
 
-        Some(frame_as_block(&result.content).into())
+        // A `<code>` child fences itself (`code_handler`); text and `<span>`s
+        // straight inside `<pre>`, as Pygments and GitHub write them, do not.
+        let has_code_child = element
+            .node
+            .children()
+            .iter()
+            .any(|child| get_node_tag_name(&child) == Some("code"));
+        if has_code_child {
+            return Some(frame_as_block(&result.content).into());
+        }
+        let content = result.content.strip_suffix('\n').unwrap_or(&result.content);
+        let language = element
+            .attrs
+            .iter()
+            .find(|attr| &attr.name.local == "class")
+            .and_then(|attr| find_language_from_class(&attr.value));
+        Some(frame_as_block(&code_block(handlers, content, language.as_deref())).into())
     } else {
         Some(serialize_element_result(handlers, element))
     }

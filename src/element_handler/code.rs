@@ -55,35 +55,42 @@ fn handle_code_block(
         },
     );
     let content = content.strip_suffix('\n').unwrap_or(&content);
+    let language = find_language_from_attrs(element.attrs).or_else(|| {
+        parent
+            .attr("class")
+            .as_deref()
+            .and_then(find_language_from_class)
+    });
+    if handlers.options().code_block_style == CodeBlockStyle::Fenced {
+        serialize_if_extra_attrs!(handlers, element, if language.is_none() { 0 } else { 1 });
+    } else {
+        serialize_if_extra_attrs!(handlers, element, 0);
+    }
+    Some(code_block(handlers, content, language.as_deref()).into())
+}
+
+/// Format `content` as a code block in the configured style.
+pub(super) fn code_block(handlers: &dyn Handlers, content: &str, language: Option<&str>) -> String {
     if handlers.options().code_block_style == CodeBlockStyle::Fenced {
         let fence = if handlers.options().code_block_fence == CodeBlockFence::Tildes {
             get_code_fence_marker("~", content)
         } else {
             get_code_fence_marker("`", content)
         };
-        let language = find_language_from_attrs(element.attrs).or_else(|| {
-            parent
-                .attr("class")
-                .as_deref()
-                .and_then(find_language_from_class)
-        });
-        serialize_if_extra_attrs!(handlers, element, if language.is_none() { 0 } else { 1 });
         let mut result = String::from(&fence);
-        if let Some(ref lang) = language {
+        if let Some(lang) = language {
             result.push_str(lang);
         }
         result.push('\n');
         result.push_str(content);
         result.push('\n');
         result.push_str(&fence);
-        Some(result.into())
+        result
     } else {
-        serialize_if_extra_attrs!(handlers, element, 0);
-        let code = content
+        content
             .lines()
             .map(|line| concat_strings!("    ", line))
-            .join("\n");
-        Some(code.into())
+            .join("\n")
     }
 }
 
@@ -114,7 +121,7 @@ fn find_language_from_attrs(attrs: &[Attribute]) -> Option<String> {
         .and_then(|attr| find_language_from_class(&attr.value))
 }
 
-fn find_language_from_class(class_attr: &str) -> Option<String> {
+pub(super) fn find_language_from_class(class_attr: &str) -> Option<String> {
     class_attr
         .split_ascii_whitespace()
         .find_map(|class| {

@@ -22,6 +22,16 @@ fn code_blocks_with_lang_class_on_pre_tag() {
 }
 
 #[test]
+fn pre_without_code_is_a_code_block() {
+    let html = "<div class=\"highlight\"><pre><span class=\"c1\"># install</span>\n\
+                <span class=\"k\">for</span> x in items:\n    print(x)\n* item\n</pre></div>";
+    assert_eq!(
+        "```\n# install\nfor x in items:\n    print(x)\n* item\n```",
+        htmd::convert(html).unwrap()
+    );
+}
+
+#[test]
 fn span_subtree_conversion_preserves_ancestor_preformatted_context() {
     let converter = HtmlToMarkdown::new();
     let tree = converter
@@ -48,7 +58,7 @@ fn delegated_unhandled_subtree_preserves_ancestor_preformatted_context() {
         .build();
 
     assert_eq!(
-        "  *literal*  \nsecond",
+        "```\n  *literal*  \nsecond\n```",
         converter
             .convert("<pre><delegate><mark>  *literal*  \nsecond</mark></delegate></pre>")
             .unwrap()
