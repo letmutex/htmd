@@ -143,6 +143,34 @@ pub(crate) fn escape_markdown_inline_special(byte: u8) -> Option<&'static str> {
     }
 }
 
+/// Escapes every `~` of a run which pulldown-cmark could read as a
+/// [strikethrough](https://pulldown-cmark.github.io/pulldown-cmark/specs/strikethrough.html)
+/// delimiter: a run of one or two. A longer run delimits nothing, but beginning
+/// a line opens a code fence; `escape_leading_run` escapes all of a run which
+/// begins `text`, since one backslash would leave two of a run of three.
+pub(crate) fn escape_tilde_runs(text: Cow<'_, str>, escape_leading_run: bool) -> Cow<'_, str> {
+    if !text.contains('~') {
+        return text;
+    }
+    let mut escaped = String::with_capacity(text.len() + 4);
+    let mut rest = text.as_ref();
+    while let Some(run_start) = rest.find('~') {
+        escaped.push_str(&rest[..run_start]);
+        rest = &rest[run_start..];
+        let run_len = rest.len() - rest.trim_start_matches('~').len();
+        let escape = run_len < 3 || (escape_leading_run && escaped.is_empty());
+        for _ in 0..run_len {
+            if escape {
+                escaped.push('\\');
+            }
+            escaped.push('~');
+        }
+        rest = &rest[run_len..];
+    }
+    escaped.push_str(rest);
+    Cow::Owned(escaped)
+}
+
 /// Writes `text` into `out`, replacing any ASCII byte for which `replacement`
 /// returns `Some`.
 pub(crate) fn push_escaped_ascii(
@@ -278,7 +306,7 @@ pub(crate) fn escape_image_description(alt: &str) -> Cow<'_, str> {
     });
     // `should_escape_html_like_sequence` reads a CDATA section in the spelling
     // the backslash pass leaves behind, so that pass comes first.
-    escape_html(escaped)
+    escape_html(escape_tilde_runs(escaped, false))
 }
 
 /// Whether `text` opens an
