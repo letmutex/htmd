@@ -14,8 +14,8 @@ use super::{
     options::TranslationMode,
     util::{
         escape::{
-            escape_html, escape_markdown_inline_special, index_of_markdown_ordered_item_delimiter,
-            is_markdown_atx_heading, push_escaped_ascii,
+            escape_html, escape_markdown_inline_special, escape_tilde_runs,
+            index_of_markdown_ordered_item_delimiter, is_markdown_atx_heading, push_escaped_ascii,
         },
         node::is_block_element,
         text::{
@@ -475,7 +475,9 @@ fn trim_output_end_spaces(output: &mut String) {
 /// '==='      -> '\==='      // setext underline
 /// '---'      -> '\---'      // setext underline, thematic break
 /// '```'      -> '\`\`\`'    // code fence, escaped as three inline specials
-/// '~~~'      -> '\~~~'      // code fence
+/// '~~~'      -> '\~\~\~'    // code fence
+/// '~a~'      -> '\~a\~'     // strikethrough
+/// 'a ~~~ b'  -> 'a ~~~ b'   // no strikethrough, no code fence
 /// '# Not h1' -> '\# Not h1' // ATX heading
 /// '1. Item'  -> '1\. Item'  // ordered list item
 /// '1) Item'  -> '1\) Item'  // ordered list item
@@ -496,10 +498,10 @@ fn escape_if_needed(text: Cow<'_, str>) -> Cow<'_, str> {
         return text;
     };
 
-    let need_escape = matches!(first, b'=' | b'~' | b'>' | b'-' | b'+' | b'#' | b'0'..=b'9')
+    let need_escape = matches!(first, b'=' | b'>' | b'-' | b'+' | b'#' | b'0'..=b'9')
         || text
             .bytes()
-            .any(|b| escape_markdown_inline_special(b).is_some());
+            .any(|b| b == b'~' || escape_markdown_inline_special(b).is_some());
 
     if !need_escape {
         return escape_html(text);
@@ -510,7 +512,7 @@ fn escape_if_needed(text: Cow<'_, str>) -> Cow<'_, str> {
     // second-char space of list markers, so pre-escape checks match the old
     // post-escape behavior without `insert(0, ...)`.
     let needs_leading_backslash = match first {
-        b'=' | b'~' | b'>' => true,
+        b'=' | b'>' => true,
         // A line of nothing but `-` and spaces is also a thematic break or a
         // setext underline. Anything else after the second `-` -- `--foo` --
         // is neither, and opens no list either.
@@ -535,9 +537,11 @@ fn escape_if_needed(text: Cow<'_, str>) -> Cow<'_, str> {
         escaped.insert(delimiter_idx, '\\');
     }
 
+    let escaped = escape_tilde_runs(escaped.into(), true);
+
     // Perform the HTML escape after the other escapes, so that the \\
     // characters inserted here don't get escaped again.
-    escape_html(escaped.into())
+    escape_html(escaped)
 }
 
 /// Cases:

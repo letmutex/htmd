@@ -55,7 +55,7 @@ It aims to be [CommonMark](http://commonmark.org/) compliant, and includes optio
 *   horizontalRule (\*, -, or \_)
 *   bullet (\*, -, or +)
 *   codeBlockStyle (indented or fenced)
-*   fence (\` or ~)
+*   fence (\` or \~)
 *   emDelimiter (\_ or \*)
 *   strongDelimiter (\*\* or \_\_)
 *   linkStyle (inlined or referenced)

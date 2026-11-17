@@ -11,6 +11,7 @@ mod options_and_handlers_faithful;
 mod round_trips_faithful;
 mod serialization;
 mod serialization_faithful;
+mod strikethrough_faithful;
 
 /// Asserts that `html` comes back as itself. pulldown-cmark ends a block with
 /// a line ending, which is the only difference these trips are allowed.
