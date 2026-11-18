@@ -104,6 +104,19 @@ println!("{}", convert(html).unwrap());
 // | Python   | Interpreted | 1991 |
 ```
 
+### Partial conversions
+
+```rust
+use htmd::HtmlToMarkdown;
+
+let html = "<html><head><title>Page Title</title></head><body><h1>Hello</h1></body></html>";
+let converter = HtmlToMarkdown::new();
+let tree = converter.html_to_tree(html).unwrap();
+let body = tree.root().find(|n| n.tag_name() == Some("body")).unwrap();
+
+assert_eq!("# Hello", converter.convert(&body).unwrap());
+```
+
 ### Multithreading
 
 You can safely share `HtmlToMarkdown` between multiple threads when only using built-in tag handlers.
