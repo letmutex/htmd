@@ -73,6 +73,14 @@ explicitly -- in Python, `open(path, "w", newline="\r\n")`. `cargo fmt` has the
 same effect on the files it rewrites. Git normalizes on commit either way, but
 the working tree is left inconsistent.
 
+Code styles
+-----------
+
+- Avoid re-exporting when possible.
+- Avoid cross-referenced element handlers, keep handlers independent.
+- Don't bloat everything into one file, a reasonable limit is 600 lines.
+- Carefully evaluate new public APIs, add only those that are necessary and valuable.
+
 Repository layout
 -----------------
 

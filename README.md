@@ -9,7 +9,7 @@ An HTML to Markdown converter for Rust, inspired by [turndown.js](https://github
 - Rich options, same as turndown.js
 - Reliable, it passes [all test cases](https://github.com/mixmark-io/turndown/blob/master/test/index.html) of turndown.js
 - HTML table to Markdown table conversion
-- Minimum dependencies, it uses only [html5ever](https://github.com/servo/html5ever)
+- Minimum dependencies, it uses only [html5ever](https://github.com/servo/html5ever) and [ego-tree](https://github.com/rust-scraper/ego-tree)
 - Fast, it takes ~16ms to convert a 1.37MB Wikipedia page on Apple M4 (See [Bench README](benches/README.md))
 - Faithful mode, which can preserve HTML output for tags not supported by Markdown. (See [#54](https://github.com/letmutex/htmd/pull/54))
 
@@ -20,7 +20,7 @@ An HTML to Markdown converter for Rust, inspired by [turndown.js](https://github
 Add the dependency
 
 ```toml
-htmd = "0.5"
+htmd = "0.6"
 ```
 
 ### Basic
@@ -59,7 +59,7 @@ assert_eq!("Heading\n=======", converter.convert("<h1>Heading</h1>").unwrap());
 ### Custom tag handlers
 
 ```rust
-use htmd::{Element, HtmlToMarkdown, element_handler::Handlers};
+use htmd::{HtmlToMarkdown, element_handler::{Element, Handlers}};
 
 let converter = HtmlToMarkdown::builder()
     .add_handler(vec!["svg"], |_handlers: &dyn Handlers, _: &Element| Some("[Svg Image]".into()))
@@ -120,6 +120,20 @@ for _ in 0..10 {
 ```
 
 If you have custom tag handlers that are not stateless, you likely need a thread-safe mechanism. See [AnchorElementHandler](./src/element_handler/anchor.rs) for example.
+
+### Tree storage
+
+[ego-tree](https://github.com/rust-scraper/ego-tree) and [markup5ever_rcdom](https://crates.io/crates/markup5ever_rcdom) are used to build nodes and trees for traversal. The default backend is `ego-tree`, which is faster than `rcdom`. 
+
+To use the `rcdom` backend, explicitly disable the default features and include the `rcdom` feature.
+
+```toml
+htmd = { version = "0.6", default-features = false, features = ["rcdom"] }
+```
+
+# Migrations
+
+See [migration.md](docs/migration.md) for information on how to migrate from an older version.
 
 # Bindings
 
