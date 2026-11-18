@@ -8,7 +8,7 @@ use std::io;
 use html5ever::serialize::TraversalScope;
 use html5ever::{Attribute, QualName};
 
-use crate::{Node, NodeType};
+use crate::node::{Node, NodeType};
 
 #[derive(Clone)]
 pub(crate) struct SyntheticTextElement<'a> {

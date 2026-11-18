@@ -1,6 +1,6 @@
 use htmd::{
-    Element, HtmlToMarkdown,
-    element_handler::Handlers,
+    HtmlToMarkdown,
+    element_handler::{Element, Handlers},
     options::{CodeBlockFence, Options},
 };
 #[cfg(feature = "rcdom")]

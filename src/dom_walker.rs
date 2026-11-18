@@ -1,13 +1,12 @@
 use std::borrow::Cow;
 
 use crate::{
-    Context, Element, Node, NodeType,
     dom::{ChildCursor, DomNode, SyntheticTextElement},
     element_handler::{
-        ElementHandlers,
+        Context, Element, ElementHandlers,
         element_util::{math_delimiter, serialize_element},
     },
-    node::NodeInner,
+    node::{Node, NodeInner, NodeType},
 };
 
 use super::{

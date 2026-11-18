@@ -1,10 +1,12 @@
 use std::{iter::Peekable, str::Chars};
 
 use crate::{
-    Element, Node,
     dom::SyntheticTextElement,
-    element_handler::element_util::{math_delimiter, serialize_if_extra_attrs},
-    element_handler::{HandlerResult, Handlers},
+    element_handler::{
+        Element, HandlerResult, Handlers,
+        element_util::{math_delimiter, serialize_if_extra_attrs},
+    },
+    node::Node,
     util::text::{concat_strings, trim_newlines},
 };
 

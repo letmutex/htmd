@@ -1,7 +1,5 @@
-use crate::{
-    Context, Element,
-    element_handler::element_util::handle_or_serialize_by_parent,
-    element_handler::{HandlerResult, Handlers},
+use crate::element_handler::{
+    Context, Element, HandlerResult, Handlers, element_util::handle_or_serialize_by_parent,
 };
 
 pub(super) fn td_th_handler(handlers: &dyn Handlers, element: &Element) -> Option<HandlerResult> {

@@ -1,6 +1,6 @@
 use crate::{
-    Element, NodeType,
-    element_handler::{HandlerResult, Handlers, element_util::serialize_element_result},
+    element_handler::{Element, HandlerResult, Handlers, element_util::serialize_element_result},
+    node::NodeType,
     options::TranslationMode,
     util::text::frame_as_block,
 };

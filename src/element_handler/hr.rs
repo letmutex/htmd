@@ -1,7 +1,7 @@
 use crate::{
-    Element,
-    element_handler::element_util::serialize_if_extra_attrs_or_inline,
-    element_handler::{HandlerResult, Handlers},
+    element_handler::{
+        Element, HandlerResult, Handlers, element_util::serialize_if_extra_attrs_or_inline,
+    },
     options::HrStyle,
 };
 

@@ -3,8 +3,7 @@ use htmd::options::{LinkStyle, Options};
 
 #[test]
 fn nested_convert_with_referenced_links() {
-    use htmd::Element;
-    use htmd::element_handler::Handlers;
+    use htmd::element_handler::{Element, Handlers};
     use indoc::indoc;
 
     let converter = HtmlToMarkdown::builder()

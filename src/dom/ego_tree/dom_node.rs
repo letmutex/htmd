@@ -6,7 +6,7 @@ use html5ever::{Attribute, QualName};
 
 use crate::dom::{ChildCursor, DomNode, combining_tag};
 use crate::element_handler::element_util::math_delimiter;
-use crate::{Node, NodeType};
+use crate::node::{Node, NodeType};
 
 use super::EgoNodeData;
 use super::serialize::serialize_ego_node;

@@ -1,7 +1,10 @@
 use crate::{
-    Element,
-    element_handler::element_util::{list_marker_spacing, serialize_if_extra_attrs_or_inline},
-    element_handler::{HandlerResult, Handlers, element_util::serialize_element_result},
+    element_handler::{
+        Element, HandlerResult, Handlers,
+        element_util::{
+            list_marker_spacing, serialize_element_result, serialize_if_extra_attrs_or_inline,
+        },
+    },
     options::{Options, TranslationMode},
     util::{
         node::get_node_tag_name,

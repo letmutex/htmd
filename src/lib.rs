@@ -3,30 +3,25 @@ compile_error!("Enable at least one DOM backend feature: `ego-tree` or `rcdom`."
 
 mod dom;
 mod dom_walker;
-mod element;
 pub mod element_handler;
 mod html_block;
 mod input;
-mod node;
+pub mod node;
 pub mod options;
 pub(crate) mod util;
 
 use dom_walker::walk_node;
-pub use element::{Context, ContextKind, Element};
-use element_handler::ElementHandlers;
-pub use element_handler::{CommentHandler, ElementHandler, EventSubscription, EventTypes};
+pub use element_handler::Element;
+use element_handler::{
+    CommentHandler, Context, ContextKind, ElementHandler, ElementHandlers, Handlers,
+};
 use html5ever::tendril::TendrilSink;
 use html5ever::tree_builder::TreeBuilderOpts;
 use html5ever::{ParseOpts, parse_document};
 pub use input::ConvertInput;
-use node::TreeInner;
-pub use node::{
-    Node, NodeAttrs, NodeAttrsIter, NodeChildren, NodeChildrenIter, NodeStr, NodeType, Tree,
-};
+use node::{Node, Tree, TreeInner};
 use options::Options;
 use util::node::is_inside_pre;
-
-use crate::element_handler::Handlers;
 
 /// Convert HTML or a parsed [`Tree`] / [`Node`] to Markdown.
 ///
@@ -46,7 +41,7 @@ pub fn convert<I: ConvertInput>(input: I) -> std::io::Result<String> {
 ///
 /// # Example
 /// ```
-/// use htmd::{Element, HtmlToMarkdown};
+/// use htmd::HtmlToMarkdown;
 ///
 /// // One-liner
 /// let md = HtmlToMarkdown::new().convert("<h1>Hello</h1>").unwrap();
@@ -208,7 +203,7 @@ impl HtmlToMarkdownBuilder {
     /// # Example
     ///
     /// ```
-    /// use htmd::{Element, HtmlToMarkdownBuilder, element_handler::Handlers};
+    /// use htmd::{HtmlToMarkdownBuilder, element_handler::{Element, Handlers}};
     ///
     /// let mut handlers = HtmlToMarkdownBuilder::new()
     ///    .add_handler(vec!["img"], |_handlers: &dyn Handlers, _: &Element| {

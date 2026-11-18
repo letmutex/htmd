@@ -4,8 +4,10 @@ use indoc::indoc;
 use pretty_assertions::assert_eq;
 
 use htmd::{
-    Element, EventSubscription, EventTypes, HtmlToMarkdown,
-    element_handler::{ElementHandler, HandlerResult, Handlers},
+    HtmlToMarkdown,
+    element_handler::{
+        Element, ElementHandler, EventSubscription, EventTypes, HandlerResult, Handlers,
+    },
     options::Options,
 };
 

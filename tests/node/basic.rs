@@ -1,4 +1,7 @@
-use htmd::{HtmlToMarkdown, Node, NodeType};
+use htmd::{
+    HtmlToMarkdown,
+    node::{Node, NodeType},
+};
 use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -232,6 +235,7 @@ fn node_tree_traversal_and_siblings() {
     assert_eq!(Some(children[2].clone()), tree_children.last());
     assert_eq!(None, tree_children.get(3));
     assert_eq!(Some(children[0].clone()), tree.first_child());
+    assert_eq!(Some(children[2].clone()), tree.last_child());
     assert_eq!(None, children[0].prev_sibling());
     assert_eq!(Some(children[1].clone()), children[0].next_sibling());
     assert_eq!(Some(children[0].clone()), children[1].prev_sibling());
@@ -242,6 +246,9 @@ fn node_tree_traversal_and_siblings() {
 
     let div = tree.find(|n| n.tag_name() == Some("div")).unwrap();
     let text = div.first_child().unwrap();
+    assert_eq!(Some(text.clone()), div.last_child());
+    assert_eq!(None, text.first_child());
+    assert_eq!(None, text.last_child());
     assert_eq!(Some(div.clone()), text.parent());
     assert_eq!(Some(text.clone()), div.children().last());
     assert_eq!(r#"[Node::Text("hello")]"#, format!("{:?}", div.children()));
@@ -340,6 +347,8 @@ fn template_and_annotation_xml_nodes() {
     let template = root.find(|n| n.tag_name() == Some("template")).unwrap();
     assert_eq!(NodeType::Element, template.node_type());
     assert!(template.children().is_empty());
+    assert_eq!(None, template.first_child());
+    assert_eq!(None, template.last_child());
 
     let annotation = root
         .find(|n| n.tag_name() == Some("annotation-xml"))
@@ -354,7 +363,8 @@ fn synthetic_text_element_inspection() {
     let converter = HtmlToMarkdown::builder()
         .add_handler(
             vec!["em"],
-            |handlers: &dyn htmd::element_handler::Handlers, element: &htmd::Element<'_>| {
+            |handlers: &dyn htmd::element_handler::Handlers,
+             element: &htmd::element_handler::Element<'_>| {
                 let node = element.node;
                 assert_eq!(NodeType::Element, node.node_type());
                 assert_eq!(Some("em"), node.tag_name());
@@ -407,8 +417,11 @@ fn synthetic_text_element_inspection() {
                 assert_eq!(None, children.iter().nth_back(1));
 
                 let text_child = node.first_child().unwrap();
+                assert_eq!(Some(text_child.clone()), node.last_child());
                 assert_eq!(NodeType::Text, text_child.node_type());
                 assert!(text_child.children().is_empty());
+                assert_eq!(None, text_child.first_child());
+                assert_eq!(None, text_child.last_child());
                 assert_eq!(
                     Some(text_child.clone()),
                     node.find(|n| n.node_type() == NodeType::Text)

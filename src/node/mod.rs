@@ -271,6 +271,25 @@ impl<'a> Node<'a> {
         }
     }
 
+    /// The last direct child node, if any.
+    #[inline]
+    pub fn last_child(&self) -> Option<Node<'a>> {
+        match &self.0 {
+            #[cfg(feature = "ego-tree")]
+            NodeInner::Ego(node) => node.last_child().map(Node::from_ego_ref),
+            #[cfg(feature = "rcdom")]
+            NodeInner::Rc(node) => node
+                .as_rc()
+                .children
+                .borrow()
+                .last()
+                .cloned()
+                .map(Node::from_rc_owned),
+            NodeInner::SyntheticElement(synth) => Some(Node(NodeInner::SyntheticText(synth))),
+            NodeInner::SyntheticText(_) => None,
+        }
+    }
+
     /// Borrow a view of the direct child nodes.
     #[inline]
     pub fn children(&self) -> NodeChildren<'_> {

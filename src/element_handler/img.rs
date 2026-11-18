@@ -1,7 +1,8 @@
 use crate::{
-    Element,
-    element_handler::element_util::{serialize_element_when_faithful, serialize_if_extra_attrs},
-    element_handler::{HandlerResult, Handlers},
+    element_handler::{
+        Element, HandlerResult, Handlers,
+        element_util::{serialize_element_when_faithful, serialize_if_extra_attrs},
+    },
     util::{
         escape::{escape_image_description, escape_link_destination, escape_link_title},
         text::concat_strings,

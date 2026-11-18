@@ -1,7 +1,5 @@
-use crate::{
-    Element,
-    element_handler::element_util::handle_or_serialize_by_parent,
-    element_handler::{HandlerResult, Handlers},
+use crate::element_handler::{
+    Element, HandlerResult, Handlers, element_util::handle_or_serialize_by_parent,
 };
 
 /// Handler for the `<thead>` and `<tbody>` sections of a table. This tag's
