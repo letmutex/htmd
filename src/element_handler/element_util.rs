@@ -1,6 +1,5 @@
 use crate::{
-    Context, Element,
-    element_handler::{HandlerResult, Handlers},
+    element_handler::{Context, Element, HandlerResult, Handlers},
     util::{
         escape::{has_line_ending, push_encoding_line_ending},
         node::{is_block_element, is_type_1_element, parent_tag_name_equals},

@@ -1,9 +1,8 @@
 use crate::{
-    Context, Element,
-    element_handler::element_util::{
-        serialize_element_when_faithful, serialize_if_extra_attrs_or_inline,
+    element_handler::{
+        Context, Element, HandlerResult, Handlers,
+        element_util::{serialize_element_when_faithful, serialize_if_extra_attrs_or_inline},
     },
-    element_handler::{HandlerResult, Handlers},
     html_block::starts_html_block,
     util::text::frame_as_block,
 };

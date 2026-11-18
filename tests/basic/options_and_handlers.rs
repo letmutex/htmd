@@ -1,8 +1,9 @@
 use pretty_assertions::assert_eq;
 
 use htmd::{
-    CommentHandler, Context, Element, HtmlToMarkdown, Node,
-    element_handler::{ElementHandler, HandlerResult, Handlers},
+    HtmlToMarkdown,
+    element_handler::{CommentHandler, Context, Element, ElementHandler, HandlerResult, Handlers},
+    node::Node,
     options::Options,
 };
 

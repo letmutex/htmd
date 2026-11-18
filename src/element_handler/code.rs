@@ -1,12 +1,13 @@
 use html5ever::Attribute;
 
 use crate::{
-    Context, Element, Node, NodeType,
-    element_handler::element_util::serialize_if_extra_attrs,
     element_handler::{
-        HandlerResult, Handlers,
-        element_util::{serialize_element_result, serialize_element_when_faithful},
+        Context, Element, HandlerResult, Handlers,
+        element_util::{
+            serialize_element_result, serialize_element_when_faithful, serialize_if_extra_attrs,
+        },
     },
+    node::{Node, NodeType},
     options::{CodeBlockFence, CodeBlockStyle, TranslationMode},
     util::{
         escape::has_line_ending,

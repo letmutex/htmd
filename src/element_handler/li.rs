@@ -1,7 +1,8 @@
 use crate::{
-    Context, Element,
-    element_handler::element_util::{list_marker_spacing, serialize_if_extra_attrs_or_inline},
-    element_handler::{HandlerResult, Handlers},
+    element_handler::{
+        Context, Element, HandlerResult, Handlers,
+        element_util::{list_marker_spacing, serialize_if_extra_attrs_or_inline},
+    },
     options::BulletListMarker,
     util::{
         node::get_node_tag_name,

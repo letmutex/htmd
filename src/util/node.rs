@@ -1,4 +1,4 @@
-use crate::{Node, NodeType};
+use crate::node::{Node, NodeType};
 
 pub(crate) fn get_node_tag_name<'a>(node: &'a Node<'_>) -> Option<&'a str> {
     match node.node_type() {

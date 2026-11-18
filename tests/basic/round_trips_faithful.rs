@@ -2,8 +2,8 @@ use pretty_assertions::assert_eq;
 use pulldown_cmark::Options as CommonMarkOptions;
 
 use htmd::{
-    Element, HtmlToMarkdown,
-    element_handler::{HandlerResult, Handlers},
+    HtmlToMarkdown,
+    element_handler::{Element, HandlerResult, Handlers},
     options::{Options, TranslationMode},
 };
 

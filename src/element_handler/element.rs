@@ -1,6 +1,6 @@
 use html5ever::Attribute;
 
-use crate::Node;
+use crate::node::Node;
 
 /// The CommonMark context an element is translated in: block vs inline phrasing.
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]

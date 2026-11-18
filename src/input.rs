@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
-use crate::{HtmlToMarkdown, Node, Tree};
+use crate::HtmlToMarkdown;
+use crate::node::{Node, Tree};
 
 /// Input accepted by [`convert`](crate::convert) and [`HtmlToMarkdown::convert`].
 pub trait ConvertInput {

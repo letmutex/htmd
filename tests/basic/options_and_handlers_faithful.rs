@@ -3,8 +3,9 @@ use std::{sync::Arc, thread::JoinHandle};
 use pretty_assertions::assert_eq;
 
 use htmd::{
-    Context, HtmlToMarkdown, Node,
-    element_handler::{HandlerResult, Handlers},
+    HtmlToMarkdown,
+    element_handler::{Context, HandlerResult, Handlers},
+    node::Node,
     options::{LinkStyle, Options, TranslationMode},
 };
 

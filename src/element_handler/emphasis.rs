@@ -1,7 +1,6 @@
 use crate::{
-    Context, ContextKind, Element,
     element_handler::{
-        HandlerResult, Handlers,
+        Context, ContextKind, Element, HandlerResult, Handlers,
         element_util::{
             serialize_element, serialize_element_when_faithful, serialize_if_extra_attrs,
         },

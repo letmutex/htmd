@@ -38,7 +38,7 @@ mod tests {
     use html5ever::tree_builder::{ElementFlags, NodeOrText, TreeSink};
     use html5ever::{LocalName, QualName, ns};
 
-    use crate::NodeType;
+    use crate::node::{NodeType, Tree, TreeInner};
 
     fn el_name(local: &str) -> QualName {
         QualName::new(None, ns!(html), LocalName::from(local))
@@ -51,7 +51,7 @@ mod tests {
         let pi = sink.create_pi("xml".into(), "version=\"1.0\"".into());
         sink.append(&doc, NodeOrText::AppendNode(pi));
 
-        let tree = crate::Tree(crate::node::TreeInner::Ego(sink.finish()));
+        let tree = Tree(TreeInner::Ego(sink.finish()));
         let pi_node = tree.root().first_child().unwrap();
         assert_eq!(NodeType::ProcessingInstruction, pi_node.node_type());
         assert_eq!(None, pi_node.tag_name());
@@ -84,7 +84,7 @@ mod tests {
         sink.append(&frag, NodeOrText::AppendNode(tpl_p));
         sink.reparent_children(&div, &container);
 
-        let tree = crate::Tree(crate::node::TreeInner::Ego(sink.finish()));
+        let tree = Tree(TreeInner::Ego(sink.finish()));
         assert_eq!(
             "<div></div><section><span></span><p></p>ab</section>",
             tree.root().html()

@@ -1,4 +1,8 @@
-use htmd::{Element, HtmlToMarkdown, element_handler::Handlers, options::Options};
+use htmd::{
+    HtmlToMarkdown,
+    element_handler::{Element, Handlers},
+    options::Options,
+};
 
 fn main() {
     let converter = HtmlToMarkdown::new();

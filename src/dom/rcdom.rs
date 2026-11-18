@@ -7,7 +7,7 @@ use markup5ever_rcdom::{Node as RcDomNode, NodeData, SerializableHandle};
 
 use crate::dom::{ChildCursor, DomNode, combining_tag};
 use crate::element_handler::element_util::math_delimiter;
-use crate::{Node, NodeType};
+use crate::node::{Node, NodeType};
 
 pub(crate) struct RcChildCursor<'b>(std::slice::Iter<'b, Rc<RcDomNode>>);
 

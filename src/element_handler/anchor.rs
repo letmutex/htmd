@@ -1,12 +1,11 @@
 use std::cell::RefCell;
 
 use crate::{
-    Context, ContextKind, Element, ElementHandler, Options,
-    element_handler::EventSubscription,
-    element_handler::EventTypes,
-    element_handler::element_util::serialize_if_extra_attrs,
-    element_handler::{HandlerResult, Handlers},
-    options::{LinkReferenceStyle, LinkStyle},
+    element_handler::{
+        Context, ContextKind, Element, ElementHandler, EventSubscription, EventTypes,
+        HandlerResult, Handlers, element_util::serialize_if_extra_attrs,
+    },
+    options::{LinkReferenceStyle, LinkStyle, Options},
     util::{
         escape::{encode_line_endings, escape_link_destination, escape_link_title},
         text::concat_strings,

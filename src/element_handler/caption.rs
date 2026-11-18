@@ -1,7 +1,7 @@
 use crate::{
-    Context, Element,
-    element_handler::element_util::serialize_if_extra_attrs,
-    element_handler::{HandlerResult, Handlers},
+    element_handler::{
+        Context, Element, HandlerResult, Handlers, element_util::serialize_if_extra_attrs,
+    },
     util::text::frame_as_block,
 };
 

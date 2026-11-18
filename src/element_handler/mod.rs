@@ -3,6 +3,7 @@ mod blockquote;
 mod br;
 mod caption;
 mod code;
+mod element;
 pub(crate) mod element_util;
 mod emphasis;
 mod head_body;
@@ -23,16 +24,17 @@ mod tr;
 use crate::{
     dom_walker::walk_node,
     element_handler::element_util::serialize_element_result,
+    node::Node,
     options::{Options, TranslationMode},
     util::text::frame_as_block,
 };
 
-use super::{Context, Element, Node};
 use anchor::AnchorElementHandler;
 use blockquote::blockquote_handler;
 use br::br_handler;
 use caption::caption_handler;
 use code::code_handler;
+pub use element::{Context, ContextKind, Element};
 use emphasis::emphasis_handler;
 use head_body::head_body_handler;
 use headings::headings_handler;

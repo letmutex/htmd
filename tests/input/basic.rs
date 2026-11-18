@@ -1,4 +1,7 @@
-use htmd::{HtmlToMarkdown, Node, Tree, convert};
+use htmd::{
+    HtmlToMarkdown, convert,
+    node::{Node, Tree},
+};
 use std::borrow::Cow;
 use std::rc::Rc;
 use std::sync::Arc;
