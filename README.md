@@ -136,7 +136,7 @@ If you have custom tag handlers that are not stateless, you likely need a thread
 
 ### Tree storage
 
-[ego-tree](https://github.com/rust-scraper/ego-tree) and [markup5ever_rcdom](https://crates.io/crates/markup5ever_rcdom) are used to build nodes and trees for traversal. The default backend is `ego-tree`, which is faster than `rcdom`. 
+[ego-tree](https://github.com/rust-scraper/ego-tree) and [markup5ever_rcdom](https://crates.io/crates/markup5ever_rcdom) are used to build nodes and trees for traversal. The default backend is `ego-tree`, which is faster than `rcdom` and uses less memory. 
 
 To use the `rcdom` backend, explicitly disable the default features and include the `rcdom` feature.
 
