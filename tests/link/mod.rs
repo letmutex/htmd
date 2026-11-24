@@ -2,6 +2,7 @@ use htmd::options::{LinkStyle, Options};
 
 use crate::common::convert_faithful_options;
 
+mod escaping;
 mod escaping_faithful;
 mod styles_and_images;
 mod styles_and_images_faithful;

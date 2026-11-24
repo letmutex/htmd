@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::{borrow::Cow, cell::RefCell};
 
 use crate::{
     element_handler::{
@@ -164,7 +164,13 @@ impl ElementHandler for AnchorElementHandler {
                 ..element.context
             },
         );
-        let content = encode_line_endings(&content);
+        // A code span or code block does not decode character references, so
+        // leave line endings unencoded in a literal context.
+        let content = if element.context.literal {
+            Cow::Borrowed(content.as_str())
+        } else {
+            encode_line_endings(&content)
+        };
         let link_md = match handlers.options().link_style {
             LinkStyle::Inlined | LinkStyle::InlinedPreferAutolinks => {
                 self.build_inlined_anchor(&content, &link, title.as_deref())
