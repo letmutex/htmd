@@ -8,6 +8,12 @@ use crate::util::{
     text::{TrimDocumentWhitespace, concat_strings, frame_as_block},
 };
 
+/// A column whose every cell is empty measures zero, but a delimiter cell
+/// holding no `-` stops the row being a delimiter row, so every column is at
+/// least one wide. Padding the cells to the same floor keeps the delimiter row
+/// aligned with the rows around it.
+const MIN_COLUMN_WIDTH: usize = 1;
+
 /// Handler for table elements.
 ///
 /// Converts HTML tables to Markdown tables using the pipe syntax:
@@ -64,7 +70,11 @@ pub(crate) fn table_handler(handlers: &dyn Handlers, element: &Element) -> Optio
 
     table_md.push_str(&captions);
 
-    let col_widths = compute_column_widths(&headers, &rows, num_columns);
+    let col_widths = if handlers.options().pad_table_cells {
+        compute_column_widths(&headers, &rows, num_columns)
+    } else {
+        vec![MIN_COLUMN_WIDTH; num_columns]
+    };
 
     table_md.push_str(&format_row_padded(&headers, num_columns, &col_widths));
     table_md.push_str(&format_separator_padded(num_columns, &col_widths));
@@ -410,11 +420,7 @@ fn compute_column_widths(
     rows: &[Vec<String>],
     num_columns: usize,
 ) -> Vec<usize> {
-    // A column whose every cell is empty measures zero, but a delimiter cell
-    // holding no `-` stops the row being a delimiter row, so every column is at
-    // least one wide. Padding the cells to the same floor keeps the delimiter
-    // row aligned with the rows around it.
-    let mut widths = vec![1; num_columns];
+    let mut widths = vec![MIN_COLUMN_WIDTH; num_columns];
     for (i, header) in headers.iter().enumerate() {
         widths[i] = widths[i].max(header.chars().count());
     }

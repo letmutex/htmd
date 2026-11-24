@@ -19,6 +19,9 @@ pub struct Options {
     pub ol_number_spacing: u8,
     /// If true, the whitespace in inline `<code>` tags will be preserved.
     pub preformatted_code: bool,
+    /// If true, table cells are padded to the width of their column, so the
+    /// columns line up in the Markdown source.
+    pub pad_table_cells: bool,
     pub translation_mode: TranslationMode,
 }
 
@@ -36,6 +39,7 @@ impl Default for Options {
             ul_bullet_spacing: 3,
             ol_number_spacing: 2,
             preformatted_code: false,
+            pad_table_cells: true,
             translation_mode: TranslationMode::Pure,
         }
     }
