@@ -142,6 +142,7 @@ fn run_cases() {
                 ol_number_spacing,
                 preformatted_code,
                 pad_table_cells: true,
+                bare_pre_as_code_block: false,
                 translation_mode,
             })
             .build();

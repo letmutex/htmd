@@ -22,6 +22,12 @@ pub struct Options {
     /// If true, table cells are padded to the width of their column, so the
     /// columns line up in the Markdown source.
     pub pad_table_cells: bool,
+    /// If true, bare `<pre>` elements in a block context (not wrapping a
+    /// `<code>` code block or nested inside `<pre>`/`<code>`) are converted to
+    /// code blocks.
+    ///
+    /// When in `TranslationMode::Faithful`, this is ignored.
+    pub bare_pre_as_code_block: bool,
     pub translation_mode: TranslationMode,
 }
 
@@ -40,6 +46,7 @@ impl Default for Options {
             ol_number_spacing: 2,
             preformatted_code: false,
             pad_table_cells: true,
+            bare_pre_as_code_block: false,
             translation_mode: TranslationMode::Pure,
         }
     }
