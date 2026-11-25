@@ -141,6 +141,7 @@ fn run_cases() {
                 ul_bullet_spacing,
                 ol_number_spacing,
                 preformatted_code,
+                pad_table_cells: true,
                 translation_mode,
             })
             .build();

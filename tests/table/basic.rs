@@ -1,3 +1,4 @@
+use htmd::{HtmlToMarkdown, options::Options};
 use indoc::indoc;
 use pretty_assertions::assert_eq;
 
@@ -82,4 +83,38 @@ fn test_table_with_thead_td_headers() {
     let markdown = htmd::HtmlToMarkdown::new().convert(html).unwrap();
     let result = markdown.trim();
     assert_eq!(expected, result);
+}
+
+#[test]
+fn table_cells_are_not_padded_when_padding_is_off() {
+    let converter = HtmlToMarkdown::builder()
+        .options(Options {
+            pad_table_cells: false,
+            ..Default::default()
+        })
+        .build();
+    let markdown = converter
+        .convert(
+            r#"
+            <table>
+                <tr><th>Name</th><th>Note</th></tr>
+                <tr><td>A much longer cell</td><td></td></tr>
+                <tr><td>B</td><td>x | y</td></tr>
+            </table>
+            "#,
+        )
+        .unwrap();
+
+    assert_eq!(
+        indoc!(
+            r#"
+            | Name | Note |
+            | - | - |
+            | A much longer cell |   |
+            | B | x \| y |
+            "#
+        )
+        .trim(),
+        markdown
+    );
 }
