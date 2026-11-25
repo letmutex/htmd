@@ -2,7 +2,6 @@ mod anchor;
 mod blockquote;
 mod br;
 mod caption;
-mod code;
 mod element;
 pub(crate) mod element_util;
 mod emphasis;
@@ -14,7 +13,7 @@ mod img;
 mod li;
 mod list;
 mod p;
-mod pre;
+mod pre_code;
 mod span;
 mod table;
 mod table_section;
@@ -33,7 +32,6 @@ use anchor::AnchorElementHandler;
 use blockquote::blockquote_handler;
 use br::br_handler;
 use caption::caption_handler;
-use code::code_handler;
 pub use element::{Context, ContextKind, Element};
 use emphasis::emphasis_handler;
 use head_body::head_body_handler;
@@ -45,7 +43,7 @@ use img::img_handler;
 use li::list_item_handler;
 use list::list_handler;
 use p::p_handler;
-use pre::pre_handler;
+use pre_code::pre_code_handler;
 use span::span_handler;
 use std::collections::HashMap;
 use table::table_handler;
@@ -364,8 +362,8 @@ impl ElementHandlers {
         // quote
         handlers.add_handler(vec!["blockquote"], blockquote_handler);
 
-        // code
-        handlers.add_handler(vec!["code"], code_handler);
+        // pre, code
+        handlers.add_handler(vec!["pre", "code"], pre_code_handler);
 
         // strong
         handlers.add_handler(vec!["strong", "b"], bold_handler);
@@ -399,9 +397,6 @@ impl ElementHandlers {
 
         // p
         handlers.add_handler(vec!["p"], p_handler);
-
-        // pre
-        handlers.add_handler(vec!["pre"], pre_handler);
 
         // head, body
         handlers.add_handler(vec!["head", "body"], head_body_handler);
